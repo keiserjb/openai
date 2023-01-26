@@ -110,7 +110,7 @@ class ImageGenerationConfigForm extends ConfigFormBase {
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
     $config = $this->configFactory->get('openai_api.settings');
-    $config_link = Link::createFromRoute('OpenAi settings form', 'openai_api.api_settings');
+    $config_link = Link::createFromRoute('OpenAI settings form', 'openai_api.api_settings');
 
     if (
       !$config->getRawData()

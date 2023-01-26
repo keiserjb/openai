@@ -2,7 +2,7 @@
 
 namespace Drupal\openai_api\Commands;
 
-use Drupal\openai_api\Controller\OpenAiApiController;
+use Drupal\openai_api\Controller\OpenAIApiController;
 use Drush\Commands\DrushCommands;
 use Symfony\Component\Console\Output\ConsoleOutput;
 
@@ -150,7 +150,7 @@ class BatchArticleGenerationCommands extends DrushCommands {
           ->ask('Your subject for the article type ' . ($i + 1) . ' ?', 'The story of Henry');
       }
       else {
-        $openAiController = new OpenAiApiController(\Drupal::service('openai_api.openai.service'), \Drupal::service('config.factory'));
+        $openAiController = new OpenAIApiController(\Drupal::service('openai_api.openai.service'), \Drupal::service('config.factory'));
         $subjects = $openAiController->getSubjectsVocabularyTerms();
         if ($subjects) {
           $articles[$i]['subject'] = $this->io()

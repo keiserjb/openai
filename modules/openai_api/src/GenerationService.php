@@ -2,7 +2,7 @@
 
 namespace Drupal\openai_api;
 
-use Drupal\openai_api\Controller\OpenAiApiController;
+use Drupal\openai_api\Controller\OpenAIApiController;
 
 /**
  * Defines functionality related to openai content generation.
@@ -21,7 +21,7 @@ class GenerationService {
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
   public static function generate_article(array $data, $operation_details, &$context): void {
-    $openAiController = new OpenAiApiController(\Drupal::service('openai_api.openai.service'), \Drupal::service('config.factory'));
+    $openAiController = new OpenAIApiController(\Drupal::service('openai_api.openai.service'), \Drupal::service('config.factory'));
     $context['results'][] = $data['nbr_article_generated'];
     $context['message'] = t('Generating article @subject n°@iteration.',
       [
@@ -47,7 +47,7 @@ class GenerationService {
   public function generate_image($data): ?string {
     $img = NULL;
     if ($data['image_prompt'] !== "") {
-      $openAiController = new OpenAiApiController(\Drupal::service('openai_api.openai.service'), \Drupal::service('config.factory'));
+      $openAiController = new OpenAIApiController(\Drupal::service('openai_api.openai.service'), \Drupal::service('config.factory'));
       $img = $openAiController->getImageUrlResponseBodyData($data['image_prompt'], $data['image_resolution']);
     }
 
@@ -85,7 +85,7 @@ class GenerationService {
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
   public static function generate_media(array $data, $operation_details, &$context): void {
-    $openAiController = new OpenAiApiController(\Drupal::service('openai_api.openai.service'), \Drupal::service('config.factory'));
+    $openAiController = new OpenAIApiController(\Drupal::service('openai_api.openai.service'), \Drupal::service('config.factory'));
     $context['results'][] = $data['nbr_media_generated'];
     $context['message'] = t('Generating @image_prompt n°@iteration.',
       [

@@ -3,7 +3,7 @@
 ## INTRODUCTION
 
 The Drupal OpenAI module makes it possible to interact with the
-[OpenAi API](https://openai.com/) to generate coherent content.
+[OpenAI API](https://openai.com/) to generate coherent content.
 
 ## REQUIREMENTS
 
@@ -21,11 +21,11 @@ You need the default **Article** content type in order to generate content.
 
 ## CONFIGURATION
 
-The OpenAi API module settings is located at
+The OpenAI API module settings is located at
 `admin/config/system/api/openai/settings`, and can be accessed from a tab
 under the Web services settings page.
 
-After saving Token and Url and adding some taxonomy term in OpenAi subject
+After saving Token and Url and adding some taxonomy term in OpenAI subject
 vocabulary, you can begin to generate articles with the form located at
 `admin/config/system/article-generation`.
 

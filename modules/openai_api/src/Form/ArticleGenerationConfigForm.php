@@ -8,7 +8,7 @@ use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Link;
 use Drupal\openai_api\Commands\BatchArticleGenerationCommands;
-use Drupal\openai_api\Controller\OpenAiApiController;
+use Drupal\openai_api\Controller\OpenAIApiController;
 use Drupal\openai_api\OpenAIService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -107,8 +107,8 @@ class ArticleGenerationConfigForm extends ConfigFormBase {
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
     $config = $this->configFactory->get('openai_api.settings');
-    $config_link = Link::createFromRoute('OpenAi settings form', 'openai_api.api_settings');
-    $openAiController = new OpenAiApiController(\Drupal::service('openai_api.openai.service'), \Drupal::service('config.factory'));
+    $config_link = Link::createFromRoute('OpenAI settings form', 'openai_api.api_settings');
+    $openAiController = new OpenAIApiController(\Drupal::service('openai_api.openai.service'), \Drupal::service('config.factory'));
     $subjects = $openAiController->getSubjectsVocabularyTerms();
 
     if (

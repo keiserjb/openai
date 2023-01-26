@@ -16,7 +16,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 /**
  * Returns responses for openai api routes.
  */
-class OpenAiApiController extends ControllerBase {
+class OpenAIApiController extends ControllerBase {
 
   const MODELS_OPTIONS = [
     'text-davinci-003',
@@ -58,10 +58,10 @@ class OpenAiApiController extends ControllerBase {
    * @param \Symfony\Component\DependencyInjection\ContainerInterface $container
    *   The ContainerInterface object.
    *
-   * @return \Drupal\openai_api\Controller\OpenAiApiController
+   * @return \Drupal\openai_api\Controller\OpenAIApiController
    *   The OpenAIApiController object.
    */
-  public static function create(ContainerInterface $container): OpenAiApiController {
+  public static function create(ContainerInterface $container): OpenAIApiController {
     return new static(
       $container->get('openai_api.openai.service'),
       $container->get('openai_api.settings')

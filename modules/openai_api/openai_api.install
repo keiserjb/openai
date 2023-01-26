@@ -20,7 +20,7 @@ function openai_api_install(): void {
     Vocabulary::create([
       'vid' => $vocabulary_name,
       'description' => 'Subjects for openAi article generation.',
-      'name' => 'OpenAi subjects',
+      'name' => 'OpenAI subjects',
     ])->save();
   }
 }
