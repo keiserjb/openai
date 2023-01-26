@@ -1,0 +1,19 @@
+{
+    "name": "drupal/openai",
+    "description": "A set of modules to enable OpenAI integration with Drupal.",
+    "type": "drupal-module",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Kevin Quillen",
+            "homepage": "https://kevinquillen.com",
+            "role": "Maintainer"
+        },
+        {
+            "name": "Julien Alombert",
+            "email": "alombertjulien@gmail.com",
+            "role": "Maintainer"
+        }
+    ],
+    "require": {}
+}

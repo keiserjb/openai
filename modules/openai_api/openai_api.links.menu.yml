@@ -1,0 +1,20 @@
+openai_api.api_settings:
+  title: OpenAi api settings
+  description: Manage openai api settings
+  parent: system.admin_config_services
+  route_name: openai_api.api_settings
+  weight: 10
+
+openai_api.article_generation_config:
+  title: Article generation
+  description: Form to generate article
+  parent: system.admin_content
+  route_name: openai_api.article_generation_config
+  weight: 10
+
+openai_api.image_generation_config:
+  title: Image generation
+  description: Form to generate image
+  parent: system.admin_content
+  route_name: openai_api.image_generation_config
+  weight: 10
