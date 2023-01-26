@@ -193,7 +193,7 @@ class OpenAIApiController extends ControllerBase {
     $config = $this->configFactory->get('openai_api.settings');
 
     $article = Node::create(['type' => $config->get('content_type')]);
-    $article->set($config->get('field_title'), $data['subject'] . '-' . $data['model']);
+    $article->set($config->get('field_title'), $data['subject']);
     $article->set($config->get('field_body'), $body);
 
     // Set article img if prompt are provided in form.
