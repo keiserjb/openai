@@ -3,7 +3,7 @@ services:
     parent: logger.channel_base
     arguments: ['openai_api']
   openai_api.openai.service:
-    class: Drupal\openai_api\OpenaiService
+    class: Drupal\openai_api\OpenAIService
     arguments: ['@config.factory']
   openai_api.generation.service:
     class: Drupal\openai_api\GenerationService

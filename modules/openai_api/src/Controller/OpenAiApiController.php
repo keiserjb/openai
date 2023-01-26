@@ -10,7 +10,7 @@ use Drupal\file\Entity\File;
 use Drupal\image\Entity\ImageStyle;
 use Drupal\media\Entity\Media;
 use Drupal\node\Entity\Node;
-use Drupal\openai_api\OpenaiService;
+use Drupal\openai_api\OpenAIService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -35,19 +35,19 @@ class OpenAiApiController extends ControllerBase {
   /**
    * Defining the openAiService object.
    *
-   * @var \Drupal\openai_api\OpenaiService
+   * @var \Drupal\openai_api\OpenAIService
    */
-  protected OpenaiService $openAiService;
+  protected OpenAIService $openAiService;
 
   /**
    * Defining a constructor for dependencies.
    *
-   * @param \Drupal\openai_api\OpenaiService $openaiService
+   * @param \Drupal\openai_api\OpenAIService $openaiService
    *   The openAIService object.
    * @param \Drupal\Core\Config\ConfigFactory $config_factory The config
    *   factory.
    */
-  public function __construct(OpenaiService $openaiService, ConfigFactory $config_factory) {
+  public function __construct(OpenAIService $openaiService, ConfigFactory $config_factory) {
     $this->openAiService = $openaiService;
     $this->configFactory = $config_factory;
   }

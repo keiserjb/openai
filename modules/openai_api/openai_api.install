@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Install hooks for the Openai_api module.
+ * Install hooks for the OpenAI_api module.
  */
 
 use Drupal\taxonomy\Entity\Vocabulary;

@@ -9,7 +9,7 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Link;
 use Drupal\openai_api\Commands\BatchArticleGenerationCommands;
 use Drupal\openai_api\Controller\OpenAiApiController;
-use Drupal\openai_api\OpenaiService;
+use Drupal\openai_api\OpenAIService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -43,11 +43,11 @@ class ArticleGenerationConfigForm extends ConfigFormBase {
   protected EntityTypeManager $entityTypeManager;
 
   /**
-   * The OpenaiService object.
+   * The OpenAIService object.
    *
-   * @var \Drupal\openai_api\OpenaiService
+   * @var \Drupal\openai_api\OpenAIService
    */
-  protected OpenaiService $openaiService;
+  protected OpenAIService $openaiService;
 
   /**
    * Defining the BatchArticleGenerationCommands object.
@@ -63,12 +63,12 @@ class ArticleGenerationConfigForm extends ConfigFormBase {
    *   The factory for configuration objects.
    * @param \Drupal\Core\Entity\EntityTypeManager $entityTypeManager
    *   The entity type manager.
-   * @param \Drupal\openai_api\OpenaiService $openaiService
+   * @param \Drupal\openai_api\OpenAIService $openaiService
    *   The OpenAIService object.
    * @param \Drupal\openai_api\Commands\BatchArticleGenerationCommands $batchArticleGeneration
    *   The BatchArticleGenerationCommands object.
    */
-  public function __construct(ConfigFactoryInterface $config_factory, EntityTypeManager $entityTypeManager, OpenaiService $openaiService, BatchArticleGenerationCommands $batchArticleGeneration) {
+  public function __construct(ConfigFactoryInterface $config_factory, EntityTypeManager $entityTypeManager, OpenAIService $openaiService, BatchArticleGenerationCommands $batchArticleGeneration) {
     parent::__construct($config_factory);
     $this->entityTypeManager = $entityTypeManager;
     $this->openaiService = $openaiService;

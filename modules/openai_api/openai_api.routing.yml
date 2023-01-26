@@ -1,7 +1,7 @@
 openai_api.api_settings:
   path: '/admin/config/system/api/openai/settings'
   defaults:
-    _title: 'Openai api settings'
+    _title: 'OpenAI api settings'
     _form: 'Drupal\openai_api\Form\ApiSettingsForm'
   requirements:
     _permission: 'administer site configuration'

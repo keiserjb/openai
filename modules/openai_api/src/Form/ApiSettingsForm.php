@@ -7,7 +7,7 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\taxonomy\Entity\Vocabulary;
 
 /**
- * Configure Openai api settings for this site.
+ * Configure OpenAI api settings for this site.
  */
 class ApiSettingsForm extends ConfigFormBase {
 
@@ -80,7 +80,7 @@ class ApiSettingsForm extends ConfigFormBase {
     $form['api_settings_container']['api_url'] = [
       '#required' => TRUE,
       '#type' => 'textfield',
-      '#title' => $this->t('Openai url'),
+      '#title' => $this->t('OpenAI url'),
       '#placeholder' => 'https://api.openai.com/v1',
       '#default_value' => 'https://api.openai.com/v1',
       '#description' => $this->t('Should be <b>https://api.openai.com/v1</b>'),
