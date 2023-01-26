@@ -75,7 +75,7 @@ class ApiSettingsForm extends ConfigFormBase {
       '#title' => $this->t('OpenAI token'),
       '#default_value' => $this->config('openai_api.settings')
         ->get('api_token'),
-      '#description' => $this->t('Get your api token authentication on <a href="https://openai.com/">https://openai.com</a>'),
+      '#description' => $this->t('Get your API token authentication on <a href="https://openai.com/">OpenAI</a>'),
     ];
     $form['api_settings_container']['api_url'] = [
       '#required' => TRUE,
