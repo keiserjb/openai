@@ -12,7 +12,7 @@ use Psr\Http\Message\ResponseInterface;
 /**
  * Defines functionality related to openai API.
  */
-class OpenaiService {
+class OpenAIService {
 
   /**
    * Drupal\profiler\Config\ConfigFactoryWrapper definition.
@@ -43,7 +43,7 @@ class OpenaiService {
   protected ?string $apiUri;
 
   /**
-   * Constructs a new OpenaiService object.
+   * Constructs a new OpenAIService object.
    *
    * @param \Drupal\Core\Config\ConfigFactory $config_factory The config
    *   factory.
