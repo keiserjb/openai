@@ -1,0 +1,5 @@
+openai.api_settings:
+  title: OpenAI settings
+  description: Manage OpenAI settings.
+  parent: system.admin_config_services
+  route_name: openai.api_settings

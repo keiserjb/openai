@@ -7,9 +7,8 @@ The Drupal OpenAI module makes it possible to interact with the
 
 ## REQUIREMENTS
 
-This module is tested on Drupal 9.4 and above.
-
-You need the default **Article** content type in order to generate content.
+- Drupal 10 or higher
+- PHP 8.1 or higher
 
 ## INSTALLATION
 
@@ -17,7 +16,7 @@ You need the default **Article** content type in order to generate content.
 ### MANUAL INSTALLATION
 
 1. Download the Drupal module with composer on the module page on [https://www.drupal.org/project/openai_api](https://www.drupal.org/project/openai_api).
-2. Install with drush or in the Back office `admin/modules`.
+2. Install with drush or in the Drupal admin.
 
 ## CONFIGURATION
 

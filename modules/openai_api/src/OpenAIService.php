@@ -51,7 +51,7 @@ class OpenAIService {
   public function __construct(ConfigFactory $config_factory) {
     $this->configFactory = $config_factory;
     $config = $this->configFactory->get('openai_api.settings');
-    $apiUrl = $config->get('api_url');
+    $apiUrl = $config->get('api_url') ?? 'https://api.openai.com/v1';
     $apiToken = $config->get('api_token');
 
     if (!empty($apiUrl) && !empty($apiToken)) {

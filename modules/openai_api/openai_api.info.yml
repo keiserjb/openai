@@ -1,6 +1,6 @@
 name: OpenAI API
 type: module
-description: Enables usage of the OpenAI API.
+description: Enables usage of the OpenAI API. This is a test module that will change over time and just demonstrates some features.
 package: OpenAI
 core_version_requirement: ^9 || ^10
 dependencies:
