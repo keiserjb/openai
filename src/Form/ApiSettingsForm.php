@@ -14,7 +14,7 @@ class ApiSettingsForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function getFormId() {
-    return 'openai_api_api_settings';
+    return 'openai_api_settings';
   }
 
   /**
