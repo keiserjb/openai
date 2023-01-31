@@ -14,14 +14,14 @@ class ApiSettingsForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function getFormId() {
-    return 'openai_api_settings';
+    return 'openai_settings';
   }
 
   /**
    * {@inheritdoc}
    */
   protected function getEditableConfigNames() {
-    return ['openai_api.settings'];
+    return ['openai.settings'];
   }
 
   /**
@@ -32,14 +32,14 @@ class ApiSettingsForm extends ConfigFormBase {
       '#required' => TRUE,
       '#type' => 'textfield',
       '#title' => $this->t('API Key'),
-      '#default_value' => $this->config('openai_api.settings')->get('api_key'),
+      '#default_value' => $this->config('openai.settings')->get('api_key'),
       '#description' => $this->t('The API key is required to interface with OpenAI services. Get your API key by signing up on the <a href="@link" target="_blank">OpenAI website</a>.', ['@link' => 'https://openai.com/api']),
     ];
 
     $form['api_org'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Organization name/ID'),
-      '#default_value' => $this->config('openai_api.settings')->get('api_org'),
+      '#default_value' => $this->config('openai.settings')->get('api_org'),
       '#description' => $this->t('The organization name or ID on your OpenAI account. This is required for some OpenAI services to work correctly.'),
     ];
 
@@ -50,7 +50,7 @@ class ApiSettingsForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
-    $this->config('openai_api.settings')
+    $this->config('openai.settings')
       ->set('api_key', $form_state->getValue('api_key'))
       ->set('api_org', $form_state->getValue('api_org'))
       ->save();

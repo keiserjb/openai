@@ -24,7 +24,7 @@ class ClientFactory {
    *   The config factory service.
    */
   public function __construct(ConfigFactoryInterface $config_factory) {
-    $this->config = $config_factory->get('openai_api.settings');
+    $this->config = $config_factory->get('openai.settings');
   }
 
   /**
