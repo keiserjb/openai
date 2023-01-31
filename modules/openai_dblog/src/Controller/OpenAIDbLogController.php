@@ -35,6 +35,7 @@ class OpenAIDbLogController extends DbLogController {
     $severity = trim(strip_tags($rows[6][1]->render()));
     $config = $this->config('openai_dblog.settings');
     $levels = $config->get('levels');
+    $model = $config->get('model');
 
     if (!array_key_exists($severity, $levels)) {
       return $build;
@@ -47,8 +48,8 @@ class OpenAIDbLogController extends DbLogController {
 
       $response = $this->client->completions()->create(
         [
-          'model' => 'text-davinci-003',
-          'prompt' => 'What does this error mean? The error is: ' . $message . ' How can I fix this? Explain like I am 5.',
+          'model' => $model,
+          'prompt' => 'What does this error mean? The error is: ' . $message . ' How can I fix this?',
           'temperature' => 0.4,
           'max_tokens' => 256,
         ],
@@ -57,7 +58,7 @@ class OpenAIDbLogController extends DbLogController {
       $result = $response->toArray();
     }
     catch (\Exception $e) {
-      // @todo Catch and log error
+      $this->getLogger('openai_dblog')->error('Error when trying to obtain a completion from OpenAI.');
     }
 
     if (!empty($result)) {
