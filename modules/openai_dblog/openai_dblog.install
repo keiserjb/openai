@@ -10,7 +10,7 @@
  */
 function openai_dblog_schema() {
   $schema['openai_dblog'] = [
-    'description' => 'Stores module data as key/value pairs per user.',
+    'description' => 'Stores OpenAI responses returned for log messages.',
     'fields' => [
       'id' => [
         'type' => 'serial',
