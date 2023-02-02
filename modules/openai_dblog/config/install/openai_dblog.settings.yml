@@ -3,8 +3,4 @@ levels:
   Alert: Alert
   Critical: Critical
   Error: Error
-  Warning: '0'
-  Notice: '0'
-  Info: '0'
-  Debug: '0'
 model: text-davinci-003

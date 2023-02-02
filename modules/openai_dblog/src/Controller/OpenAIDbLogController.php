@@ -36,7 +36,7 @@ class OpenAIDbLogController extends DbLogController {
     $rows = $build['dblog_table']['#rows'];
     $severity = trim(strip_tags($rows[6][1]->render()));
     $config = $this->config('openai_dblog.settings');
-    $levels = $config->get('levels');
+    $levels = array_filter($config->get('levels'));
     $model = $config->get('model');
 
     if (!array_key_exists($severity, $levels)) {
