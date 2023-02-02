@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Drupal\openai_dblog\Controller;
 
 use Drupal\dblog\Controller\DbLogController;
@@ -41,35 +43,51 @@ class OpenAIDbLogController extends DbLogController {
       return $build;
     }
 
-    $result = [];
+    $header = $this->t('Explanation (powered by <a href="@link">OpenAI</a>)', ['@link' => 'https://openai.com']);
+    $message = trim(strip_tags($rows[5][1]->render()));
+    $hash = $this->generateHash($message);
+    $exists = $this->hashSearch($hash);
 
-    try {
-      $message = trim(strip_tags($rows[5][1]->render()));
-
-      $response = $this->client->completions()->create(
-        [
-          'model' => $model,
-          'prompt' => 'What does this error mean? The error is: ' . $message . ' How can I fix this?',
-          'temperature' => 0.4,
-          'max_tokens' => 256,
-        ],
-      );
-
-      $result = $response->toArray();
-    }
-    catch (\Exception $e) {
-      $this->getLogger('openai_dblog')->error('Error when trying to obtain a completion from OpenAI.');
-    }
-
-    if (!empty($result)) {
+    if ($exists) {
       $rows[] = [
         [
-          'data' => $this->t('Explanation (powered by <a href="@link">OpenAI</a>)', ['@link' => 'https://openai.com']),
+          'data' => $header,
           'header' => TRUE,
         ],
         [
           'data' => [
-            '#markup' => $result["choices"][0]["text"] ?? 'No possible explanations were found, or the API service is not responding.',
+            '#markup' => $exists["explanation"],
+          ],
+        ],
+      ];
+    }
+    else {
+      try {
+        $response = $this->client->completions()->create(
+          [
+            'model' => $model,
+            'prompt' => 'What does this error mean? The error is: ' . $message . ' How can I fix this?',
+            'temperature' => 0.4,
+            'max_tokens' => 256,
+          ],
+        );
+
+        $result = $response->toArray();
+        $explanation = strip_tags(trim($result["choices"][0]["text"]));
+        $this->insertExplanation($hash, $message, $explanation);
+      }
+      catch (\Exception $e) {
+        $this->getLogger('openai_dblog')->error('Error when trying to obtain a response from OpenAI.');
+      }
+
+      $rows[] = [
+        [
+          'data' => $header,
+          'header' => TRUE,
+        ],
+        [
+          'data' => [
+            '#markup' => $explanation ?? 'No possible explanations were found, or the API service is not responding.',
           ],
         ],
       ];
@@ -77,6 +95,52 @@ class OpenAIDbLogController extends DbLogController {
 
     $build['dblog_table']['#rows'] = $rows;
     return $build;
+  }
+
+  /**
+   * Generate a hash value from the error string.
+   *
+   * @param string $message
+   *   The error string.
+   *
+   * @return string
+   *   The hash value.
+   */
+  protected function generateHash(string $message): string {
+    return hash('sha256', $message);
+  }
+
+  /**
+   * Lookup a hash value for an existing response from OpenAI.
+   *
+   * @param string $hash
+   *   The hashed error string.
+   *
+   * @return bool|array
+   *   The database result, or FALSE if no result was found.
+   */
+  protected function hashSearch(string $hash): bool|array {
+    return $this->database->query('SELECT explanation FROM {openai_dblog} WHERE hash = :hash LIMIT 1', [':hash' => $hash])->fetchAssoc();
+  }
+
+  /**
+   * Inserts a record of the OpenAI explanation.
+   *
+   * @param string $hash
+   *   The hashed error string.
+   * @param string $message
+   *   The original error message.
+   * @param string $explanation
+   *   The explanation returned from OpenAI.
+   */
+  protected function insertExplanation(string $hash, string $message, string $explanation): void {
+    $this->database->insert('openai_dblog')
+      ->fields([
+        'hash' => $hash,
+        'message' => $message,
+        'explanation' => strip_tags(trim($explanation)),
+      ])
+      ->execute();
   }
 
 }
