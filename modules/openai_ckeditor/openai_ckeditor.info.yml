@@ -1,0 +1,8 @@
+name: CKEditor integration
+type: module
+description: TBD
+package: OpenAI
+core_version_requirement: ^10
+dependencies:
+  - drupal:ckeditor5
+  - openai:openai
