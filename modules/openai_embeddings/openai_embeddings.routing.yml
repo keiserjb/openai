@@ -1,0 +1,7 @@
+openai_embeddings.settings:
+  path: '/admin/config/openai/openai-embeddings/settings'
+  defaults:
+    _title: 'Embeddings settings'
+    _form: 'Drupal\openai_embeddings\Form\SettingsForm'
+  requirements:
+    _permission: 'administer site configuration'

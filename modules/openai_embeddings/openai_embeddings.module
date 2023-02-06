@@ -1,0 +1,40 @@
+<?php
+
+/**
+ * @file
+ * Contains hook implementations for this module.
+ */
+
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\ContentEntityBase;
+
+/**
+ * Implements hook_entity_insert().
+ */
+function openai_embeddings_entity_insert(EntityInterface $entity) {
+  _insert_queue_item($entity);
+}
+
+/**
+ * Implements hook_entity_update().
+ */
+function openai_embeddings_entity_update(EntityInterface $entity) {
+  _insert_queue_item($entity);
+}
+
+/**
+ * Inserts a content entity into the job queue.
+ *
+ * @param $entity
+ *   The content entity.
+ */
+function _insert_queue_item($entity) {
+  if ($entity->getEntityTypeId() != 'user' && $entity instanceof ContentEntityBase) {
+    $queue = \Drupal::service('queue')->get('embedding_queue');
+    $item = [];
+    $item['entity_id'] = $entity->id();
+    $item['entity_type'] = $entity->getEntityTypeId();
+    $item['bundle'] = $entity->bundle();
+    $queue->createItem($item);
+  }
+}
