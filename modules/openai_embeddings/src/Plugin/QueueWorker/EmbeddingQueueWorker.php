@@ -100,6 +100,10 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
         $field_values = $entity->get($field->getName())->getValue();
 
         foreach ($field_values as $delta => $data) {
+          if (!mb_strlen($data['value'])) {
+            continue;
+          }
+
           try {
             $response = $this->client->embeddings()->create([
               'model' => 'text-embedding-ada-002',
