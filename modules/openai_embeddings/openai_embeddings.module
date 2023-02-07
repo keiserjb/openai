@@ -6,7 +6,6 @@
  */
 
 use Drupal\Core\Entity\EntityInterface;
-use Drupal\Core\Entity\ContentEntityBase;
 
 /**
  * Implements hook_entity_insert().
@@ -29,12 +28,17 @@ function openai_embeddings_entity_update(EntityInterface $entity) {
  *   The content entity.
  */
 function _insert_queue_item($entity) {
-  if ($entity->getEntityTypeId() != 'user' && $entity instanceof ContentEntityBase) {
-    $queue = \Drupal::service('queue')->get('embedding_queue');
-    $item = [];
-    $item['entity_id'] = $entity->id();
-    $item['entity_type'] = $entity->getEntityTypeId();
-    $item['bundle'] = $entity->bundle();
-    $queue->createItem($item);
+  $config = \Drupal::config('openai_embeddings.settings');
+  $entity_types = $config->get('entity_types');
+
+  if (!empty($entity_types) && array_key_exists($entity->getEntityTypeId(), $entity_types)) {
+    if (in_array($entity->bundle(), $entity_types[$entity->getEntityTypeId()])) {
+      $queue = \Drupal::service('queue')->get('embedding_queue');
+      $item = [];
+      $item['entity_id'] = $entity->id();
+      $item['entity_type'] = $entity->getEntityTypeId();
+      $item['bundle'] = $entity->bundle();
+      $queue->createItem($item);
+    }
   }
 }
