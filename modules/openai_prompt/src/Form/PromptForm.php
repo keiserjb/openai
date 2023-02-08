@@ -88,6 +88,7 @@ class PromptForm extends FormBase {
         ],
       '#prefix' => '<div id="openai-prompt-response">',
       '#suffix' => '</div>',
+      '#description' => $this->t('The response from OpenAI will appear in the textbox above.')
     ];
 
     $form['actions'] = [
@@ -109,9 +110,7 @@ class PromptForm extends FormBase {
   /**
    * {@inheritdoc}
    */
-  public function validateForm(array &$form, FormStateInterface $form_state) {
-
-  }
+  public function validateForm(array &$form, FormStateInterface $form_state) {}
 
   /**
    * {@inheritdoc}
