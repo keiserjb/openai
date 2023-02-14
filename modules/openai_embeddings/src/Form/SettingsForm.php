@@ -39,7 +39,10 @@ class SettingsForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   protected function getEditableConfigNames() {
-    return ['openai_embeddings.settings'];
+    return [
+      'openai_embeddings.settings',
+      'openai_embeddings.pinecone_client'
+    ];
   }
 
   /**
@@ -100,6 +103,33 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/guides/embeddings/embedding-models']),
     ];
 
+    $form['connections'] = [
+      '#type' => 'fieldset',
+      '#tree' => TRUE,
+      '#title' => $this->t('Configure API clients for vector search database services'),
+      '#description' => $this->t('Searching vector/embedding data is only available one of these services.... TBD'),
+    ];
+
+    $form['connections']['pinecone'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Pinecone'),
+      '#description' => $this->t('Configure Pinecone settings (need links + description)'),
+    ];
+
+    $form['connections']['pinecone']['api_key'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('API Key'),
+      '#default_value' => $this->config('openai_embeddings.pinecone_client')->get('api_key'),
+      '#description' => $this->t('The API key is required to make calls to Pinecone for vector searching.'),
+    ];
+
+    $form['connections']['pinecone']['hostname'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Hostname'),
+      '#default_value' => $this->config('openai_embeddings.pinecone_client')->get('hostname'),
+      '#description' => $this->t('The hostname or base URI where your Pinecone instance is located.'),
+    ];
+
     return parent::buildForm($form, $form_state);
   }
 
@@ -123,6 +153,14 @@ class SettingsForm extends ConfigFormBase {
       ->set('entity_types', $entity_types)
       ->set('model', $form_state->getValue('model'))
       ->save();
+
+    $pinecone = $form_state->getValue('connections')['pinecone'];
+
+    $this->config('openai_embeddings.pinecone_client')
+      ->set('api_key', $pinecone['api_key'])
+      ->set('hostname', $pinecone['hostname'])
+      ->save();
+
     parent::submitForm($form, $form_state);
   }
 

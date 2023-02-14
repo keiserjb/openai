@@ -5,3 +5,10 @@ openai_embeddings.settings:
     _form: 'Drupal\openai_embeddings\Form\SettingsForm'
   requirements:
     _permission: 'administer site configuration'
+openai_embeddings.search:
+  path: '/admin/config/openai/openai-embeddings/settings/test-search'
+  defaults:
+    _title: 'Search test'
+    _form: 'Drupal\openai_embeddings\Form\SearchForm'
+  requirements:
+    _permission: 'administer site configuration'

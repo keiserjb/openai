@@ -4,9 +4,11 @@ namespace Drupal\openai_embeddings\Plugin\QueueWorker;
 
 use Drupal\Core\Annotation\QueueWorker;
 use Drupal\Core\Database\Connection;
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\QueueWorkerBase;
+use Drupal\openai_embeddings\Http\PineconeClient;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use OpenAI\Client;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -52,6 +54,13 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
   protected $client;
 
   /**
+   * The Pinecone client.
+   *
+   * @var \Drupal\openai_embeddings\Http\PineconeClient
+   */
+  protected $pinecone;
+
+  /**
    * The logger factory service.
    *
    * @var \Drupal\Core\Logger\LoggerChannelFactoryInterface
@@ -61,12 +70,13 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
   /**
    * {@inheritdoc}
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, Connection $connection, Client $client, LoggerChannelFactoryInterface $logger_channel_factory) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, Connection $connection, Client $client, PineconeClient $pinecone_client, LoggerChannelFactoryInterface $logger_channel_factory) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
     $this->entityTypeManager = $entity_type_manager;
     $this->entityFieldManager = $entity_field_manager;
     $this->database = $connection;
     $this->client = $client;
+    $this->pinecone = $pinecone_client;
     $this->logger = $logger_channel_factory->get('openai_embeddings');
   }
 
@@ -82,6 +92,7 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
       $container->get('entity_field.manager'),
       $container->get('database'),
       $container->get('openai.client'),
+      $container->get('openai_embeddings.pinecone_client'),
       $container->get('logger.factory'),
     );
   }
@@ -104,13 +115,29 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
             continue;
           }
 
+          // @todo The entity should be inserted as one string and not several entries
+
           try {
             $response = $this->client->embeddings()->create([
               'model' => 'text-embedding-ada-002',
-              'input' => $data['value'],
+              'input' => strip_tags(trim($data['value'])),
             ]);
 
             $embeddings = $response->toArray();
+
+            $vectors = [
+              'id' => $this->generateUniqueId($entity, $field->getName(), $delta),
+              'values' => $embeddings["data"][0]["embedding"],
+              'metadata' => [
+                'entity_id' => $entity->id(),
+                'entity_type' => $entity->getEntityTypeId(),
+                'bundle' => $entity->bundle(),
+                'field_name' => $field->getName(),
+                'field_delta' => $delta,
+              ]
+            ];
+
+            $this->pinecone->upsert($vectors);
 
             $this->database->merge('openai_embeddings')
               ->keys(
@@ -145,6 +172,23 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
         }
       }
     }
+  }
+
+  /**
+   * Generates a unique id for the record in Pinecone.
+   *
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   The entity being upserted.
+   * @param string $field_name
+   *   The field name of the vector value we are storing.
+   * @param int $delta
+   *   The delta on the field where this value appeared.
+   *
+   * @return string
+   *   The identifier of this record.
+   */
+  protected function generateUniqueId(EntityInterface $entity, string $field_name, int $delta): string {
+    return 'entity:' . $entity->id() . ':' . $entity->getEntityTypeId() . ':' . $entity->bundle() . ':' . $field_name . ':' . $delta;
   }
 
   /**

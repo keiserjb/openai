@@ -1,0 +1,15 @@
+openai_embeddings.settings: # (1) Non-default tab
+  title: 'Settings'
+  route_name: openai_embeddings.settings
+  base_route: openai_embeddings.settings
+
+openai_embeddings.settings_overview: # (2) Default subtab, same route as the parent tab, so different tab ID.
+  title: Settings
+  route_name: openai_embeddings.settings
+  parent_id: openai_embeddings.settings
+
+openai_embeddings.search: # (2) Default subtab, same route as the parent tab, so different tab ID.
+  title: Search test
+  route_name: openai_embeddings.search
+  parent_id: openai_embeddings.settings
+  weight: 1

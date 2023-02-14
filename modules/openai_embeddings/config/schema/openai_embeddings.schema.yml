@@ -11,12 +11,17 @@ openai_embeddings.settings:
         sequence:
           type: sequence
           label: 'Bundle'
-    node_types:
-      type: mapping
-      label: 'Enabled Node types'
-      sequence:
-        type: string
-        label: 'Node type'
     model:
       type: string
       label: 'OpenAI model to use'
+
+openai_embeddings.pinecone_client:
+  type: config_object
+  label: 'Pinecone client settings'
+  mapping:
+    api_key:
+      type: string
+      label: 'The Pinecone API key.'
+    hostname:
+      type: string
+      label: 'The hostname or base URI of the API.'
