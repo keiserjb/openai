@@ -125,6 +125,8 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
 
             $embeddings = $response->toArray();
 
+            $namespace = $entity->getEntityTypeId() . ':' . $field->getName();
+
             $vectors = [
               'id' => $this->generateUniqueId($entity, $field->getName(), $delta),
               'values' => $embeddings["data"][0]["embedding"],
@@ -137,7 +139,7 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
               ]
             ];
 
-            $this->pinecone->upsert($vectors);
+            $this->pinecone->upsert($vectors, $namespace);
 
             $this->database->merge('openai_embeddings')
               ->keys(

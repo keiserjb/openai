@@ -85,12 +85,13 @@ class PineconeClient {
    * @return \Psr\Http\Message\ResponseInterface
    *   The API response.
    */
-  public function upsert(array $vectors) {
+  public function upsert(array $vectors, string $namespace = '') {
     return $this->client->post(
       '/vectors/upsert',
       [
         'json' => [
           'vectors' => $vectors,
+          'namespace' => $namespace,
         ]
       ]
     );
