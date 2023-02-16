@@ -4,4 +4,4 @@ description: Uses OpenAI to generate content. This is a test module that will ch
 package: OpenAI
 core_version_requirement: ^10
 dependencies:
-  - drupal:openai
+  - openai:openai
