@@ -109,7 +109,7 @@ function openai_content_node_title_check(array &$form, FormStateInterface $form_
 
       $entity = \Drupal::entityTypeManager()->getStorage($match->metadata->entity_type)->load($match->metadata->entity_id);
 
-      if ($form_entity instanceof NodeInterface and $form_entity->id() == $entity->id()) {
+      if ($form_entity instanceof NodeInterface && $form_entity->id() == $entity->id()) {
         continue;
       }
 
