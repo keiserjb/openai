@@ -67,7 +67,7 @@ function openai_content_node_title_check(array &$form, FormStateInterface $form_
     $pinecone = \Drupal::service('openai_embeddings.pinecone_client');
     $embedding = [];
 
-    if ($form_entity instanceof NodeInterface and $form_entity->id()) {
+    if ($form_entity instanceof NodeInterface && $form_entity->id()) {
       $query_result = \Drupal::database()->query('SELECT entity_id, embedding FROM {openai_embeddings} WHERE entity_id = :entity_id AND field_name = :field_name LIMIT 1',
         [
           ':entity_id' => $form_entity->id(),
