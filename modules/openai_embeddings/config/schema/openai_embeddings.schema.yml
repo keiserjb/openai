@@ -11,6 +11,12 @@ openai_embeddings.settings:
         sequence:
           type: sequence
           label: 'Bundle'
+    stopwords:
+      type: sequence
+      label: 'A list of words to not include in the text embedding.'
+      sequence:
+        type: sequence
+        label: 'Stopword'
     model:
       type: string
       label: 'OpenAI model to use'

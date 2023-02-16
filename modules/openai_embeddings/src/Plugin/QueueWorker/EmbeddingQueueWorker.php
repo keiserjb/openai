@@ -2,7 +2,9 @@
 
 namespace Drupal\openai_embeddings\Plugin\QueueWorker;
 
+use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Annotation\QueueWorker;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
@@ -47,6 +49,13 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
   protected $database;
 
   /**
+   * The configuration object.
+   *
+   * @var \Drupal\Core\Config\ImmutableConfig
+   */
+  protected $config;
+
+  /**
    * The OpenAI client.
    *
    * @var \OpenAI\Client
@@ -70,11 +79,12 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
   /**
    * {@inheritdoc}
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, Connection $connection, Client $client, PineconeClient $pinecone_client, LoggerChannelFactoryInterface $logger_channel_factory) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, Connection $connection, ConfigFactoryInterface $config_factory, Client $client, PineconeClient $pinecone_client, LoggerChannelFactoryInterface $logger_channel_factory) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
     $this->entityTypeManager = $entity_type_manager;
     $this->entityFieldManager = $entity_field_manager;
     $this->database = $connection;
+    $this->config = $config_factory->get('openai_embeddings.settings');
     $this->client = $client;
     $this->pinecone = $pinecone_client;
     $this->logger = $logger_channel_factory->get('openai_embeddings');
@@ -91,6 +101,7 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
       $container->get('entity_type.manager'),
       $container->get('entity_field.manager'),
       $container->get('database'),
+      $container->get('config.factory'),
       $container->get('openai.client'),
       $container->get('openai_embeddings.pinecone_client'),
       $container->get('logger.factory'),
@@ -105,6 +116,8 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
     $entity = $this->entityTypeManager->getStorage($data['entity_type'])->load($data['entity_id']);
     $fields = $this->entityFieldManager->getFieldDefinitions($data['entity_type'], $data['bundle']);
     $field_types = $this->getFieldTypes();
+    $stopwords = $this->config->get('stopwords');
+    $model = $this->config->get('model');
 
     foreach ($fields as $field) {
       if (in_array($field->getType(), $field_types)) {
@@ -115,12 +128,23 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
             continue;
           }
 
+          $text = strip_tags(trim($data['value']));
+
+          if ($field->getName() == 'title') {
+            foreach ($stopwords as $word) {
+              $text = $this->removeStopWord($word, $text);
+            }
+          }
+
+          $text = $this->removeSpacing($text);
+          $text = Unicode::truncate($text, 8000, TRUE);
+
           // @todo The entity should be inserted as one string and not several entries
 
           try {
             $response = $this->client->embeddings()->create([
-              'model' => 'text-embedding-ada-002',
-              'input' => strip_tags(trim($data['value'])),
+              'model' => $model,
+              'input' => $text,
             ]);
 
             $embeddings = $response->toArray();
@@ -161,13 +185,14 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
           }
           catch (\Exception $e) {
             $this->logger->error(
-              'An exception occurred while trying to generate embeddings for a :entity_type with the ID of :entity_id on the :field_name field, with a delta of :field_delta. The bundle of this entity is :bundle.',
+              'An exception occurred while trying to generate embeddings for a :entity_type with the ID of :entity_id on the :field_name field, with a delta of :field_delta. The bundle of this entity is :bundle. The error was :error',
               [
                 ':entity_type' => $entity->getEntityTypeId(),
                 ':entity_id' => $entity->id(),
                 ':field_name' => $field->getName(),
                 ':field_delta' => $delta,
                 ':bundle' => $entity->bundle(),
+                ':error' => $e->getMessage(),
               ]
             );
           }
@@ -206,6 +231,14 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
       'text_long',
       'text_with_summary'
     ];
+  }
+
+  protected function removeStopWord(string $word, string $text): string {
+    return preg_replace("/\b$word\b/i", '', trim($text));
+  }
+
+  protected function removeSpacing(string $text): string {
+    return preg_replace("/  +/", ' ', trim($text));
   }
 
 }
