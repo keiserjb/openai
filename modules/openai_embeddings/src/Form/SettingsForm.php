@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\openai_embeddings\Form;
 
+use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Entity\ContentEntityType;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
@@ -61,6 +62,11 @@ class SettingsForm extends ConfigFormBase {
   public function buildForm(array $form, FormStateInterface $form_state) {
     $entity_types = $this->getSupportedEntityTypes();
     $saved_types = $this->config('openai_embeddings.settings')->get('entity_types');
+    $stopwords = $this->config('openai_embeddings.settings')->get('stopwords');
+
+    if (!empty($stopwords)) {
+      $stopwords = implode(', ', $stopwords);
+    }
 
     $form['entities'] = [
       '#type' => 'fieldset',
@@ -92,6 +98,13 @@ class SettingsForm extends ConfigFormBase {
         '#default_value' => (!empty($saved_types) && !empty($saved_types[$entity_type])) ? $saved_types[$entity_type] : [],
       ];
     }
+
+    $form['stopwords'] = [
+      '#type' => 'textarea',
+      '#title' => $this->t('Stopwords'),
+      '#default_value' => $stopwords,
+      '#description' => $this->t('Enter a comma delimited list of words to exclude from generating embedding values for.'),
+    ];
 
     $form['model'] = [
       '#type' => 'select',
@@ -149,8 +162,12 @@ class SettingsForm extends ConfigFormBase {
       }
     }
 
+    $stopwords = explode(', ', mb_strtolower($form_state->getValue('stopwords')));
+    sort($stopwords);
+
     $this->config('openai_embeddings.settings')
       ->set('entity_types', $entity_types)
+      ->set('stopwords', $stopwords)
       ->set('model', $form_state->getValue('model'))
       ->save();
 

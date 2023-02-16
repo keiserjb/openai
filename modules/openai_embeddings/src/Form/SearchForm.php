@@ -69,6 +69,13 @@ class SearchForm extends FormBase {
       '#maxlength' => 8000,
     ];
 
+    $form['namespace'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Namespace'),
+      '#description' => $this->t('Enter the namespace to search through. You can find the namespaces on the Stats tab.'),
+      '#maxlength' => 64,
+    ];
+
     $form['filter_by'] = [
       '#type' => 'select',
       '#title' => $this->t('Filter by'),
@@ -130,6 +137,7 @@ class SearchForm extends FormBase {
     $query = $form_state->getValue('search_input');
     $filter_by = $form_state->getValue('filter_by');
     $score_threshold = $form_state->getValue('score_threshold');
+    $namespace = $form_state->getValue('namespace');
 
     $response = $this->client->embeddings()->create([
       'model' => 'text-embedding-ada-002',
@@ -145,7 +153,8 @@ class SearchForm extends FormBase {
       FALSE,
       [
         'entity_type' => $filter_by
-      ]
+      ],
+      $namespace,
     );
 
     $result = json_decode($pinecone_query->getBody()->getContents());

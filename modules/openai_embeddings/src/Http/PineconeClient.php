@@ -149,14 +149,21 @@ class PineconeClient {
    * @return \Psr\Http\Message\ResponseInterface
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
-  public function deleteAll() {
+  public function deleteAll(string $namespace = '') {
     return $this->client->post(
       '/vectors/delete',
       [
         'json' => [
           'deleteAll' => true,
+          'namespace' => $namespace
         ]
       ]
+    );
+  }
+
+  public function stats() {
+    return $this->client->post(
+      '/describe_index_stats',
     );
   }
 

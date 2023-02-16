@@ -22,6 +22,18 @@ function openai_embeddings_entity_update(EntityInterface $entity) {
 }
 
 /**
+ * Implements hook_entity_update().
+ */
+function openai_embeddings_entity_delete(EntityInterface $entity) {
+  // @todo Send a delete() to Pinecone here as well.
+
+  \Drupal::database()->delete('openai_embeddings')
+    ->condition('entity_id', $entity->id())
+    ->condition('entity_type', $entity->getEntityTypeId())
+    ->execute();
+}
+
+/**
  * Inserts a content entity into the job queue.
  *
  * @param $entity
