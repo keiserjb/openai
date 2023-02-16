@@ -2,7 +2,7 @@
 
 namespace Drupal\openai_api\Commands;
 
-use Drupal\openai_api\Controller\OpenAIApiController;
+use Drupal\openai_api\Controller\GenerationController;
 use Drush\Commands\DrushCommands;
 use Symfony\Component\Console\Output\ConsoleOutput;
 
@@ -17,7 +17,7 @@ use Symfony\Component\Console\Output\ConsoleOutput;
  *   - http://cgit.drupalcode.org/devel/tree/src/Commands/DevelCommands.php
  *   - http://cgit.drupalcode.org/devel/tree/drush.services.yml
  */
-class BatchArticleGenerationCommands extends DrushCommands {
+class ContentGenerationCommand extends DrushCommands {
 
   const IMAGE_RESOLUTION = [
     '256x256' => '256x256',
@@ -45,12 +45,12 @@ class BatchArticleGenerationCommands extends DrushCommands {
   }
 
   /**
-   * Generate article.
+   * Generate content.
    *
-   * @command openai:generate-article
+   * @command openai:generate-content
    * @aliases oga
    *
-   * @usage generate:article
+   * @usage generate:content
    *
    */
   public function generateArticleDrushCommand() {
@@ -98,6 +98,9 @@ class BatchArticleGenerationCommands extends DrushCommands {
           'nbr_article_generated' => $batchId,
           'subject' => $datas[$i]['subject'],
           'model' => $datas[$i]['model'],
+          'content_type' => $datas[$i]['content_type'],
+          'title' => $datas[$i]['title'],
+          'body' => $datas[$i]['body'],
           'max_token' => $datas[$i]['max_token'],
           'temperature' => $datas[$i]['temperature'],
           'image_prompt' => $datas[$i]['image_prompt'],
@@ -150,7 +153,7 @@ class BatchArticleGenerationCommands extends DrushCommands {
           ->ask('Your subject for the article type ' . ($i + 1) . ' ?', 'The story of Henry');
       }
       else {
-        $openAiController = new OpenAIApiController(\Drupal::service('openai_api.openai.service'), \Drupal::service('config.factory'));
+        $openAiController = new GenerationController(\Drupal::service('openai.client'), \Drupal::service('config.factory'));
         $subjects = $openAiController->getSubjectsVocabularyTerms();
         if ($subjects) {
           $articles[$i]['subject'] = $this->io()

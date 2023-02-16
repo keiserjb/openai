@@ -5,18 +5,18 @@ namespace Drupal\openai_api\Controller;
 use Drupal\Core\Config\ConfigFactory;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Entity\EntityTypeManager;
+use OpenAI\Client;
 use Drupal\Core\File\FileSystemInterface;
 use Drupal\file\Entity\File;
 use Drupal\image\Entity\ImageStyle;
 use Drupal\media\Entity\Media;
 use Drupal\node\Entity\Node;
-use Drupal\openai_api\OpenAIService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Returns responses for openai api routes.
  */
-class OpenAIApiController extends ControllerBase {
+class GenerationController extends ControllerBase {
 
   const MODELS_OPTIONS = [
     'text-davinci-003',
@@ -33,22 +33,22 @@ class OpenAIApiController extends ControllerBase {
   protected $configFactory;
 
   /**
-   * Defining the openAiService object.
+   * The OpenAI client.
    *
-   * @var \Drupal\openai_api\OpenAIService
+   * @var \OpenAI\Client
    */
-  protected OpenAIService $openAiService;
+  protected Client $client;
 
   /**
    * Defining a constructor for dependencies.
    *
-   * @param \Drupal\openai_api\OpenAIService $openaiService
-   *   The openAIService object.
+   * @param \OpenAI\Client
+   *   The OpenAI client.
    * @param \Drupal\Core\Config\ConfigFactory $config_factory The config
    *   factory.
    */
-  public function __construct(OpenAIService $openaiService, ConfigFactory $config_factory) {
-    $this->openAiService = $openaiService;
+  public function __construct(Client $client, ConfigFactory $config_factory) {
+    $this->client = $client;
     $this->configFactory = $config_factory;
   }
 
@@ -58,12 +58,12 @@ class OpenAIApiController extends ControllerBase {
    * @param \Symfony\Component\DependencyInjection\ContainerInterface $container
    *   The ContainerInterface object.
    *
-   * @return \Drupal\openai_api\Controller\OpenAIApiController
-   *   The OpenAIApiController object.
+   * @return \Drupal\openai_api\Controller\GenerationController
+   *   The GenerationController object.
    */
-  public static function create(ContainerInterface $container): OpenAIApiController {
+  public static function create(ContainerInterface $container): GenerationController {
     return new static(
-      $container->get('openai_api.openai.service'),
+      $container->get('openai.client'),
       $container->get('openai_api.settings')
     );
   }
@@ -85,22 +85,15 @@ class OpenAIApiController extends ControllerBase {
     $max_token,
     $temperature
   ): string {
-    $textCall = $this->openAiService->getText(
-      $model,
-      $text,
-      $max_token,
-      $temperature
-    );
+    $response = $this->client->completions()->create([
+      'model' => $model,
+      'prompt' => trim($text),
+      'temperature' => (int) $temperature,
+      'max_tokens' => (int) $max_token,
+    ]);
 
-    if ($textCall->getStatusCode() === 200) {
-      $completion = $this->openAiService->getResponseBody($textCall);
-      $return = $completion['choices'][0]['text'];
-    }
-    else {
-      $return = '';
-    }
-
-    return $return;
+    $result = $response->toArray();
+    return trim($result["choices"][0]["text"]) ?? '';
   }
 
   /**
@@ -116,13 +109,13 @@ class OpenAIApiController extends ControllerBase {
     $prompt,
     $size,
   ): string {
-    $imgCall = $this->openAiService->getImageUrl(
+    $imgCall = $this->client->getImageUrl(
       $prompt,
       $size,
     );
 
     if ($imgCall->getStatusCode() === 200) {
-      $imgUrl = $this->openAiService->getResponseBody($imgCall);
+      $imgUrl = $this->client->getResponseBody($imgCall);
       $return = $imgUrl['data'][0]['url'];
     }
     else {
@@ -141,10 +134,10 @@ class OpenAIApiController extends ControllerBase {
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
   public function getModelsResponseBodyData(): array {
-    $modelsCall = $this->openAiService->getModels();
+    $modelsCall = $this->client->getModels();
 
     if ($modelsCall->getStatusCode() === 200) {
-      $models = $this->openAiService->getResponseBody($modelsCall);
+      $models = $this->client->getResponseBody($modelsCall);
       $return = $models['data'];
     }
     else {
@@ -189,12 +182,12 @@ class OpenAIApiController extends ControllerBase {
    *
    * @throws \Drupal\Core\Entity\EntityStorageException
    */
-  public function generateArticle(array $data, string $body, ?string $img = NULL): int {
+  public function generateArticle(array $data, string $body, string $content_type, string $title_field, string $body_field, ?string $img = NULL): int {
     $config = $this->configFactory->get('openai_api.settings');
 
-    $article = Node::create(['type' => $config->get('content_type')]);
-    $article->set($config->get('field_title'), $data['subject']);
-    $article->set($config->get('field_body'), $body);
+    $article = Node::create(['type' => $content_type]);
+    $article->set($title_field, $data['subject']);
+    $article->set($body_field, $body);
 
     // Set article img if prompt are provided in form.
     if ($img !== NULL) {

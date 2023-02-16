@@ -3,19 +3,20 @@
 namespace Drupal\openai_api\Form;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManager;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Link;
-use Drupal\openai_api\Commands\BatchArticleGenerationCommands;
-use Drupal\openai_api\Controller\OpenAIApiController;
-use Drupal\openai_api\OpenAIService;
+use Drupal\openai_api\Commands\ContentGenerationCommand;
+use Drupal\openai_api\Controller\GenerationController;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use OpenAI\Client;
 
 /**
- * Configure openai api settings for this site.
+ * Content generator.
  */
-class ArticleGenerationConfigForm extends ConfigFormBase {
+class ContentGenerationConfigForm extends ConfigFormBase {
 
   const IMAGE_RESOLUTION = [
     '256x256' => '256x256',
@@ -43,18 +44,25 @@ class ArticleGenerationConfigForm extends ConfigFormBase {
   protected EntityTypeManager $entityTypeManager;
 
   /**
-   * The OpenAIService object.
+   * The entity field manager service.
    *
-   * @var \Drupal\openai_api\OpenAIService
+   * @var \Drupal\Core\Entity\EntityFieldManagerInterface
    */
-  protected OpenAIService $openaiService;
+  protected EntityFieldManagerInterface $entityFieldManager;
+
+  /**
+   * The OpenAI client.
+   *
+   * @var \OpenAI\Client
+   */
+  protected Client $client;
 
   /**
    * Defining the BatchArticleGenerationCommands object.
    *
-   * @var \Drupal\openai_api\Commands\BatchArticleGenerationCommands
+   * @var \Drupal\openai_api\Commands\ContentGenerationCommand
    */
-  protected BatchArticleGenerationCommands $batchArticleGeneration;
+  protected ContentGenerationCommand $contentGenerationCommand;
 
   /**
    * Constructs the class for dependencies.
@@ -63,27 +71,29 @@ class ArticleGenerationConfigForm extends ConfigFormBase {
    *   The factory for configuration objects.
    * @param \Drupal\Core\Entity\EntityTypeManager $entityTypeManager
    *   The entity type manager.
-   * @param \Drupal\openai_api\OpenAIService $openaiService
-   *   The OpenAIService object.
-   * @param \Drupal\openai_api\Commands\BatchArticleGenerationCommands $batchArticleGeneration
+   * @param \OpenAI\Client $client
+   *   The client object.
+   * @param \Drupal\openai_api\Commands\ContentGenerationCommand $command
    *   The BatchArticleGenerationCommands object.
    */
-  public function __construct(ConfigFactoryInterface $config_factory, EntityTypeManager $entityTypeManager, OpenAIService $openaiService, BatchArticleGenerationCommands $batchArticleGeneration) {
+  public function __construct(ConfigFactoryInterface $config_factory, EntityTypeManager $entityTypeManager, EntityFieldManagerInterface $entity_field_manager, Client $client, ContentGenerationCommand $command) {
     parent::__construct($config_factory);
     $this->entityTypeManager = $entityTypeManager;
-    $this->openaiService = $openaiService;
-    $this->batchArticleGeneration = $batchArticleGeneration;
+    $this->entityFieldManager = $entity_field_manager;
+    $this->client = $client;
+    $this->contentGenerationCommand = $command;
   }
 
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container): ArticleGenerationConfigForm|ConfigFormBase|static {
+  public static function create(ContainerInterface $container): ContentGenerationConfigForm|ConfigFormBase|static {
     return new static(
       $container->get('config.factory'),
       $container->get('entity_type.manager'),
-      $container->get('openai_api.openai.service'),
-      $container->get('openai_api.article_generation.commands')
+      $container->get('entity_field.manager'),
+      $container->get('openai.client'),
+      $container->get('openai_api.content_generation.commands')
     );
   }
 
@@ -91,7 +101,7 @@ class ArticleGenerationConfigForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function getFormId() {
-    return 'openai_api_article_generation_config';
+    return 'openai_api_content_generation_config';
   }
 
   /**
@@ -106,22 +116,31 @@ class ArticleGenerationConfigForm extends ConfigFormBase {
    *
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
-    $config = $this->configFactory->get('openai_api.settings');
-    $config_link = Link::createFromRoute('OpenAI settings form', 'openai_api.api_settings');
-    $openAiController = new OpenAIApiController(\Drupal::service('openai_api.openai.service'), \Drupal::service('config.factory'));
+    $config = $this->configFactory->get('openai.settings');
+    $config_link = Link::createFromRoute('OpenAI settings form', 'openai.api_settings');
+    $openAiController = new GenerationController(\Drupal::service('openai.client'), \Drupal::service('config.factory'));
     $subjects = $openAiController->getSubjectsVocabularyTerms();
+    $content_types = $this->entityTypeManager->getStorage('node_type')->loadMultiple();
+    $field_options = [];
+    $options = [];
 
-    if (
-      !$config->getRawData()
-      || !$config->getRawData()['api_token']
-      || !$config->getRawData()['api_url']
-      || !$config->getRawData()['field_title']
-      || !$config->getRawData()['field_body']
-      || !$config->getRawData()['field_image']
-    ) {
+    foreach ($content_types as $machine_name => $type) {
+      $options[$machine_name] = $type->label();
+
+      foreach ($this->entityFieldManager->getFieldDefinitions('node', $machine_name) as $field_name => $field_definition) {
+        if (!empty($field_definition->getTargetBundle()) && (str_contains($field_definition->getType(), 'string') || str_contains($field_definition->getType(), 'text'))) {
+          $field_options[$type->label()][$field_name] = $field_definition->getLabel();
+        }
+      }
+
+      // Title property needs to be appended.
+      $field_options[$type->label()]['title'] = $this->t('Title');
+    }
+
+    if (!$config->get('api_key')) {
       $form['no_config'] = [
         '#type' => 'markup',
-        '#markup' => 'Please fill openai api settings in ' . $config_link->toString()
+        '#markup' => 'API key missing, please enter your OpenAI API key first to continue at ' . $config_link->toString()
             ->getGeneratedLink(),
       ];
     }
@@ -136,7 +155,7 @@ class ArticleGenerationConfigForm extends ConfigFormBase {
       for ($i = 1; $i <= $this->number; $i++) {
         $form['article_generate_container']['container_for_article_fields_'.$i] = [
           '#type' => 'vertical_tabs',
-          '#title' => 'Fields group for subject '.$i,
+          '#title' => 'Field group for subject #'.$i,
           '#prefix' => '<div id="subject-fields-group-'.$i.'">',
           '#suffix' => '</div>',
         ];
@@ -195,11 +214,38 @@ class ArticleGenerationConfigForm extends ConfigFormBase {
           '#weight' => 2,
         ];
 
+        $form['article_generate_container']['container_for_article_fields_'.$i]['options_container_'.$i]['content_type_'.$i] = [
+          '#type' => 'select',
+          '#options' => $options,
+          '#required' => TRUE,
+          '#default_value' => array_key_first($options),
+          '#title' => $this->t('Content type'),
+          '#description' => $this->t('Select the content type to generate.'),
+        ];
+
+        $form['article_generate_container']['container_for_article_fields_'.$i]['options_container_'.$i]['title_field_'.$i] = [
+          '#type' => 'select',
+          '#options' => $field_options,
+          '#required' => TRUE,
+          '#default_value' => array_key_first($field_options),
+          '#title' => $this->t('Title field'),
+          '#description' => $this->t('Select the title field.'),
+        ];
+
+        $form['article_generate_container']['container_for_article_fields_'.$i]['options_container_'.$i]['body_field_'.$i] = [
+          '#type' => 'select',
+          '#options' => $field_options,
+          '#required' => TRUE,
+          '#default_value' => array_key_first($field_options),
+          '#title' => $this->t('Body'),
+          '#description' => $this->t('Select the body field.'),
+        ];
+
         $form['article_generate_container']['container_for_article_fields_'.$i]['options_container_'.$i]['model_'.$i] = [
           '#type' => 'select',
           '#options' => self::MODELS_OPTIONS,
           '#required' => TRUE,
-          '#default_value' => 'text-ada-001',
+          '#default_value' => 'text-davinci-003',
           '#title' => $this->t('Models'),
           '#description' => $this->t('
           A set of models that can understand and generate natural language<br>
@@ -213,34 +259,34 @@ class ArticleGenerationConfigForm extends ConfigFormBase {
 
         $form['article_generate_container']['container_for_article_fields_'.$i]['options_container_'.$i]['max_token_'.$i] = [
           '#type' => 'number',
-          '#min' => 50,
-          '#max' => 2000,
-          '#step' => 50,
+          '#min' => 64,
+          '#max' => 4096,
+          '#step' => 1,
           '#title' => $this->t('Maximum length'),
           '#required' => TRUE,
-          '#default_value' => 100,
+          '#default_value' => 128,
           '#description' => $this->t('The maximum number of tokens to generate in the completion.'),
         ];
 
         $form['article_generate_container']['container_for_article_fields_'.$i]['options_container_'.$i]['temperature_'.$i] = [
           '#type' => 'number',
-          '#min' => 0,
-          '#max' => 0.9,
+          '#min' => 0.1,
+          '#max' => 1,
           '#step' => 0.1,
           '#title' => $this->t('Temperature'),
           '#required' => TRUE,
           '#default_value' => 0,
-          '#description' => $this->t('Higher values means the model will take more risks. Try 0.9 for more creative applications, and 0 for ones with a well-defined answer.'),
+          '#description' => $this->t('Higher values means the model will take more risks. Try 1 for more creative applications, and 0 for ones with a well-defined answer.'),
         ];
 
         $form['article_generate_container']['container_for_article_fields_'.$i]['options_container_'.$i]['number_for_prompt_'.$i] = [
           '#type' => 'number',
           '#min' => 1,
           '#max' => 100,
-          '#title' => $this->t('Number of article(s)'),
+          '#title' => $this->t('Number of node(s)'),
           '#required' => FALSE,
           '#default_value' => 1,
-          '#description' => $this->t('Number of Article(s) for this subject.'),
+          '#description' => $this->t('Number of node(s) to generate with the above options.'),
         ];
 
         $form['article_generate_container']['container_for_article_fields_'.$i]['image_container_'.$i] = [
@@ -328,6 +374,9 @@ class ArticleGenerationConfigForm extends ConfigFormBase {
 
       $articles[$i]['subject'] = $subject;
       $articles[$i]['model'] = $form_state->getValue('model_'.$i+1);
+      $articles[$i]['content_type'] = $form_state->getValue('content_type_'.$i+1);
+      $articles[$i]['title'] = $form_state->getValue('title_field_'.$i+1);
+      $articles[$i]['body'] = $form_state->getValue('body_field_'.$i+1);
       $articles[$i]['max_token'] = $form_state->getValue('max_token_'.$i+1);
       $articles[$i]['temperature'] = $form_state->getValue('temperature_'.$i+1);
       $articles[$i]['image_prompt'] = $form_state->getValue('article_image_prompt_'.$i+1);
@@ -335,7 +384,7 @@ class ArticleGenerationConfigForm extends ConfigFormBase {
       $articles[$i]['number_for_prompt'] = $form_state->getValue('number_for_prompt_'.$i+1);
     }
 
-    $this->batchArticleGeneration->generateArticles($articles);
+    $this->contentGenerationCommand->generateArticles($articles);
   }
 
 }

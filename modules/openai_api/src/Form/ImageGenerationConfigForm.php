@@ -70,7 +70,7 @@ class ImageGenerationConfigForm extends ConfigFormBase {
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container): ArticleGenerationConfigForm|ConfigFormBase|static {
+  public static function create(ContainerInterface $container): ContentGenerationConfigForm|ConfigFormBase|static {
     return new static(
       $container->get('config.factory'),
       $container->get('entity_type.manager'),
@@ -109,14 +109,10 @@ class ImageGenerationConfigForm extends ConfigFormBase {
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
-    $config = $this->configFactory->get('openai_api.settings');
-    $config_link = Link::createFromRoute('OpenAI settings form', 'openai_api.api_settings');
+    $config = $this->configFactory->get('openai.settings');
+    $config_link = Link::createFromRoute('OpenAI settings form', 'openai.api_settings');
 
-    if (
-      !$config->getRawData()
-      || !$config->getRawData()['api_token']
-      || !$config->getRawData()['api_url']
-    ) {
+    if ($config->get('api_key')) {
       $form['image_generate_container']['no_config'] = [
         '#type' => 'markup',
         '#markup' => 'Please fill openai api settings in ' . $config_link->toString()
