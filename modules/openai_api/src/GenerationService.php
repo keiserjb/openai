@@ -10,7 +10,7 @@ use Drupal\openai_api\Controller\GenerationController;
 class GenerationService {
 
   /**
-   * Generates an article.
+   * Generates a node.
    *
    * @param array $data
    *   An array of required data.
@@ -20,11 +20,12 @@ class GenerationService {
    * @throws \Drupal\Core\Entity\EntityStorageException
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
-  public static function generate_article(array $data, $operation_details, &$context): void {
+  public static function generate_content(array $data, $operation_details, &$context): void {
     $openAiController = new GenerationController(\Drupal::service('openai.client'), \Drupal::service('config.factory'));
     $context['results'][] = $data['nbr_article_generated'];
-    $context['message'] = t('Generating article @subject #@iteration.',
+    $context['message'] = t('Generating @type node @subject #@iteration.',
       [
+        '@type' => $data['content_type'],
         '@iteration' => $data['iteration'],
         '@subject' => $data['subject'],
       ]
@@ -35,7 +36,7 @@ class GenerationService {
     // Get generated image image url.
     $img = (new GenerationService)->generate_image($data);
 
-    $openAiController->generateArticle($data, $body, $data['content_type'], $data['title'], $data['body'], $img);
+    $openAiController->generateContent($data, $body, $data['content_type'], $data['title'], $data['body'], $img);
   }
 
   /**
@@ -60,11 +61,11 @@ class GenerationService {
    * @param mixed $success
    *   A flag indicating whether an error had occurred.
    */
-  public static function generate_article_finished($success, $results, $operations): void {
+  public static function generate_content_finished($success, $results, $operations): void {
     // The 'success' parameter means no fatal PHP errors were detected. All
     // other error management should be handled using 'results'.
     if ($success) {
-      $message = (t('@count Article(s) generated.', ['@count' => count($results)]));
+      $message = (t('@count node(s) generated.', ['@count' => count($results)]));
     }
     else {
       $message = t('Finished with an error.');

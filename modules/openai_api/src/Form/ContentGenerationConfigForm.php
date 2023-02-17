@@ -384,7 +384,7 @@ class ContentGenerationConfigForm extends ConfigFormBase {
       $articles[$i]['number_for_prompt'] = $form_state->getValue('number_for_prompt_'.$i+1);
     }
 
-    $this->contentGenerationCommand->generateArticles($articles);
+    $this->contentGenerationCommand->generateContent($articles);
   }
 
 }

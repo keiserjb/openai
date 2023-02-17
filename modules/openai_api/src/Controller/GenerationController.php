@@ -169,40 +169,41 @@ class GenerationController extends ControllerBase {
   }
 
   /**
-   * Generates an article.
+   * Generate a new node.
+   *
    * @param array $data
-   *   The array data of the article.
+   *   The array data of the node.
    * @param string $body
-   *   The body of the article.
+   *   The body of the node.
    * @param null|string $img
-   *   The img url.
+   *   The image url.
    *
    * @return int
-   *   Returns an int indicating whether the article was saved or not.
+   *   Returns an int indicating whether the node was saved or not.
    *
    * @throws \Drupal\Core\Entity\EntityStorageException
    */
-  public function generateArticle(array $data, string $body, string $content_type, string $title_field, string $body_field, ?string $img = NULL): int {
+  public function generateContent(array $data, string $body, string $content_type, string $title_field, string $body_field, ?string $img = NULL): int {
     $config = $this->configFactory->get('openai_api.settings');
 
-    $article = Node::create(['type' => $content_type]);
-    $article->set($title_field, $data['subject']);
-    $article->set($body_field, $body);
+    $node = Node::create(['type' => $content_type]);
+    $node->set($title_field, $data['subject']);
+    $node->set($body_field, $body);
 
     // Set article img if prompt are provided in form.
     if ($img !== NULL) {
       $file = $this->generate_media_image($data, $img);
       if ($file->id()) {
-        $article->set($config->get('field_image'), [
+        $node->set($config->get('field_image'), [
           'target_id' => $file->id(),
           'alt' => 'article-illustration',
           'title' => 'illustration',
         ]);
       }
     }
-    $article->enforceIsNew();
 
-    return $article->save();
+    $node->enforceIsNew();
+    return $node->save();
   }
 
   /**

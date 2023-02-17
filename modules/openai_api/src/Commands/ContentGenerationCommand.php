@@ -53,7 +53,7 @@ class ContentGenerationCommand extends DrushCommands {
    * @usage generate:content
    *
    */
-  public function generateArticleDrushCommand() {
+  public function generateContentDrushCommand() {
 
     $datas = $this->getDrushArguments();
 
@@ -68,13 +68,13 @@ class ContentGenerationCommand extends DrushCommands {
   }
 
   /**
-   * Generate articles with batch operations.
+   * Generate nodes with batch operations.
    *
    * @param array $datas
    *
    * @return void
    */
-  public function generateArticles(array $datas): void {
+  public function generateContent(array $datas): void {
     $this->initOperations($datas);
   }
 
@@ -107,10 +107,10 @@ class ContentGenerationCommand extends DrushCommands {
           'image_resolution' => $datas[$i]['image_resolution'],
         ];
         $operations[] = [
-          '\Drupal\openai_api\GenerationService::generate_article',
+          '\Drupal\openai_api\GenerationService::generate_content',
           [
             $data,
-            t('Generating article @subject', ['@subject' => $datas[$i]['subject']]),
+            t('Generating @type with @subject', ['@type' => $datas[$i]['content_type'], '@subject' => $datas[$i]['subject']]),
           ],
         ];
         $batchId++;
@@ -119,10 +119,10 @@ class ContentGenerationCommand extends DrushCommands {
     }
 
     $batch = [
-      'title' => t('Generating @num article(s)', ['@num' => $numOperations]),
+      'title' => t('Generating @num node(s)', ['@num' => $numOperations]),
       'operations' => $operations,
-      'finished' => '\Drupal\openai_api\GenerationService::generate_article_finished',
-      'progress_message' => t('Generating @current article out of @total.'),
+      'finished' => '\Drupal\openai_api\GenerationService::generate_content_finished',
+      'progress_message' => t('Generating @current node out of @total.'),
     ];
     batch_set($batch);
   }
@@ -137,7 +137,7 @@ class ContentGenerationCommand extends DrushCommands {
 
     // Interactive drush command.
     $nbrArticles = $this->io()
-      ->ask(('How many article types ?'), 1, function ($value) {
+      ->ask(('How many nodes?'), 1, function ($value) {
         if (!is_numeric($value)) {
           throw new \InvalidArgumentException('The value is not a number');
         }
@@ -184,7 +184,7 @@ class ContentGenerationCommand extends DrushCommands {
 
       // Article image prompts.
       $isWantImage = $this->io()
-        ->confirm('Do you want to generate a media for this article ?', FALSE);
+        ->confirm('Do you want to generate a media for this node?', FALSE);
       if ($isWantImage) {
         $articles[$i]['image_prompt'] = $this->io()
           ->ask('Image description ?', "A cat with glasses");
@@ -197,7 +197,7 @@ class ContentGenerationCommand extends DrushCommands {
       }
 
       $articles[$i]['number_for_prompt'] = $this->io()
-        ->ask('How many article(s) for this subject ?', 1, function ($value) {
+        ->ask('How many node(s) for this subject ?', 1, function ($value) {
           if (!is_numeric($value)) {
             throw new \InvalidArgumentException('The value is not a number');
           }
