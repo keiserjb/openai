@@ -121,6 +121,8 @@ class ContentGenerationConfigForm extends ConfigFormBase {
     $openAiController = new GenerationController(\Drupal::service('openai.client'), \Drupal::service('config.factory'));
     $subjects = $openAiController->getSubjectsVocabularyTerms();
     $content_types = $this->entityTypeManager->getStorage('node_type')->loadMultiple();
+    $filter_formats = $this->entityTypeManager->getStorage('filter_format')->loadMultiple();
+    $filter_format_options = [];
     $field_options = [];
     $options = [];
 
@@ -135,6 +137,10 @@ class ContentGenerationConfigForm extends ConfigFormBase {
 
       // Title property needs to be appended.
       $field_options[$type->label()]['title'] = $this->t('Title');
+    }
+
+    foreach ($filter_formats as $machine_name => $format) {
+      $filter_format_options[$machine_name] = $format->label();
     }
 
     if (!$config->get('api_key')) {
@@ -239,6 +245,22 @@ class ContentGenerationConfigForm extends ConfigFormBase {
           '#default_value' => array_key_first($field_options),
           '#title' => $this->t('Body'),
           '#description' => $this->t('Select the body field.'),
+        ];
+
+        $form['article_generate_container']['container_for_article_fields_'.$i]['options_container_'.$i]['filter_format_'.$i] = [
+          '#type' => 'select',
+          '#options' => $filter_format_options,
+          '#required' => TRUE,
+          '#default_value' => array_key_first($filter_format_options),
+          '#title' => $this->t('Filter format'),
+          '#description' => $this->t('Select the filter format to use on the body text.'),
+        ];
+
+        $form['article_generate_container']['container_for_article_fields_'.$i]['options_container_'.$i]['save_as_html_'.$i] = [
+          '#type' => 'checkbox',
+          '#default_value' => FALSE,
+          '#title' => $this->t('Get response in HTML markup'),
+          '#description' => $this->t('Informs OpenAI to return the response in HTML markup. For example, when asking for items in list format or with headings. Warning: depending on what you ask and how you ask it in conjunction with a format like Full HTML could introduce a security risk. Review everything you get back in source mode on the editor.'),
         ];
 
         $form['article_generate_container']['container_for_article_fields_'.$i]['options_container_'.$i]['model_'.$i] = [
@@ -378,6 +400,8 @@ class ContentGenerationConfigForm extends ConfigFormBase {
       $articles[$i]['title'] = $form_state->getValue('title_field_'.$i+1);
       $articles[$i]['body'] = $form_state->getValue('body_field_'.$i+1);
       $articles[$i]['max_token'] = $form_state->getValue('max_token_'.$i+1);
+      $articles[$i]['filter_format'] = $form_state->getValue('filter_format_'.$i+1);
+      $articles[$i]['save_html'] = $form_state->getValue('save_as_html_'.$i+1);
       $articles[$i]['temperature'] = $form_state->getValue('temperature_'.$i+1);
       $articles[$i]['image_prompt'] = $form_state->getValue('article_image_prompt_'.$i+1);
       $articles[$i]['image_resolution'] = $form_state->getValue('article_image_resolution_'.$i+1);

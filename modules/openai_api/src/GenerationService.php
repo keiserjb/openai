@@ -20,7 +20,7 @@ class GenerationService {
    * @throws \Drupal\Core\Entity\EntityStorageException
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
-  public static function generate_content(array $data, $operation_details, &$context): void {
+  public static function generate(array $data, $operation_details, &$context): void {
     $openAiController = new GenerationController(\Drupal::service('openai.client'), \Drupal::service('config.factory'));
     $context['results'][] = $data['nbr_article_generated'];
     $context['message'] = t('Generating @type node @subject #@iteration.',
@@ -31,12 +31,12 @@ class GenerationService {
       ]
     );
 
-    $body = $openAiController->getTextCompletionResponseBodyData($data['model'], $data['subject'], $data['max_token'], $data['temperature']);
+    $body = $openAiController->getTextCompletionResponseBodyData($data['model'], $data['subject'], $data['max_token'], $data['temperature'], $data['save_html']);
 
     // Get generated image image url.
     $img = (new GenerationService)->generate_image($data);
 
-    $openAiController->generateContent($data, $body, $data['content_type'], $data['title'], $data['body'], $img);
+    $openAiController->generateContent($data, $body, $data['content_type'], $data['title'], $data['body'], $data['filter_format'], $data['save_html'], $img);
   }
 
   /**
@@ -61,7 +61,7 @@ class GenerationService {
    * @param mixed $success
    *   A flag indicating whether an error had occurred.
    */
-  public static function generate_content_finished($success, $results, $operations): void {
+  public static function finished($success, $results, $operations): void {
     // The 'success' parameter means no fatal PHP errors were detected. All
     // other error management should be handled using 'results'.
     if ($success) {

@@ -101,13 +101,15 @@ class ContentGenerationCommand extends DrushCommands {
           'content_type' => $datas[$i]['content_type'],
           'title' => $datas[$i]['title'],
           'body' => $datas[$i]['body'],
+          'filter_format' => $datas[$i]['filter_format'],
+          'save_html' => $datas[$i]['save_html'],
           'max_token' => $datas[$i]['max_token'],
           'temperature' => $datas[$i]['temperature'],
           'image_prompt' => $datas[$i]['image_prompt'],
           'image_resolution' => $datas[$i]['image_resolution'],
         ];
         $operations[] = [
-          '\Drupal\openai_api\GenerationService::generate_content',
+          '\Drupal\openai_api\GenerationService::generate',
           [
             $data,
             t('Generating @type with @subject', ['@type' => $datas[$i]['content_type'], '@subject' => $datas[$i]['subject']]),
@@ -121,7 +123,7 @@ class ContentGenerationCommand extends DrushCommands {
     $batch = [
       'title' => t('Generating @num node(s)', ['@num' => $numOperations]),
       'operations' => $operations,
-      'finished' => '\Drupal\openai_api\GenerationService::generate_content_finished',
+      'finished' => '\Drupal\openai_api\GenerationService::finished',
       'progress_message' => t('Generating @current node out of @total.'),
     ];
     batch_set($batch);

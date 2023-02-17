@@ -75,6 +75,8 @@ class GenerationController extends ControllerBase {
    * @param string $text The text for generation.
    * @param int $max_token The maximum number of tokens.
    * @param float $temperature The temperature.
+   * @param bool $save_html
+   *   Whether the results should come back as HTML markup or not.
    *
    * @return string
    * @throws \GuzzleHttp\Exception\GuzzleException
@@ -83,8 +85,13 @@ class GenerationController extends ControllerBase {
     $model,
     $text,
     $max_token,
-    $temperature
+    $temperature,
+    bool $save_html = FALSE
   ): string {
+    if ($save_html) {
+      $text = $text . ' Return the response in HTML markup.';
+    }
+
     $response = $this->client->completions()->create([
       'model' => $model,
       'prompt' => trim($text),
@@ -183,8 +190,18 @@ class GenerationController extends ControllerBase {
    *
    * @throws \Drupal\Core\Entity\EntityStorageException
    */
-  public function generateContent(array $data, string $body, string $content_type, string $title_field, string $body_field, ?string $img = NULL): int {
+  public function generateContent(array $data, string $body, string $content_type, string $title_field, string $body_field, string $filter_format, bool $save_html = FALSE, ?string $img = NULL): int {
     $config = $this->configFactory->get('openai_api.settings');
+
+    // Give this a basic wrapper for CKEditor.
+    if (!$save_html) {
+      $body = '<p>' . $body . '</p>';
+    }
+
+    $body = [
+      'value' => str_replace(array("\r\n","\r","\n","\\r","\\n","\\r\\n"),"",$body),
+      'format' => $filter_format,
+    ];
 
     $node = Node::create(['type' => $content_type]);
     $node->set($title_field, $data['subject']);
