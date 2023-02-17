@@ -292,8 +292,8 @@ class ContentGenerationConfigForm extends ConfigFormBase {
 
         $form['article_generate_container']['container_for_article_fields_'.$i]['options_container_'.$i]['temperature_'.$i] = [
           '#type' => 'number',
-          '#min' => 0.1,
-          '#max' => 1,
+          '#min' => 0,
+          '#max' => 2,
           '#step' => 0.1,
           '#title' => $this->t('Temperature'),
           '#required' => TRUE,
