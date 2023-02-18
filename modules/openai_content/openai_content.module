@@ -9,6 +9,7 @@ use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Ajax\HtmlCommand;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\node\NodeInterface;
+use Drupal\Component\Utility\Unicode;
 
 /**
  * Implements hook_form_alter().
@@ -21,26 +22,73 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
 
     if (!empty($entity_types) && array_key_exists($entity->getEntityTypeId(), $entity_types)) {
       if (in_array($entity->bundle(), $entity_types[$entity->getEntityTypeId()])) {
-        // Add a title similarity checker
-        $form['title']['#weight'] = -10;
-        $form['title']['widget'][0]['#weight'] = -10;
+        $form['openai_title_check'] = [
+          '#type' => 'details',
+          '#title' => t('Check for similar titles'),
+          '#group' => 'advanced',
+        ];
 
-        $form['actions']['title_check'] = [
+        $form['openai_title_check']['response'] = [
+          '#type' => 'markup',
+          '#markup' => t('Having very similar page titles can negatively impact your search engine ranking. You can run a similarity search against your data in Pinecone to see if you have other similar page titles.'),
+          '#prefix' => '<div id="openai-title-check-response">',
+          '#suffix' => '</div>',
+        ];
+
+        $form['openai_title_check']['check'] = [
           '#type' => 'button',
-          '#value' => t('Check for similar titles'),
+          '#value' => t('Run check'),
           '#limit_validation_errors' => [],
           '#ajax' => [
             'callback' => 'openai_content_node_title_check',
             'wrapper' => 'openai-title-check-response',
           ],
-          '#weight' => 5,
         ];
 
-        $form['title']['widget'][]['title_check_response'] = [
+        $form['openai_summarize'] = [
+          '#type' => 'details',
+          '#title' => t('Summarize text'),
+          '#group' => 'advanced',
+        ];
+
+        $form['openai_summarize']['response'] = [
           '#type' => 'markup',
-          '#prefix' => '<div id="openai-title-check-response">',
+          '#markup' => t('Select a longform text field and OpenAI will attempt to summarize it for you.'),
+          '#prefix' => '<div id="openai-summarize-response">',
           '#suffix' => '</div>',
-          '#weight' => -9,
+        ];
+
+        $form['openai_summarize']['do_summarize'] = [
+          '#type' => 'button',
+          '#value' => t('Summarize'),
+          '#limit_validation_errors' => [],
+          '#ajax' => [
+            'callback' => 'openai_content_node_field_summarize',
+            'wrapper' => 'openai-summarize-response',
+          ],
+        ];
+
+        $form['openai_suggest'] = [
+          '#type' => 'details',
+          '#title' => t('Suggest taxonomy'),
+          '#group' => 'advanced',
+        ];
+
+        $form['openai_suggest']['response'] = [
+          '#type' => 'markup',
+          '#markup' => t('OpenAI can attempt to suggest possible classification terms to use as taxonomy.'),
+          '#prefix' => '<div id="openai-suggest-response">',
+          '#suffix' => '</div>',
+        ];
+
+        $form['openai_suggest']['do_suggest'] = [
+          '#type' => 'button',
+          '#value' => t('Suggest taxonomy'),
+          '#limit_validation_errors' => [],
+          '#ajax' => [
+            'callback' => 'openai_content_node_suggest_taxonomy',
+            'wrapper' => 'openai-suggest-response',
+          ],
         ];
       }
     }
@@ -103,7 +151,7 @@ function openai_content_node_title_check(array &$form, FormStateInterface $form_
     $tracked = [];
 
     foreach ($result->matches as $match) {
-      if ($match->score < .80) {
+      if ($match->score < .85) {
         continue;
       }
 
@@ -129,6 +177,78 @@ function openai_content_node_title_check(array &$form, FormStateInterface $form_
 
     $response = new AjaxResponse();
     $response->addCommand(new HtmlCommand('#openai-title-check-response', $output));
+    return $response;
+  }
+}
+
+/**
+ * The AJAX callback for summarizing a field.
+ *
+ * @param array $form
+ *   The node form.
+ * @param \Drupal\Core\Form\FormStateInterface $form_state
+ *   The form state.
+ *
+ * @return \Drupal\Core\Ajax\AjaxResponse
+ *   The HTML response.
+ */
+function openai_content_node_field_summarize(array &$form, FormStateInterface $form_state) {
+  $body = $form_state->getValue('body')[0]['value'];
+
+  if (!empty($body)) {
+    $client = \Drupal::service('openai.client');
+    $body = Unicode::truncate($body, 4000, TRUE);
+
+    $response = $client->completions()->create(
+      [
+        'model' => 'text-davinci-003',
+        'prompt' => 'Create a detailed summary of the following text in 250 characters:\r\n' . strip_tags(trim($body)),
+        'temperature' => 0.7,
+        'max_tokens' => 256,
+      ],
+    );
+
+    $result = $response->toArray();
+    $text = trim($result["choices"][0]["text"]) ?? t('No result could be generated.');
+
+    $response = new AjaxResponse();
+    $response->addCommand(new HtmlCommand('#openai-summarize-response', $text));
+    return $response;
+  }
+}
+
+/**
+ * The AJAX callback for suggesting taxonomy.
+ *
+ * @param array $form
+ *   The node form.
+ * @param \Drupal\Core\Form\FormStateInterface $form_state
+ *   The form state.
+ *
+ * @return \Drupal\Core\Ajax\AjaxResponse
+ *   The HTML response.
+ */
+function openai_content_node_suggest_taxonomy(array &$form, FormStateInterface $form_state) {
+  $body = $form_state->getValue('body')[0]['value'];
+
+  if (!empty($body)) {
+    $client = \Drupal::service('openai.client');
+    $body = Unicode::truncate($body, 4000, TRUE);
+
+    $response = $client->completions()->create(
+      [
+        'model' => 'text-davinci-003',
+        'prompt' => 'Suggest up to five words to classify the following text:\r\n' . strip_tags(trim($body)),
+        'temperature' => 0.7,
+        'max_tokens' => 256,
+      ],
+    );
+
+    $result = $response->toArray();
+    $text = trim($result["choices"][0]["text"]) ?? t('No terms could be generated.');
+
+    $response = new AjaxResponse();
+    $response->addCommand(new HtmlCommand('#openai-suggest-response', $text));
     return $response;
   }
 }
