@@ -56,7 +56,7 @@ export default class Ui extends Plugin {
       // @todo add error handling
 
       editor.model.change( writer => {
-        fetch(drupalSettings.path.baseUrl + '/api/openai-ckeditor/generate-completion', {
+        fetch(drupalSettings.path.baseUrl + 'api/openai-ckeditor/generate-completion', {
           method: 'POST',
           credentials: 'same-origin',
           body: JSON.stringify({'prompt': prompt}),
