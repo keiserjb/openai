@@ -53,7 +53,7 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
 
         $form['openai_summarize']['response'] = [
           '#type' => 'markup',
-          '#markup' => t('Select a longform text field and OpenAI will attempt to summarize it for you.'),
+          '#markup' => t('This will use the node body field and OpenAI will attempt to summarize it for you.'),
           '#prefix' => '<div id="openai-summarize-response">',
           '#suffix' => '</div>',
         ];
@@ -197,14 +197,18 @@ function openai_content_node_field_summarize(array &$form, FormStateInterface $f
 
   if (!empty($body)) {
     $client = \Drupal::service('openai.client');
-    $body = Unicode::truncate($body, 4000, TRUE);
+    // @todo The following can be a Utility class that prepares text for a prompt
+    $body = Unicode::truncate(strip_tags(trim($body)), 3900, TRUE);
+    $body = str_replace(array("\r\n","\r","\n","\\r","\\n","\\r\\n"),"", $body);
+    $body = preg_replace("/  +/", ' ', $body);
+    $body = preg_replace("/[^a-z0-9 ]/i", '', $body);
 
     $response = $client->completions()->create(
       [
         'model' => 'text-davinci-003',
-        'prompt' => 'Create a detailed summary of the following text in 250 characters:\r\n' . strip_tags(trim($body)),
+        'prompt' => 'Create a detailed summary of the following text in less than 130 words:\r\n"' . $body . '"',
         'temperature' => 0.7,
-        'max_tokens' => 256,
+        'max_tokens' => 1024,
       ],
     );
 
@@ -233,19 +237,23 @@ function openai_content_node_suggest_taxonomy(array &$form, FormStateInterface $
 
   if (!empty($body)) {
     $client = \Drupal::service('openai.client');
-    $body = Unicode::truncate($body, 4000, TRUE);
+    // @todo The following can be a Utility class that prepares text for a prompt
+    $body = Unicode::truncate(strip_tags(trim($body)), 3900, TRUE);
+    $body = str_replace(array("\r\n","\r","\n","\\r","\\n","\\r\\n"),"", $body);
+    $body = preg_replace("/  +/", ' ', $body);
+    $body = preg_replace("/[^a-z0-9 ]/i", '', $body);
 
     $response = $client->completions()->create(
       [
         'model' => 'text-davinci-003',
-        'prompt' => 'Suggest up to five words to classify the following text:\r\n' . strip_tags(trim($body)),
-        'temperature' => 0.7,
-        'max_tokens' => 256,
+        'prompt' => 'Suggest five words to classify the following text. The words must be nouns or adjectives:\r\n"' . $body . '"',
+        'temperature' => 0.4,
+        'max_tokens' => 1024,
       ],
     );
 
     $result = $response->toArray();
-    $text = trim($result["choices"][0]["text"]) ?? t('No terms could be generated.');
+    $text = trim($result["choices"][0]["text"]) ?? t('No terms could be generated from the provided input.');
 
     $response = new AjaxResponse();
     $response->addCommand(new HtmlCommand('#openai-suggest-response', $text));
