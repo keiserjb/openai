@@ -7,6 +7,7 @@ use Drupal\Core\Annotation\QueueWorker;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\QueueWorkerBase;
@@ -112,92 +113,104 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
    * {@inheritdoc}
    */
   public function processItem($data) {
-    // @todo Wrap this in a try catch
-    $entity = $this->entityTypeManager->getStorage($data['entity_type'])->load($data['entity_id']);
-    $fields = $this->entityFieldManager->getFieldDefinitions($data['entity_type'], $data['bundle']);
-    $field_types = $this->getFieldTypes();
-    $stopwords = $this->config->get('stopwords');
-    $model = $this->config->get('model');
+    try {
+      $entity = $this->entityTypeManager->getStorage($data['entity_type'])
+        ->load($data['entity_id']);
 
-    foreach ($fields as $field) {
-      if (in_array($field->getType(), $field_types)) {
-        $field_values = $entity->get($field->getName())->getValue();
+      if (!$entity instanceof EntityInterface) {
+        throw new EntityStorageException("Could not load {$data['entity_type']} entity with an ID of {$data['entity_id']}.");
+      }
 
-        foreach ($field_values as $delta => $data) {
-          if (!mb_strlen($data['value'])) {
-            continue;
-          }
+      $fields = $this->entityFieldManager->getFieldDefinitions($data['entity_type'], $data['bundle']);
+      $field_types = $this->getFieldTypes();
+      $stopwords = $this->config->get('stopwords');
+      $model = $this->config->get('model');
 
-          $text = strip_tags(trim($data['value']));
+      foreach ($fields as $field) {
+        if (in_array($field->getType(), $field_types)) {
+          $field_values = $entity->get($field->getName())->getValue();
 
-          if ($field->getName() == 'title') {
-            foreach ($stopwords as $word) {
-              $text = $this->removeStopWord($word, $text);
+          foreach ($field_values as $delta => $data) {
+            if (!mb_strlen($data['value'])) {
+              continue;
             }
-          }
 
-          $text = $this->removeSpacing($text);
-          $text = Unicode::truncate($text, 8000, TRUE);
+            $text = strip_tags(trim($data['value']));
 
-          // @todo The entity should be inserted as one string and not several entries
+            if ($field->getName() == 'title') {
+              foreach ($stopwords as $word) {
+                $text = $this->removeStopWord($word, $text);
+              }
+            }
 
-          try {
-            $response = $this->client->embeddings()->create([
-              'model' => $model,
-              'input' => $text,
-            ]);
+            $text = $this->removeSpacing($text);
+            $text = Unicode::truncate($text, 8000, TRUE);
 
-            $embeddings = $response->toArray();
+            // @todo The entity should be inserted as one string and not several entries
+            try {
+              $response = $this->client->embeddings()->create([
+                'model' => $model,
+                'input' => $text,
+              ]);
 
-            $namespace = $entity->getEntityTypeId() . ':' . $field->getName();
+              $embeddings = $response->toArray();
 
-            $vectors = [
-              'id' => $this->generateUniqueId($entity, $field->getName(), $delta),
-              'values' => $embeddings["data"][0]["embedding"],
-              'metadata' => [
-                'entity_id' => $entity->id(),
-                'entity_type' => $entity->getEntityTypeId(),
-                'bundle' => $entity->bundle(),
-                'field_name' => $field->getName(),
-                'field_delta' => $delta,
-              ]
-            ];
+              $namespace = $entity->getEntityTypeId() . ':' . $field->getName();
 
-            $this->pinecone->upsert($vectors, $namespace);
-
-            $this->database->merge('openai_embeddings')
-              ->keys(
-                [
+              $vectors = [
+                'id' => $this->generateUniqueId($entity, $field->getName(), $delta),
+                'values' => $embeddings["data"][0]["embedding"],
+                'metadata' => [
                   'entity_id' => $entity->id(),
                   'entity_type' => $entity->getEntityTypeId(),
                   'bundle' => $entity->bundle(),
                   'field_name' => $field->getName(),
                   'field_delta' => $delta,
                 ]
-              )
-              ->fields(
+              ];
+
+              $this->pinecone->upsert($vectors, $namespace);
+
+              $this->database->merge('openai_embeddings')
+                ->keys(
+                  [
+                    'entity_id' => $entity->id(),
+                    'entity_type' => $entity->getEntityTypeId(),
+                    'bundle' => $entity->bundle(),
+                    'field_name' => $field->getName(),
+                    'field_delta' => $delta,
+                  ]
+                )
+                ->fields(
+                  [
+                    'embedding' => json_encode(['data' => $embeddings["data"][0]["embedding"]]) ?? [],
+                    'data' => json_encode(['usage' => $embeddings["usage"]]),
+                  ]
+                )
+                ->execute();
+            } catch (\Exception $e) {
+              $this->logger->error(
+                'An exception occurred while trying to generate embeddings for a :entity_type with the ID of :entity_id on the :field_name field, with a delta of :field_delta. The bundle of this entity is :bundle. The error was :error',
                 [
-                  'embedding' => json_encode(['data' => $embeddings["data"][0]["embedding"]]) ?? [],
-                  'data' => json_encode(['usage' => $embeddings["usage"]]),
+                  ':entity_type' => $entity->getEntityTypeId(),
+                  ':entity_id' => $entity->id(),
+                  ':field_name' => $field->getName(),
+                  ':field_delta' => $delta,
+                  ':bundle' => $entity->bundle(),
+                  ':error' => $e->getMessage(),
                 ]
-              )
-              ->execute();
-          }
-          catch (\Exception $e) {
-            $this->logger->error(
-              'An exception occurred while trying to generate embeddings for a :entity_type with the ID of :entity_id on the :field_name field, with a delta of :field_delta. The bundle of this entity is :bundle. The error was :error',
-              [
-                ':entity_type' => $entity->getEntityTypeId(),
-                ':entity_id' => $entity->id(),
-                ':field_name' => $field->getName(),
-                ':field_delta' => $delta,
-                ':bundle' => $entity->bundle(),
-                ':error' => $e->getMessage(),
-              ]
-            );
+              );
+            }
           }
         }
       }
+    } catch (EntityStorageException|\Exception $e) {
+      $this->logger->error('Error processing queue item. Queued entity type was :type and has an ID of :id.',
+        [
+          ':type' => $data['entity_type'],
+          ':id' => $data['entity_id']
+        ]
+      );
     }
   }
 
