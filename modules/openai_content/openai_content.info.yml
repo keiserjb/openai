@@ -4,4 +4,4 @@ description: Adds assistive tools for different areas of the content editing pro
 package: OpenAI
 core_version_requirement: ^10
 dependencies:
-  - openai_embeddings:openai_embeddings
+  - openai:openai_embeddings
