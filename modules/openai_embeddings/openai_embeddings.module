@@ -22,10 +22,36 @@ function openai_embeddings_entity_update(EntityInterface $entity) {
 }
 
 /**
- * Implements hook_entity_update().
+ * Implements hook_entity_delete().
  */
 function openai_embeddings_entity_delete(EntityInterface $entity) {
-  // @todo Send a delete() to Pinecone here as well.
+  /** @var \Drupal\openai_embeddings\Http\PineconeClient $pinecone */
+  $pinecone = \Drupal::service('openai_embeddings.pinecone_client');
+
+  try {
+    $records = \Drupal::database()->query('SELECT entity_id, entity_type, field_name FROM {openai_embeddings} WHERE entity_id = :entity_id AND entity_type = :entity_type',
+      [
+        ':entity_id' => $entity->id(),
+        ':entity_type' => $entity->getEntityTypeId(),
+      ]
+    );
+
+    foreach ($records as $record) {
+      $pinecone->delete(
+        [],
+        FALSE,
+        $record->entity_type . ':' . $record->field_name,
+        [
+          'entity_id' => $entity->id(),
+          'entity_type' => $entity->getEntityTypeId(),
+          'bundle' => $entity->bundle(),
+        ]
+      );
+    }
+  }
+  catch (\Exception $e) {
+    \Drupal::logger('openai_embeddings')->error('Error trying to delete record(s) in Pinecone.');
+  }
 
   \Drupal::database()->delete('openai_embeddings')
     ->condition('entity_id', $entity->id())

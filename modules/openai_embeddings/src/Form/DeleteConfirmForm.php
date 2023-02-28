@@ -73,7 +73,7 @@ class DeleteConfirmForm extends ConfirmFormBase {
     $results = $this->database->query('SELECT entity_type, field_name FROM {openai_embeddings}');
 
     foreach ($results as $result) {
-      $this->client->deleteAll($result->entity_type . ':' . $result->field_name);
+      $this->client->delete([], TRUE, $result->entity_type . ':' . $result->field_name);
     }
 
     $this->messenger()->addStatus($this->t('All items have been deleted in Pinecone.'));

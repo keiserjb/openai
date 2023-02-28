@@ -121,46 +121,53 @@ class PineconeClient {
   }
 
   /**
-   * Delete records in Pinecone by ID.
+   * Delete records in Pinecone.
    *
    * @param array $ids
    *   One or more IDs to delete.
+   * @param bool $deleteAll
+   *   This indicates that all vectors in the index namespace
+   *   should be deleted. Use with caution.
+   * @param string $namespace
+   *   The namespace to delete vectors from, if applicable.
+   * @param array $filter
+   *   If specified, the metadata filter here will be used to select
+   *   the vectors to delete. This is mutually exclusive with
+   *   specifying ids to delete in the ids param or using $deleteAll.
    *
    * @return \Psr\Http\Message\ResponseInterface
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
-  public function delete(array $ids) {
+  public function delete(array $ids = [], bool $deleteAll = FALSE, string $namespace = '', array $filter = []) {
+    $payload = [];
+
+    // If filter is provided, deleteAll can not be true.
+    // If there are no filters, pass what the developer passed.
+    if (empty($filter)) {
+      $payload['deleteAll'] = $deleteAll;
+    }
+
+    $payload['namespace'] = $namespace;
+
+    if (!empty($ids)) {
+      $payload['ids'] = $ids;
+    }
+
+    if (!empty($filter)) {
+      $payload['filter'] = $filter;
+    }
+
     return $this->client->post(
       '/vectors/delete',
       [
-        'json' => [
-          'ids' => $ids,
-        ]
+        'json' => $payload
       ]
     );
   }
 
   /**
-   * Delete all data in the Pinecone collection.
-   *
-   * Same as delete(), but passes the parameter to indicate all items in the
-   * vector database should be deleted.
-   *
-   * @return \Psr\Http\Message\ResponseInterface
-   * @throws \GuzzleHttp\Exception\GuzzleException
+   * Returns statistics about the index's contents.
    */
-  public function deleteAll(string $namespace = '') {
-    return $this->client->post(
-      '/vectors/delete',
-      [
-        'json' => [
-          'deleteAll' => true,
-          'namespace' => $namespace
-        ]
-      ]
-    );
-  }
-
   public function stats() {
     return $this->client->post(
       '/describe_index_stats',
