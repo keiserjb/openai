@@ -213,7 +213,11 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
       );
     }
 
-    sleep(1.2);
+    // sleep for 1 second
+    sleep(1);
+
+    // sleep for an additional 200,000 microseconds (0.2 seconds)
+    usleep(200000);
   }
 
   /**
