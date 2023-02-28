@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\openai_dblog\Controller;
 
+use Drupal\Component\Utility\Unicode;
 use Drupal\dblog\Controller\DbLogController;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -44,7 +45,7 @@ class OpenAIDbLogController extends DbLogController {
     }
 
     $header = $this->t('Explanation (powered by <a href="@link">OpenAI</a>)', ['@link' => 'https://openai.com']);
-    $message = trim(strip_tags($rows[5][1]->render()));
+    $message = Unicode::truncate(trim(strip_tags($rows[5][1]->render())), 256, TRUE);
     $hash = $this->generateHash($message);
     $exists = $this->hashSearch($hash);
 
@@ -66,9 +67,9 @@ class OpenAIDbLogController extends DbLogController {
         $response = $this->client->completions()->create(
           [
             'model' => $model,
-            'prompt' => 'What does this error mean? The error is: ' . $message . ' How can I fix this?',
+            'prompt' => 'What does this error mean and how can I fix it? The error is: "' . $message . '"',
             'temperature' => 0.4,
-            'max_tokens' => 256,
+            'max_tokens' => 1024,
           ],
         );
 
