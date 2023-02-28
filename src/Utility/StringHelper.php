@@ -2,7 +2,6 @@
 
 namespace Drupal\openai\Utility;
 
-use \DOMDocument;
 use Drupal\Component\Utility\Unicode;
 
 /**
@@ -15,20 +14,22 @@ class StringHelper {
   /**
    * Prepares text for prompt inputs.
    *
-   * OpenAIs completion endpoint or any other prompt input API performs worse with strings
-   * that contain HTML, certain punctuations, whitespace, and newlines.
+   * OpenAIs completion endpoint or any other prompt input API
+   * performs worse with strings that contain HTML, certain
+   * punctuations, whitespace, and newlines.
    *
-   * This method will clean up a string the best that it can before sending it to OpenAI.
+   * This method will clean up a string before sending it to OpenAI.
    *
    * @param string $text
    *   The text to attach to a prompt.
    * @param array $removeHtmlElements
    *   An array of HTML elements to remove.
    * @param int $max_length
-   *   The maximum length of the text to return. A lower limit will result in faster response from
-   *   OpenAI and reduce API usage. A helpful rule of thumb is that one token generally corresponds
-   *   to ~4 characters of text for common English text. This translates to roughly ¾ of a word
-   *   (so 100 tokens ~= 75 words).
+   *   The maximum length of the text to return. A lower limit
+   *   will result in faster response from OpenAI and reduce
+   *   API usage. A helpful rule of thumb is that one token generally
+   *   corresponds to ~4 characters of text for common English text.
+   *   This translates to roughly ¾ of a word (so 100 tokens ~= 75 words).
    *
    * @return string
    *   The prepared text.
@@ -57,14 +58,14 @@ class StringHelper {
     }
 
     // Delete the DOM nodes.
-    foreach($removeElements as $removeElement) {
+    foreach ($removeElements as $removeElement) {
       $removeElement->parentNode->removeChild($removeElement);
     }
 
     $text = $dom->saveHTML();
     $text = html_entity_decode($text);
     $text = strip_tags(trim($text));
-    $text = str_replace(array("\r\n","\r","\n","\\r","\\n","\\r\\n"),"", $text);
+    $text = str_replace(["\r\n", "\r", "\n", "\\r", "\\n", "\\r\\n"], "", $text);
     $text = trim($text);
     $text = preg_replace("/  +/", ' ', $text);
     $text = preg_replace("/[^a-z0-9.?!,' ]/i", '', $text);

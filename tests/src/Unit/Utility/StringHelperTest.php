@@ -22,7 +22,7 @@ class StringHelperTest extends UnitTestCase {
   }
 
   /**
-   * Test that a string of HTML with a pre/code tag comes back without their contents.
+   * A string of HTML with restricted tags should be removed.
    */
   public function testStringWithRestrictedTags(): void {
     $text = "<h1>Foo</h1>
@@ -40,7 +40,7 @@ class StringHelperTest extends UnitTestCase {
   /**
    * Test that a string of HTML has the element(s) removed.
    */
-  public function testStringWithHTMLElementOption(): void {
+  public function testStringWithHtmlElementOption(): void {
     $text = "<h1>Foo</h1>
              <p>Foo test? Good!</p>";
     $text = StringHelper::prepareText($text, ['h1'], 1000);
@@ -60,7 +60,7 @@ class StringHelperTest extends UnitTestCase {
     $text = StringHelper::prepareText($text, [], 26);
     $this->assertSame('Dinosaurs roamed the earth', $text);
 
-    // Test the word boundary + trim results in no spaces
+    // Test the word boundary + trim results in no spaces.
     $text = "<p>Dinosaurs roamed the earth millions of years ago.</p>";
     $text = StringHelper::prepareText($text, [], 10);
     $this->assertSame('Dinosaurs', $text);
