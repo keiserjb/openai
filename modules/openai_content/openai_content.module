@@ -10,6 +10,7 @@ use Drupal\Core\Ajax\HtmlCommand;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\node\NodeInterface;
 use Drupal\Component\Utility\Unicode;
+use Drupal\openai\Utility\StringHelper;
 
 /**
  * Implements hook_form_alter().
@@ -30,7 +31,12 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
 
         $form['openai_title_check']['response'] = [
           '#type' => 'markup',
-          '#markup' => t('Having very similar page titles can negatively impact your search engine ranking. You can run a similarity search against your data in Pinecone to see if you have other similar page titles.'),
+          '#markup' => t('Having very similar page titles can negatively impact your <a href=":google_url">search engine ranking</a>. You can run a similarity search against your content in <a href=":pinecone_url">Pinecone</a> to see if you have other similar page titles.',
+            [
+              ':google_url' => 'https://developers.google.com/search/docs/fundamentals/seo-starter-guide#uniquepagetitles',
+              ':pinecone_url' => 'https://pinecone.io'
+            ]
+          ),
           '#prefix' => '<div id="openai-title-check-response">',
           '#suffix' => '</div>',
         ];
@@ -53,7 +59,7 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
 
         $form['openai_summarize']['response'] = [
           '#type' => 'markup',
-          '#markup' => t('This will use the node body field and OpenAI will attempt to summarize it for you.'),
+          '#markup' => t('This will use the node body field and OpenAI will attempt to summarize it for you. You can use the result to help generate a summary/teaser, social media share text, or similar.'),
           '#prefix' => '<div id="openai-summarize-response">',
           '#suffix' => '</div>',
         ];
@@ -125,9 +131,11 @@ function openai_content_node_title_check(array &$form, FormStateInterface $form_
 
       $embedding = json_decode($query_result['embedding'])->data;
     } else {
+      $title = StringHelper::prepareText($title, [], 512);
+
       $response = $client->embeddings()->create([
         'model' => 'text-embedding-ada-002',
-        'input' => strip_tags(trim($title)),
+        'input' => $title,
       ]);
 
       $embeddings = $response->toArray();
@@ -151,7 +159,7 @@ function openai_content_node_title_check(array &$form, FormStateInterface $form_
     $tracked = [];
 
     foreach ($result->matches as $match) {
-      if ($match->score < .85) {
+      if ($match->score < .75) {
         continue;
       }
 
@@ -197,28 +205,26 @@ function openai_content_node_field_summarize(array &$form, FormStateInterface $f
 
   if (!empty($body)) {
     $client = \Drupal::service('openai.client');
-    // @todo The following can be a Utility class that prepares text for a prompt
-    $body = Unicode::truncate(strip_tags(trim($body)), 3900, TRUE);
-    $body = str_replace(array("\r\n","\r","\n","\\r","\\n","\\r\\n"),"", $body);
-    $body = preg_replace("/  +/", ' ', $body);
-    $body = preg_replace("/[^a-z0-9 ]/i", '', $body);
+    $body = StringHelper::prepareText($body, [], 3900);
 
     $response = $client->completions()->create(
       [
         'model' => 'text-davinci-003',
         'prompt' => 'Create a detailed summary of the following text in less than 130 words:\r\n"' . $body . '"',
         'temperature' => 0.7,
-        'max_tokens' => 1024,
+        'max_tokens' => 2048,
       ],
     );
 
     $result = $response->toArray();
     $text = trim($result["choices"][0]["text"]) ?? t('No result could be generated.');
-
-    $response = new AjaxResponse();
-    $response->addCommand(new HtmlCommand('#openai-summarize-response', $text));
-    return $response;
+  } else {
+    $text = t('The body field has no text. Please supply content to the body field.');
   }
+
+  $response = new AjaxResponse();
+  $response->addCommand(new HtmlCommand('#openai-summarize-response', $text));
+  return $response;
 }
 
 /**
@@ -237,26 +243,24 @@ function openai_content_node_suggest_taxonomy(array &$form, FormStateInterface $
 
   if (!empty($body)) {
     $client = \Drupal::service('openai.client');
-    // @todo The following can be a Utility class that prepares text for a prompt
-    $body = Unicode::truncate(strip_tags(trim($body)), 3900, TRUE);
-    $body = str_replace(array("\r\n","\r","\n","\\r","\\n","\\r\\n"),"", $body);
-    $body = preg_replace("/  +/", ' ', $body);
-    $body = preg_replace("/[^a-z0-9 ]/i", '', $body);
+    $body = StringHelper::prepareText($body, [], 3900);
 
     $response = $client->completions()->create(
       [
         'model' => 'text-davinci-003',
         'prompt' => 'Suggest five words to classify the following text. The words must be nouns or adjectives:\r\n"' . $body . '"',
         'temperature' => 0.4,
-        'max_tokens' => 1024,
+        'max_tokens' => 2048,
       ],
     );
 
     $result = $response->toArray();
     $text = trim($result["choices"][0]["text"]) ?? t('No terms could be generated from the provided input.');
-
-    $response = new AjaxResponse();
-    $response->addCommand(new HtmlCommand('#openai-suggest-response', $text));
-    return $response;
+  } else {
+    $text = t('The body field has no text. Please supply content to the body field.');
   }
+
+  $response = new AjaxResponse();
+  $response->addCommand(new HtmlCommand('#openai-suggest-response', $text));
+  return $response;
 }
