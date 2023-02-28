@@ -212,6 +212,8 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
         ]
       );
     }
+
+    sleep(1.2);
   }
 
   /**
