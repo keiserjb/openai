@@ -4,19 +4,15 @@ declare(strict_types=1);
 
 namespace Drupal\openai_embeddings\Form;
 
-use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
-use OpenAI\Client;
-use Drupal\openai_embeddings\Http\PineconeClient;
+use Drupal\openai\Utility\StringHelper;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Ajax\HtmlCommand;
-use Drupal\Core\Link;
 
 /**
- *
+ * Defines a search interface for testing vector search results.
  */
 class SearchForm extends FormBase {
 
@@ -48,6 +44,9 @@ class SearchForm extends FormBase {
     return 'opeani_embeddings_search';
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public static function create(ContainerInterface $container) {
     $instance = parent::create($container);
     $instance->client = $container->get('openai.client');
@@ -63,10 +62,10 @@ class SearchForm extends FormBase {
 
     $form['search_input'] = [
       '#type' => 'textarea',
-      '#title' => $this->t('Enter the text here to search for in Pinecone. When submitted, OpenAI will generate an embed and then find comparable content in Pinecone. Please note that each query counts against your API usage for OpenAI and Pinecone, and the maximum length allowed is 8000 characters.'),
-      '#description' => $this->t('Based on the complexity of your input, OpenAI traffic, and other factors, a response can sometimes take up to 10-15 seconds to complete. Please allow the operation to finish.'),
+      '#title' => $this->t('Search text'),
+      '#description' => $this->t('Enter the text here to search for in Pinecone. When submitted, OpenAI will generate an embed and then find comparable content in Pinecone. Please note that each query counts against your API usage for OpenAI and Pinecone, and the maximum length allowed is 1024 characters (for this test interface). Based on the complexity of your input, OpenAI traffic, and other factors, a response can sometimes take up to 10-15 seconds to complete. Please allow the operation to finish.'),
       '#required' => TRUE,
-      '#maxlength' => 8000,
+      '#maxlength' => 1024,
     ];
 
     $form['namespace'] = [
@@ -138,10 +137,11 @@ class SearchForm extends FormBase {
     $filter_by = $form_state->getValue('filter_by');
     $score_threshold = $form_state->getValue('score_threshold');
     $namespace = $form_state->getValue('namespace');
+    $text = StringHelper::prepareText($query, [], 1024);
 
     $response = $this->client->embeddings()->create([
       'model' => 'text-embedding-ada-002',
-      'input' => strip_tags(trim($query)),
+      'input' => $text,
     ]);
 
     $result = $response->toArray();

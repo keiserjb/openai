@@ -11,6 +11,7 @@ use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\QueueWorkerBase;
+use Drupal\openai\Utility\StringHelper;
 use Drupal\openai_embeddings\Http\PineconeClient;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use OpenAI\Client;
@@ -135,16 +136,11 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
               continue;
             }
 
-            $text = strip_tags(trim($data['value']));
+            $text = StringHelper::prepareText($data['value'], [], 8000);
 
-            if ($field->getName() == 'title') {
-              foreach ($stopwords as $word) {
-                $text = $this->removeStopWord($word, $text);
-              }
+            foreach ($stopwords as $word) {
+              $text = $this->removeStopWord($word, $text);
             }
-
-            $text = $this->removeSpacing($text);
-            $text = Unicode::truncate($text, 8000, TRUE);
 
             // @todo The entity should be inserted as one string and not several entries
             try {
@@ -188,6 +184,10 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
                   ]
                 )
                 ->execute();
+
+              // sleep for 1.2 second(s)
+              sleep(1);
+              usleep(200000);
             } catch (\Exception $e) {
               $this->logger->error(
                 'An exception occurred while trying to generate embeddings for a :entity_type with the ID of :entity_id on the :field_name field, with a delta of :field_delta. The bundle of this entity is :bundle. The error was :error',
@@ -212,12 +212,6 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
         ]
       );
     }
-
-    // sleep for 1 second
-    sleep(1);
-
-    // sleep for an additional 200,000 microseconds (0.2 seconds)
-    usleep(200000);
   }
 
   /**
@@ -252,12 +246,18 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
     ];
   }
 
+  /**
+   * Remove a list of words from a string.
+   *
+   * @param string $word
+   *   The word to remove.
+   * @param string $text
+   *   The input text.
+   *
+   * @return string
+   *   The input text with stop words removed.
+   */
   protected function removeStopWord(string $word, string $text): string {
     return preg_replace("/\b$word\b/i", '', trim($text));
   }
-
-  protected function removeSpacing(string $text): string {
-    return preg_replace("/  +/", ' ', trim($text));
-  }
-
 }
