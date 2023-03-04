@@ -15,8 +15,7 @@ AI tech leveraging OpenAI API services in Drupal.
 
 ## REQUIREMENTS
 
-This module is tested on Drupal 9.x and 10.x. You must have PHP 8.1 at a
-minimum.
+This module is tested on Drupal 10.x.
 
 You are required to provide an OpenAI key before you can use
 any of the provided services.
@@ -28,8 +27,4 @@ Enable the core OpenAI module and one or more submodules that meet your need.
 ### Included modules
 
 - OpenAI Content Generator (experimental)
-- OpenAI Content Tools
-- OpenAI Prompt Explorer
-- OpenAI CKEditor 5 plugin
-- OpenAI Embeddings
 - OpenAI Log Analyzer

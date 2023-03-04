@@ -2,8 +2,7 @@ name: OpenAI Log Analyzer
 type: module
 description: Attempts to provide a possible explanation for logs captured in Drupal.
 package: OpenAI
-core_version_requirement: ^9 || ^10
-php: 8.1
+core_version_requirement: ^10
 dependencies:
   - drupal:dblog
   - openai:openai

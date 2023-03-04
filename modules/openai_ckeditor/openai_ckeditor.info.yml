@@ -2,8 +2,7 @@ name: OpenAI CKEditor integration
 type: module
 description: Adds a plugin for CKEditor 5 to let editors prompt OpenAI for text generation purposes.
 package: OpenAI
-core_version_requirement: ^9 || ^10
-php: 8.1
+core_version_requirement: ^10
 dependencies:
   - drupal:ckeditor5
   - openai:openai

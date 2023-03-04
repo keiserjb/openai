@@ -2,7 +2,6 @@ name: OpenAI Embeddings
 type: module
 description: Examines content and generates vectors to calculate relationships between strings.
 package: OpenAI
-core_version_requirement: ^9 || ^10
-php: 8.1
+core_version_requirement: ^10
 dependencies:
   - openai:openai
