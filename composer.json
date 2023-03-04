@@ -17,6 +17,6 @@
         }
     ],
     "require": {
-        "openai-php/client": "^v0.3.0"
+        "openai-php/client": "^v0.3.4"
     }
 }
