@@ -122,19 +122,36 @@ class ChatGptForm extends FormBase {
   public function validateForm(array &$form, FormStateInterface $form_state) {}
 
   /**
-   * Requests data from OpenAI.
+   * Print the last response out on the screen.
    */
   public function getResponse(array &$form, FormStateInterface $form_state) {
+    $storage = $form_state->getStorage();
+    $last_response = end($storage['messages']);
+    $form['response']['#value'] = trim($last_response['content']) ?? $this->t('No answer was provided.');
+    return $form['response'];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function submitForm(array &$form, FormStateInterface $form_state) {
     $text = $form_state->getValue('text');
     $system = $form_state->getValue('system');
     $model = $form_state->getValue('model');
     $temperature = $form_state->getValue('temperature');
     $max_tokens = $form_state->getValue('max_tokens');
 
-    $messages = [
-      ['role' => 'system', 'content' => trim($system)],
-      ['role' => 'user', 'content' => trim($text)]
-    ];
+    $storage = $form_state->getStorage();
+
+    if (!empty($storage['messages'])) {
+      $messages = $storage['messages'];
+      $messages[] = ['role' => 'user', 'content' => trim($text)];
+    } else {
+      $messages = [
+        ['role' => 'system', 'content' => trim($system)],
+        ['role' => 'user', 'content' => trim($text)]
+      ];
+    }
 
     $response = $this->client->chat()->create(
       [
@@ -147,13 +164,9 @@ class ChatGptForm extends FormBase {
 
     $result = $response->toArray();
 
-    $form['response']['#value'] = trim($result["choices"][0]["message"]["content"]) ?? $this->t('No answer was provided.');
-    return $form['response'];
+    $messages[] = ['role' => 'assistant', 'content' => trim($result["choices"][0]["message"]["content"])];
+    $form_state->setStorage(['messages' => $messages]);
+    $form_state->setRebuild(TRUE);
   }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function submitForm(array &$form, FormStateInterface $form_state) {}
 
 }
