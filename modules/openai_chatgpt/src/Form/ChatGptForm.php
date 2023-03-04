@@ -43,7 +43,7 @@ class ChatGptForm extends FormBase {
       '#type' => 'textarea',
       '#title' => $this->t('Profile'),
       '#default_value' => $this->t('You are a friendly helpful assistant inside of a Drupal website. Be encouraging and polite and ask follow up questions of the user after giving the answer.'),
-      '#description' => $this->t('The "profile" helps set the behavior of the ChatGPT response.'),
+      '#description' => $this->t('The "profile" helps set the behavior of the ChatGPT response. You can change/influence how it response by adjusting the above instruction.'),
       '#required' => TRUE,
     ];
 
