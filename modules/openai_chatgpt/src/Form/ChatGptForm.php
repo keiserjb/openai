@@ -39,6 +39,14 @@ class ChatGptForm extends FormBase {
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
 
+    $form['system'] = [
+      '#type' => 'textarea',
+      '#title' => $this->t('Profile'),
+      '#default_value' => $this->t('You are a friendly helpful assistant inside of a Drupal website. Be encouraging and polite and ask follow up questions of the user after giving the answer.'),
+      '#description' => $this->t('The "profile" helps set the behavior of the ChatGPT response.'),
+      '#required' => TRUE,
+    ];
+
     $form['text'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Message for ChatGPT'),
@@ -118,16 +126,20 @@ class ChatGptForm extends FormBase {
    */
   public function getResponse(array &$form, FormStateInterface $form_state) {
     $text = $form_state->getValue('text');
+    $system = $form_state->getValue('system');
     $model = $form_state->getValue('model');
     $temperature = $form_state->getValue('temperature');
     $max_tokens = $form_state->getValue('max_tokens');
 
+    $messages = [
+      ['role' => 'system', 'content' => trim($system)],
+      ['role' => 'user', 'content' => trim($text)]
+    ];
+
     $response = $this->client->chat()->create(
       [
         'model' => $model,
-        'messages' => [
-          ['role' => 'user', 'content' => trim($text)]
-        ],
+        'messages' => $messages,
         'temperature' => (int) $temperature,
         'max_tokens' => (int) $max_tokens,
       ],
