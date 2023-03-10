@@ -6,7 +6,6 @@ namespace Drupal\openai_chatgpt\Form;
 
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
-use OpenAI\Client;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -28,6 +27,9 @@ class ChatGptForm extends FormBase {
     return 'opeani_chatgpt_form';
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public static function create(ContainerInterface $container) {
     $instance = parent::create($container);
     $instance->client = $container->get('openai.client');
@@ -39,55 +41,17 @@ class ChatGptForm extends FormBase {
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
 
-    $form['system'] = [
-      '#type' => 'textarea',
-      '#title' => $this->t('Profile'),
-      '#default_value' => $this->t('You are a friendly helpful assistant inside of a Drupal website. Be encouraging and polite and ask follow up questions of the user after giving the answer.'),
-      '#description' => $this->t('The "profile" helps set the behavior of the ChatGPT response. You can change/influence how it response by adjusting the above instruction. If you want to change this value after starting a conversation, you will need to reload the form first.'),
-      '#required' => TRUE,
-    ];
-
     $form['text'] = [
       '#type' => 'textarea',
-      '#title' => $this->t('Message for ChatGPT'),
-      '#description' => $this->t('Enter your text here. When submitted, OpenAI will generate a response from its Chats endpoint. Please note that each query counts against your API usage for OpenAI. Based on the complexity of your text, OpenAI traffic, and other factors, a response can sometimes take up to 10-15 seconds to complete. Please allow the operation to finish.'),
+      '#title' => $this->t('Ask ChatGPT'),
+      '#rows' => 1,
+      '#description' => $this->t('Enter your text here. When submitted, OpenAI will generate a response from its Chats endpoint. Please note that each query counts against your API usage for OpenAI. Based on the complexity of your text, OpenAI traffic, and other factors, a response can sometimes take up to 10-15 seconds to complete. Please allow the operation to finish.  Be cautious not to exceed the requests per minute quota (20/Minute by default), or you may be temporarily blocked.'),
       '#required' => TRUE,
-    ];
-
-    $form['model'] = [
-      '#type' => 'select',
-      '#title' => $this->t('Model to use'),
-      '#options' => [
-        'gpt-3.5-turbo' => 'gpt-3.5-turbo',
-        'gpt-3.5-turbo-0301' => 'gpt-3.5-turbo-0301',
-      ],
-      '#default_value' => 'gpt-3.5-turbo',
-      '#description' => $this->t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/models/gpt-3.5']),
-    ];
-
-    $form['temperature'] = [
-      '#type' => 'number',
-      '#title' => $this->t('Temperature'),
-      '#min' => 0,
-      '#max' => 2,
-      '#step' => .1,
-      '#default_value' => '0.4',
-      '#description' => $this->t('What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.'),
-    ];
-
-    $form['max_tokens'] = [
-      '#type' => 'number',
-      '#title' => $this->t('Max tokens'),
-      '#min' => 0,
-      '#max' => 4096,
-      '#step' => 1,
-      '#default_value' => '128',
-      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Most models have a context length of 2048 tokens (except for the newest models, which support 4096).'),
     ];
 
     $form['response'] = [
       '#type' => 'textarea',
-      '#title' => $this->t('Response from ChatGPT'),
+      '#title' => $this->t('Response'),
       '#attributes' =>
         [
           'readonly' => 'readonly',
@@ -97,18 +61,64 @@ class ChatGptForm extends FormBase {
       '#description' => $this->t('The response from OpenAI will appear in the textbox above.')
     ];
 
+    $form['options'] = array(
+      '#type' => 'details',
+      '#title' => t('Options'),
+      '#description' => t('Set various options related to how ChatGPT generates its response.'),
+      '#open' => FALSE,
+    );
+
+    $form['options']['model'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Model'),
+      '#options' => [
+        'gpt-3.5-turbo' => 'gpt-3.5-turbo',
+        'gpt-3.5-turbo-0301' => 'gpt-3.5-turbo-0301',
+      ],
+      '#default_value' => 'gpt-3.5-turbo',
+      '#description' => $this->t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/models/gpt-3.5']),
+    ];
+
+    $form['options']['temperature'] = [
+      '#type' => 'number',
+      '#title' => $this->t('Temperature'),
+      '#min' => 0,
+      '#max' => 2,
+      '#step' => .1,
+      '#default_value' => '0.4',
+      '#description' => $this->t('What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.'),
+    ];
+
+    $form['options']['max_tokens'] = [
+      '#type' => 'number',
+      '#title' => $this->t('Max tokens'),
+      '#min' => 0,
+      '#max' => 4096,
+      '#step' => 1,
+      '#default_value' => '128',
+      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Most models have a context length of 2048 tokens (except for the newest models, which support 4096).'),
+    ];
+
+    $form['options']['system'] = [
+      '#type' => 'textarea',
+      '#title' => $this->t('Profile'),
+      '#default_value' => $this->t('You are a friendly helpful assistant inside of a Drupal website. Be encouraging and polite and ask follow up questions of the user after giving the answer.'),
+      '#description' => $this->t('The "profile" helps set the behavior of the ChatGPT response. You can change/influence how it response by adjusting the above instruction. If you want to change this value after starting a conversation, you will need to reload the form first.'),
+      '#required' => TRUE,
+    ];
+
     $form['actions'] = [
       '#type' => 'actions',
     ];
 
     $form['actions']['submit'] = [
       '#type' => 'submit',
-      '#value' => $this->t('Chat with OpenAI'),
+      '#value' => $this->t('Submit'),
       '#ajax' => [
         'callback' => '::getResponse',
         'wrapper' => 'openai-chatgpt-response',
         'progress' => [
-          'type' => 'fade',
+          'type' => 'throbber',
         ],
       ],
     ];
@@ -122,7 +132,15 @@ class ChatGptForm extends FormBase {
   public function validateForm(array &$form, FormStateInterface $form_state) {}
 
   /**
-   * Print the last response out on the screen.
+   * Render the last response out to the user.
+   *
+   * @param array $form
+   *   The form array.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   *
+   * @return array
+   *   The modified form element.
    */
   public function getResponse(array &$form, FormStateInterface $form_state) {
     $storage = $form_state->getStorage();
@@ -132,7 +150,15 @@ class ChatGptForm extends FormBase {
   }
 
   /**
-   * {@inheritdoc}
+   * Submit the input to OpenAI.
+   *
+   * @param array $form
+   *   The form array.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   *
+   * @todo implement exponential backoff retries when quota rate limits are exceeded
+   * @see https://platform.openai.com/docs/guides/rate-limits/retrying-with-exponential-backoff
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
     $text = $form_state->getValue('text');
