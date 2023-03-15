@@ -50,13 +50,15 @@ class PromptForm extends FormBase {
       '#type' => 'select',
       '#title' => $this->t('Model to use'),
       '#options' => [
+        'gpt-4' => 'gpt-4 (currently beta invite only)',
+        'gpt-4-32k' => 'gpt-4-32k (currently beta invite only)',
         'text-davinci-003' => 'text-davinci-003',
         'text-curie-001' => 'text-curie-001',
         'text-babbage-001' => 'text-babbage-001',
         'text-ada-001' => 'text-ada-001',
       ],
       '#default_value' => 'text-davinci-003',
-      '#description' => $this->t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/models/gpt-3']),
+      '#description' => $this->t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/models']),
     ];
 
     $form['temperature'] = [
