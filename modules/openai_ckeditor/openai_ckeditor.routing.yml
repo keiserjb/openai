@@ -5,4 +5,4 @@ openai_ckeditor.generate_completion:
     _title: 'OpenAI CKEditor Generate Completion'
     _controller: 'Drupal\openai_ckeditor\Controller\Completion::generate'
   requirements:
-    _permission: 'administer site configuration'
+    _permission: 'use openai ckeditor'
