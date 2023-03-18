@@ -24,7 +24,7 @@ class ChatGptForm extends FormBase {
    * {@inheritdoc}
    */
   public function getFormId() {
-    return 'opeani_chatgpt_form';
+    return 'openai_chatgpt_form';
   }
 
   /**

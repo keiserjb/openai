@@ -25,7 +25,7 @@ class PromptForm extends FormBase {
    * {@inheritdoc}
    */
   public function getFormId() {
-    return 'opeani_prompt_prompt';
+    return 'openai_prompt_prompt';
   }
 
   public static function create(ContainerInterface $container) {

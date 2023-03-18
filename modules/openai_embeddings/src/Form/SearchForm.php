@@ -41,7 +41,7 @@ class SearchForm extends FormBase {
    * {@inheritdoc}
    */
   public function getFormId() {
-    return 'opeani_embeddings_search';
+    return 'openai_embeddings_search';
   }
 
   /**
