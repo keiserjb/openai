@@ -50,8 +50,6 @@ class PromptForm extends FormBase {
       '#type' => 'select',
       '#title' => $this->t('Model to use'),
       '#options' => [
-        'gpt-4' => 'gpt-4 (currently beta invite only)',
-        'gpt-4-32k' => 'gpt-4-32k (currently beta invite only)',
         'text-davinci-003' => 'text-davinci-003',
         'text-curie-001' => 'text-curie-001',
         'text-babbage-001' => 'text-babbage-001',
