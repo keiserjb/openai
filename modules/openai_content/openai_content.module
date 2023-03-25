@@ -23,31 +23,44 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
 
     if (!empty($entity_types) && array_key_exists($entity->getEntityTypeId(), $entity_types)) {
       if (in_array($entity->bundle(), $entity_types[$entity->getEntityTypeId()])) {
-        $form['openai_title_check'] = [
+        $form['openai_tone_edit'] = [
           '#type' => 'details',
-          '#title' => t('Check for similar titles'),
+          '#title' => t('Adjust content tone'),
           '#group' => 'advanced',
+          '#tree' => TRUE,
         ];
 
-        $form['openai_title_check']['response'] = [
-          '#type' => 'markup',
-          '#markup' => t('Having very similar page titles can negatively impact your <a href=":google_url">search engine ranking</a>. You can run a similarity search against your content in <a href=":pinecone_url">Pinecone</a> to see if you have other similar page titles.',
-            [
-              ':google_url' => 'https://developers.google.com/search/docs/fundamentals/seo-starter-guide#uniquepagetitles',
-              ':pinecone_url' => 'https://pinecone.io'
-            ]
-          ),
-          '#prefix' => '<div id="openai-title-check-response">',
+        $form['openai_tone_edit']['message'] = [
+          '#markup' => t('Have OpenAI check your content and adjust the tone of it for different reader audiences for you.'),
+        ];
+
+        // @todo: these values should be configurable options
+        $form['openai_tone_edit']['tone'] = [
+          '#type' => 'select',
+          '#title' => t('Choose tone'),
+          '#description' => t('Selecting one of the options will adjust/reword the body content to be appropriate for the target audience.'),
+          '#options' => [
+            'friendly' => t('Friendly'),
+            'professional' => t('Professional'),
+            'helpful' => t('Helpful'),
+            'easier for a high school educated reader' => t('High school level reader'),
+            'easier for a college educated reader' => t('College level reader'),
+            'explained to a five year old' => t('Explain like I\'m 5'),
+          ],
+        ];
+
+        $form['openai_tone_edit']['response'] = [
+          '#prefix' => '<br /><div id="openai-tone-edit-response">',
           '#suffix' => '</div>',
         ];
 
-        $form['openai_title_check']['check'] = [
+        $form['openai_tone_edit']['edit'] = [
           '#type' => 'button',
-          '#value' => t('Run check'),
+          '#value' => t('Adjust tone'),
           '#limit_validation_errors' => [],
           '#ajax' => [
-            'callback' => 'openai_content_node_title_check',
-            'wrapper' => 'openai-title-check-response',
+            'callback' => 'openai_content_node_adjust_tone',
+            'wrapper' => 'openai-tone-edit-response',
           ],
         ];
 
@@ -102,7 +115,7 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
 }
 
 /**
- * The AJAX callback for running a semantic similarity search on the title.
+ * The AJAX callback for adjusting the tone of body content.
  *
  * @param array $form
  *   The node form.
@@ -112,81 +125,32 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
  * @return \Drupal\Core\Ajax\AjaxResponse
  *   The HTML response.
  */
-function openai_content_node_title_check(array &$form, FormStateInterface $form_state) {
-  $title = $form_state->getValue('title')[0]['value'];
-  $form_entity = $form_state->getFormObject()->getEntity();
+function openai_content_node_adjust_tone(array &$form, FormStateInterface $form_state) {
+  $body = $form_state->getValue('body')[0]['value'];
+  $tone = $form_state->getValue('openai_tone_edit')['tone'];
 
-  if (!empty($title)) {
+  if (!empty($body)) {
     $client = \Drupal::service('openai.client');
-    $pinecone = \Drupal::service('openai_embeddings.pinecone_client');
-    $embedding = [];
+    $body = StringHelper::prepareText($body, [], 3900);
 
-    if ($form_entity instanceof NodeInterface && $form_entity->id()) {
-      $query_result = \Drupal::database()->query('SELECT entity_id, embedding FROM {openai_embeddings} WHERE entity_id = :entity_id AND field_name = :field_name LIMIT 1',
-        [
-          ':entity_id' => $form_entity->id(),
-          ':field_name' => 'title'
-        ]
-      )->fetchAssoc();
-
-      $embedding = json_decode($query_result['embedding'])->data;
-    } else {
-      $title = StringHelper::prepareText($title, [], 512);
-
-      $response = $client->embeddings()->create([
-        'model' => 'text-embedding-ada-002',
-        'input' => $title,
-      ]);
-
-      $embeddings = $response->toArray();
-      $embedding = $embeddings["data"][0]["embedding"];
-    }
-
-    $response = $pinecone->query(
-      $embedding,
-      5,
-      TRUE,
-      FALSE,
+    $response = $client->completions()->create(
       [
-        'field_name' => 'title',
-        'entity_type' => 'node',
+        'model' => 'text-davinci-003',
+        'prompt' => 'Change the tone of the following text to be more ' . $tone . ':\r\n"' . $body . '"',
+        'temperature' => 0.7,
+        'max_tokens' => 2048,
       ],
-      'node:title'
     );
 
-    $result = json_decode($response->getBody()->getContents());
-    $output = '<ul>';
-    $tracked = [];
-
-    foreach ($result->matches as $match) {
-      if ($match->score < .75) {
-        continue;
-      }
-
-      $entity = \Drupal::entityTypeManager()->getStorage($match->metadata->entity_type)->load($match->metadata->entity_id);
-
-      if ($form_entity instanceof NodeInterface && $form_entity->id() == $entity->id()) {
-        continue;
-      }
-
-      $output .= '<li>' . $entity->toLink()->toString() . ' (relevancy score: ' . $match->score . ')</li>';
-      $tracked[] = $entity->id();
-    }
-
-    $output .= '</ul>';
-
-    if (empty($tracked)) {
-      $output = '<p>No similar titles were found, or results were excluded because they did not meet the relevancy score threshold.</p>';
-    } else {
-      $heading = '<p><strong>Similarity Results</strong></p>';
-      $heading .= '<p>The following nodes have titles similar to the one you are using. You may want to consider adjusting this title so it is not as similar for search engine optimization reasons.</p>';
-      $output = $heading . $output;
-    }
-
-    $response = new AjaxResponse();
-    $response->addCommand(new HtmlCommand('#openai-title-check-response', $output));
-    return $response;
+    $result = $response->toArray();
+    $text = trim($result["choices"][0]["text"]) ?? t('No result could be generated.');
+  } else {
+    $text = t('The body field has no text. Please supply content to the body field.');
   }
+
+  $response = new AjaxResponse();
+  $response->addCommand(new HtmlCommand('#openai-tone-edit-response', $text));
+  return $response;
 }
 
 /**
@@ -248,7 +212,7 @@ function openai_content_node_suggest_taxonomy(array &$form, FormStateInterface $
     $response = $client->completions()->create(
       [
         'model' => 'text-davinci-003',
-        'prompt' => 'Suggest five words to classify the following text. The words must be nouns or adjectives:\r\n"' . $body . '"',
+        'prompt' => 'Suggest five words to classify the following text. The words must be nouns or adjectives in a comma delimited list:\r\n"' . $body . '"',
         'temperature' => 0.4,
         'max_tokens' => 2048,
       ],
