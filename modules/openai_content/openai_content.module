@@ -16,101 +16,95 @@ use Drupal\openai\Utility\StringHelper;
  * Implements hook_form_alter().
  */
 function openai_content_form_alter(array &$form, FormStateInterface $form_state, $form_id) {
-  if (preg_match('/node_(add|.*_edit)_form/', $form_id)) {
-    $config = \Drupal::config('openai_embeddings.settings');
-    $entity_types = $config->get('entity_types');
-    $entity = $form_state->getFormObject()->getEntity();
+  $account = \Drupal::currentUser();
 
-    if (!empty($entity_types) && array_key_exists($entity->getEntityTypeId(), $entity_types)) {
-      if (in_array($entity->bundle(), $entity_types[$entity->getEntityTypeId()])) {
-        $form['openai_tone_edit'] = [
-          '#type' => 'details',
-          '#title' => t('Adjust content tone'),
-          '#group' => 'advanced',
-          '#tree' => TRUE,
-        ];
+  if (preg_match('/node_(add|.*_edit)_form/', $form_id) && $account->hasPermission('access openai content tools')) {
+    $form['openai_tone_edit'] = [
+      '#type' => 'details',
+      '#title' => t('Adjust content tone'),
+      '#group' => 'advanced',
+      '#tree' => TRUE,
+    ];
 
-        $form['openai_tone_edit']['message'] = [
-          '#markup' => t('Have OpenAI check your content and adjust the tone of it for different reader audiences for you.'),
-        ];
+    $form['openai_tone_edit']['message'] = [
+      '#markup' => t('Have OpenAI check your content and adjust the tone of it for different reader audiences for you.'),
+    ];
 
-        // @todo: these values should be configurable options
-        $form['openai_tone_edit']['tone'] = [
-          '#type' => 'select',
-          '#title' => t('Choose tone'),
-          '#description' => t('Selecting one of the options will adjust/reword the body content to be appropriate for the target audience.'),
-          '#options' => [
-            'friendly' => t('Friendly'),
-            'professional' => t('Professional'),
-            'helpful' => t('Helpful'),
-            'easier for a high school educated reader' => t('High school level reader'),
-            'easier for a college educated reader' => t('College level reader'),
-            'explained to a five year old' => t('Explain like I\'m 5'),
-          ],
-        ];
+    // @todo: these values should be configurable options
+    $form['openai_tone_edit']['tone'] = [
+      '#type' => 'select',
+      '#title' => t('Choose tone'),
+      '#description' => t('Selecting one of the options will adjust/reword the body content to be appropriate for the target audience.'),
+      '#options' => [
+        'friendly' => t('Friendly'),
+        'professional' => t('Professional'),
+        'helpful' => t('Helpful'),
+        'easier for a high school educated reader' => t('High school level reader'),
+        'easier for a college educated reader' => t('College level reader'),
+        'explained to a five year old' => t('Explain like I\'m 5'),
+      ],
+    ];
 
-        $form['openai_tone_edit']['response'] = [
-          '#prefix' => '<br /><div id="openai-tone-edit-response">',
-          '#suffix' => '</div>',
-        ];
+    $form['openai_tone_edit']['response'] = [
+      '#prefix' => '<br /><div id="openai-tone-edit-response">',
+      '#suffix' => '</div>',
+    ];
 
-        $form['openai_tone_edit']['edit'] = [
-          '#type' => 'button',
-          '#value' => t('Adjust tone'),
-          '#limit_validation_errors' => [],
-          '#ajax' => [
-            'callback' => 'openai_content_node_adjust_tone',
-            'wrapper' => 'openai-tone-edit-response',
-          ],
-        ];
+    $form['openai_tone_edit']['edit'] = [
+      '#type' => 'button',
+      '#value' => t('Adjust tone'),
+      '#limit_validation_errors' => [],
+      '#ajax' => [
+        'callback' => 'openai_content_node_adjust_tone',
+        'wrapper' => 'openai-tone-edit-response',
+      ],
+    ];
 
-        $form['openai_summarize'] = [
-          '#type' => 'details',
-          '#title' => t('Summarize text'),
-          '#group' => 'advanced',
-        ];
+    $form['openai_summarize'] = [
+      '#type' => 'details',
+      '#title' => t('Summarize text'),
+      '#group' => 'advanced',
+    ];
 
-        $form['openai_summarize']['response'] = [
-          '#type' => 'markup',
-          '#markup' => t('This will use the node body field and OpenAI will attempt to summarize it for you. You can use the result to help generate a summary/teaser, social media share text, or similar.'),
-          '#prefix' => '<div id="openai-summarize-response">',
-          '#suffix' => '</div>',
-        ];
+    $form['openai_summarize']['response'] = [
+      '#type' => 'markup',
+      '#markup' => t('This will use the node body field and OpenAI will attempt to summarize it for you. You can use the result to help generate a summary/teaser, social media share text, or similar.'),
+      '#prefix' => '<div id="openai-summarize-response">',
+      '#suffix' => '</div>',
+    ];
 
-        $form['openai_summarize']['do_summarize'] = [
-          '#type' => 'button',
-          '#value' => t('Summarize'),
-          '#limit_validation_errors' => [],
-          '#ajax' => [
-            'callback' => 'openai_content_node_field_summarize',
-            'wrapper' => 'openai-summarize-response',
-          ],
-        ];
+    $form['openai_summarize']['do_summarize'] = [
+      '#type' => 'button',
+      '#value' => t('Summarize'),
+      '#limit_validation_errors' => [],
+      '#ajax' => [
+        'callback' => 'openai_content_node_field_summarize',
+        'wrapper' => 'openai-summarize-response',
+      ],
+    ];
 
-        $form['openai_suggest'] = [
-          '#type' => 'details',
-          '#title' => t('Suggest taxonomy'),
-          '#group' => 'advanced',
-        ];
+    $form['openai_suggest'] = [
+      '#type' => 'details',
+      '#title' => t('Suggest taxonomy'),
+      '#group' => 'advanced',
+    ];
 
-        $form['openai_suggest']['response'] = [
-          '#type' => 'markup',
-          '#markup' => t('OpenAI can attempt to suggest possible classification terms to use as taxonomy.'),
-          '#prefix' => '<div id="openai-suggest-response">',
-          '#suffix' => '</div>',
-        ];
+    $form['openai_suggest']['response'] = [
+      '#type' => 'markup',
+      '#markup' => t('OpenAI can attempt to suggest possible classification terms to use as taxonomy.'),
+      '#prefix' => '<div id="openai-suggest-response">',
+      '#suffix' => '</div>',
+    ];
 
-        $form['openai_suggest']['do_suggest'] = [
-          '#type' => 'button',
-          '#value' => t('Suggest taxonomy'),
-          '#limit_validation_errors' => [],
-          '#ajax' => [
-            'callback' => 'openai_content_node_suggest_taxonomy',
-            'wrapper' => 'openai-suggest-response',
-          ],
-        ];
-      }
-    }
+    $form['openai_suggest']['do_suggest'] = [
+      '#type' => 'button',
+      '#value' => t('Suggest taxonomy'),
+      '#limit_validation_errors' => [],
+      '#ajax' => [
+        'callback' => 'openai_content_node_suggest_taxonomy',
+        'wrapper' => 'openai-suggest-response',
+      ],
+    ];
   }
 }
 
