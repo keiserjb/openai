@@ -5,10 +5,10 @@ export default class FormView extends View {
   constructor( locale ) {
     super( locale );
 
-    this.promptInputView = this._createInput('Ask OpenAI a question or for an idea');
+    this.languageInputView = this._createInput('Translate to (enter language):');
 
     this.saveButtonView = this._createButton(
-      'Generate!', icons.check, 'ck-button-save'
+      'Submit', icons.check, 'ck-button-save'
     );
 
     this.saveButtonView.type = 'submit';
@@ -20,7 +20,7 @@ export default class FormView extends View {
     this.cancelButtonView.delegate( 'execute' ).to( this, 'cancel' );
 
     this.childViews = this.createCollection( [
-      this.promptInputView,
+      this.languageInputView,
       this.saveButtonView,
       this.cancelButtonView
     ] );
@@ -28,7 +28,7 @@ export default class FormView extends View {
     this.setTemplate({
       tag: 'form',
       attributes: {
-        class: [ 'ck', 'ck-openai-completion-form' ],
+        class: [ 'ck', 'ck-openai-translation-form', 'ck-openai-form' ],
         tabindex: '-1'
       },
       children: this.childViews

@@ -1,6 +1,6 @@
 {
     "name": "drupal/openai",
-    "description": "A set of modules to enable OpenAI integration with Drupal.",
+    "description": "A set of modules to enable OpenAI integration with Drupal and augment the content experience with AI assisted tools.",
     "keywords": ["openai", "GPT-3", "DALL-E", "content generation", "AI content", "gpt", "content moderation"],
     "type": "drupal-module",
     "license": "GPL-2.0-or-later",

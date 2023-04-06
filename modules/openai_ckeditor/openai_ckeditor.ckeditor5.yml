@@ -1,18 +1,18 @@
-openai_ckeditor_completion:
+openai_ckeditor_openai:
   ckeditor5:
     plugins:
-      - openai_completion.Completion
-
-  drupal:
-    label: OpenAI Text Generator
-    library: openai_ckeditor/completion
-    admin_library: openai_ckeditor/admin.completion
-    toolbar_items:
+      - openai.OpenAI
+    config:
       completion:
-        label: OpenAI Text Generator
+        model: 'text-davinci-003'
+        temperature: 0.2
+        max_tokens: 256
+  drupal:
+    label: OpenAI tools
+    library: openai_ckeditor/openai
+    admin_library: openai_ckeditor/admin.openai
+    toolbar_items:
+      openai:
+        label: OpenAI
     elements: false
-    # *Additional configuration properties*
-    # conditions: for setting additional criteria that must be met for the
-    #   plugin to be active.
-    # class: Optional PHP class that makes it possible for the plugin to provide
-    #   dynamic values, or a configuration UI.
+    class: Drupal\openai_ckeditor\Plugin\CKEditor5Plugin\OpenAI

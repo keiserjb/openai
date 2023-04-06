@@ -47,10 +47,10 @@ class Completion implements ContainerInjectionInterface {
 
     $response = $this->client->completions()->create(
       [
-        'model' => 'text-davinci-003',
+        'model' => $data->options->model ?? 'text-davinci-003',
         'prompt' => trim($data->prompt),
-        'temperature' => 0.4,
-        'max_tokens' => 256,
+        'temperature' => floatval($data->options->temperature),
+        'max_tokens' => (int) $data->options->max_tokens,
       ]
     );
 

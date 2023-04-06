@@ -1,5 +1,5 @@
 name: OpenAI
 type: module
-description: A set of modules to enable OpenAI integration with Drupal.
+description: A set of modules to enable OpenAI integration with Drupal and augment the content experience with AI assisted tools.
 package: OpenAI
 core_version_requirement: ^10
