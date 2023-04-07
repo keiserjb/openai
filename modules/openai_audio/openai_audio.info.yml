@@ -1,0 +1,7 @@
+name: OpenAI Audio
+type: module
+description: Adds capability to interact with the OpenAI audio (speech to text) endpoints.
+package: OpenAI
+core_version_requirement: ^10
+dependencies:
+  - openai:openai
