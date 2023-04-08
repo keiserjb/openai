@@ -11,6 +11,7 @@ import HelpCommand from "./help/helpcommand";
 import TranslateCommand from "./translate/translatecommand";
 import ToneCommand from './tone/tonecommand';
 import SummarizeCommand from './summarize/summarizecommand';
+import ReformatHTMLCommand from "./reformat_html/reformathtmlcommand";
 
 export default class OpenAIUI extends Plugin {
 
@@ -23,6 +24,7 @@ export default class OpenAIUI extends Plugin {
     editor.commands.add('ToneCommand', new ToneCommand(editor, config.completion));
     editor.commands.add('SummarizeCommand', new SummarizeCommand(editor, config.completion));
     editor.commands.add('HelpCommand', new HelpCommand(editor));
+    editor.commands.add('ReformatHTMLCommand', new ReformatHTMLCommand(editor, config.completion));
 
     editor.ui.componentFactory.add( 'openai', locale => {
       const items = new Collection();
@@ -58,6 +60,17 @@ export default class OpenAIUI extends Plugin {
             withText: true,
             command: 'SummarizeCommand',
             group: config.completion
+        } )
+      });
+
+      items.add( {
+        type: 'button',
+        model: new Model( {
+          isEnabled: config.completion.enabled,
+          label: 'Reformat/correct HTML',
+          withText: true,
+          command: 'ReformatHTMLCommand',
+          group: config.completion
         } )
       });
 
