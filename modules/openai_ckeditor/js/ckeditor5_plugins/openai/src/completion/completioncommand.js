@@ -18,24 +18,29 @@ export default class CompletionCommand extends Command {
         const editor = this.editor;
         const formView = new FormView(editor.locale);
 
-        this.listenTo( formView, 'submit', () => {
+      this.listenTo( formView, 'submit', () => {
           const prompt = formView.promptInputView.fieldView.element.value;
-
+          this._hideUI();
           // @todo Need to have an AJAX indicator while the API waits for a response.
           // @todo add error handling
 
-          editor.model.change( writer => {
-            fetch(drupalSettings.path.baseUrl + 'api/openai-ckeditor/completion', {
+          editor.model.change(async writer => {
+            const response = await fetch(drupalSettings.path.baseUrl + 'api/openai-ckeditor/completion', {
               method: 'POST',
               credentials: 'same-origin',
               body: JSON.stringify({'prompt': prompt, 'options': this._config}),
-            })
-              .then((response) => response.json())
-              .then((answer) => editor.model.insertContent(
-                writer.createText(answer.text)
-              ))
-              .then(() => this._hideUI()
-            )
+            });
+
+            const reader = response.body.getReader();
+
+            while (true) {
+              const {value, done} = await reader.read();
+              const text = new TextDecoder().decode(value);
+              if (done) break;
+              editor.model.insertContent(
+                writer.createText(text)
+              );
+            }
           } );
         } );
 

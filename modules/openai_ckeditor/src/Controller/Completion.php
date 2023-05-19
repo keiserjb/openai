@@ -5,8 +5,8 @@ namespace Drupal\openai_ckeditor\Controller;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use OpenAI\Client;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Returns responses for CKEditor integration routes.
@@ -42,10 +42,10 @@ class Completion implements ContainerInjectionInterface {
   /**
    * Builds the response.
    */
-  public function generate(Request $request): JsonResponse {
+  public function generate(Request $request) {
     $data = json_decode($request->getContent());
 
-    $response = $this->client->completions()->create(
+    $stream = $this->client->completions()->createStreamed(
       [
         'model' => $data->options->model ?? 'text-davinci-003',
         'prompt' => trim($data->prompt),
@@ -54,15 +54,13 @@ class Completion implements ContainerInjectionInterface {
       ]
     );
 
-    $response = $response->toArray();
-
-    // @todo: could we have a setting to 'save' prompt responses like the log analyzer does?
-
-    return new JsonResponse(
-      [
-        'text' => trim($response["choices"][0]["text"]),
-      ],
-    );
+    return new StreamedResponse(function () use ($stream) {
+      foreach ($stream as $data) {
+        echo $data->choices[0]->text;
+        ob_flush();
+        flush();
+      }
+    }, 200, ['Content-Type' => 'text/plain']);
   }
 
 }

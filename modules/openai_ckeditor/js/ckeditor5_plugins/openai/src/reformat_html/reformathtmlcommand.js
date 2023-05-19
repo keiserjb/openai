@@ -27,8 +27,8 @@ export default class ReformatHTMLCommand extends Command {
         credentials: 'same-origin',
         body: JSON.stringify({'prompt': prompt, 'options': this._config}),
       })
-        .then((response) => response.json())
-        .then((answer) => this._writeHTML(answer.text, range))
+        .then((response) => response.text())
+        .then((answer) => this._writeHTML(answer, range))
     } );
   }
 

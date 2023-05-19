@@ -28,22 +28,29 @@ export default class ToneCommand extends Command {
         }
 
         const prompt = 'Change the tone of the following text to be more ' + formView.toneInputView.fieldView.element.value + ': ' + selectedText;
+        this._hideUI();
 
           // @todo Need to have an AJAX indicator while the API waits for a response.
           // @todo add error handling
+          editor.model.change(async writer => {
 
-          editor.model.change( writer => {
-            fetch(drupalSettings.path.baseUrl + 'api/openai-ckeditor/completion', {
+
+            const response = await fetch(drupalSettings.path.baseUrl + 'api/openai-ckeditor/completion', {
               method: 'POST',
               credentials: 'same-origin',
               body: JSON.stringify({'prompt': prompt, 'options': this._config}),
-            })
-              .then((response) => response.json())
-              .then((answer) => editor.model.insertContent(
-                editor.model.insertContent( writer.createText(answer.text), range )
-              ))
-              .then(() => this._hideUI()
-            )
+            });
+
+            const reader = response.body.getReader();
+
+            while (true) {
+              const {value, done} = await reader.read();
+              const text = new TextDecoder().decode(value);
+              if (done) break;
+              editor.model.insertContent(
+                writer.createText(text)
+              );
+            }
           } );
         } );
 

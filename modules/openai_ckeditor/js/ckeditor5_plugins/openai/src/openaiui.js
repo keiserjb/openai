@@ -85,38 +85,38 @@ export default class OpenAIUI extends Plugin {
         } )
       });
 
-      items.add( {
-        type: 'button',
-        model: new Model( {
-            isEnabled: false,
-            label: 'Ask ChatGPT',
-            withText: true,
-            command: '',
-            group: {}
-        } )
-      });
-
-      items.add( {
-        type: 'button',
-        model: new Model( {
-            isEnabled: false,
-            label: 'Generate image',
-            withText: true,
-            command: '',
-            group: {}
-        } )
-      });
-
-      items.add( {
-        type: 'button',
-        model: new Model( {
-            isEnabled: false,
-            label: 'Sentiment analysis',
-            withText: true,
-            command: '',
-            group: {}
-        } )
-      });
+      // items.add( {
+      //   type: 'button',
+      //   model: new Model( {
+      //       isEnabled: false,
+      //       label: 'Ask ChatGPT',
+      //       withText: true,
+      //       command: '',
+      //       group: {}
+      //   } )
+      // });
+      //
+      // items.add( {
+      //   type: 'button',
+      //   model: new Model( {
+      //       isEnabled: false,
+      //       label: 'Generate image',
+      //       withText: true,
+      //       command: '',
+      //       group: {}
+      //   } )
+      // });
+      //
+      // items.add( {
+      //   type: 'button',
+      //   model: new Model( {
+      //       isEnabled: false,
+      //       label: 'Sentiment analysis',
+      //       withText: true,
+      //       command: '',
+      //       group: {}
+      //   } )
+      // });
 
       items.add( {
         type: 'button',
