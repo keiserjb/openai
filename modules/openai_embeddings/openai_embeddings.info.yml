@@ -3,5 +3,6 @@ type: module
 description: Examines content and generates vectors to calculate relationships between strings.
 package: OpenAI
 core_version_requirement: ^10
+configure: openai_embeddings.settings
 dependencies:
   - openai:openai

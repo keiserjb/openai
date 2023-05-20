@@ -3,5 +3,6 @@ type: module
 description: Adds a form in the admin to interact with OpenAI over the ChatGPT API endpoint.
 package: OpenAI
 core_version_requirement: ^10
+configure: openai_chatgpt.chat_form
 dependencies:
   - openai:openai

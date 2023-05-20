@@ -4,5 +4,6 @@ description: Uses OpenAI to generate content. This is a test module that will ch
 package: OpenAI
 hidden: true
 core_version_requirement: ^10
+configure: openai_api.content_generation_config
 dependencies:
   - openai:openai
