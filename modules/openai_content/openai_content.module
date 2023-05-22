@@ -130,7 +130,7 @@ function openai_content_node_adjust_tone(array &$form, FormStateInterface $form_
     $response = $client->completions()->create(
       [
         'model' => 'text-davinci-003',
-        'prompt' => 'Change the tone of the following text to be more ' . $tone . ':\r\n"' . $body . '"',
+        'prompt' => 'Change the tone of the following text to be more ' . $tone . ' using the same language as the following text:\r\n"' . $body . '"',
         'temperature' => 0.7,
         'max_tokens' => 2048,
       ],
@@ -168,7 +168,7 @@ function openai_content_node_field_summarize(array &$form, FormStateInterface $f
     $response = $client->completions()->create(
       [
         'model' => 'text-davinci-003',
-        'prompt' => 'Create a detailed summary of the following text in less than 130 words:\r\n"' . $body . '"',
+        'prompt' => 'Create a detailed summary of the following text in less than 130 words using the same language as the following text:\r\n"' . $body . '"',
         'temperature' => 0.7,
         'max_tokens' => 2048,
       ],
@@ -206,7 +206,7 @@ function openai_content_node_suggest_taxonomy(array &$form, FormStateInterface $
     $response = $client->completions()->create(
       [
         'model' => 'text-davinci-003',
-        'prompt' => 'Suggest five words to classify the following text. The words must be nouns or adjectives in a comma delimited list:\r\n"' . $body . '"',
+        'prompt' => 'Suggest five words to classify the following text using the same language as the text. The words must be nouns or adjectives in a comma delimited list:\r\n"' . $body . '"',
         'temperature' => 0.4,
         'max_tokens' => 2048,
       ],
