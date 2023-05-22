@@ -1,93 +1,75 @@
 import { Command } from 'ckeditor5/src/core';
 import FormView from './form';
 import { ContextualBalloon, clickOutsideHandler } from 'ckeditor5/src/ui';
+import OpenAiRequest from "../api/request";
 
 export default class CompletionCommand extends Command {
     constructor(editor, config) {
-        super(editor);
-        this._balloon = this.editor.plugins.get( ContextualBalloon );
-        this.formView = this._createFormView();
-        this._config = config;
+      super(editor);
+      this._balloon = this.editor.plugins.get( ContextualBalloon );
+      this.formView = this._createFormView();
+      this._config = config;
+      this._request = this.editor.plugins.get( OpenAiRequest );
     }
 
     execute(options = {}) {
-        this._showUI();
+      this._showUI();
     }
 
     _createFormView() {
-        const editor = this.editor;
-        const formView = new FormView(editor.locale);
+      const editor = this.editor;
+      const formView = new FormView(editor.locale);
 
       this.listenTo( formView, 'submit', () => {
-          const prompt = formView.promptInputView.fieldView.element.value;
-          this._hideUI();
-          // @todo Need to have an AJAX indicator while the API waits for a response.
-          // @todo add error handling
+        const prompt = formView.promptInputView.fieldView.element.value;
+        this._hideUI();
+        this._request.doRequest('api/openai-ckeditor/completion', {'prompt': prompt, 'options': this._config});
+      });
 
-          editor.model.change(async writer => {
-            const response = await fetch(drupalSettings.path.baseUrl + 'api/openai-ckeditor/completion', {
-              method: 'POST',
-              credentials: 'same-origin',
-              body: JSON.stringify({'prompt': prompt, 'options': this._config}),
-            });
+      // Hide the form view after clicking the "Cancel" button.
+      this.listenTo(formView, 'cancel', () => {
+        this._hideUI();
+      } );
 
-            const reader = response.body.getReader();
+      // Hide the form view when clicking outside the balloon.
+      clickOutsideHandler( {
+        emitter: formView,
+        activator: () => this._balloon.visibleView === formView,
+        contextElements: [ this._balloon.view.element ],
+        callback: () => this._hideUI()
+      } );
 
-            while (true) {
-              const {value, done} = await reader.read();
-              const text = new TextDecoder().decode(value);
-              if (done) break;
-              editor.model.insertContent(
-                writer.createText(text)
-              );
-            }
-          } );
-        } );
+      return formView;
+    }
 
-        // Hide the form view after clicking the "Cancel" button.
-        this.listenTo(formView, 'cancel', () => {
-          this._hideUI();
-        } );
+    _getBalloonPositionData() {
+      const view = this.editor.editing.view;
+      const viewDocument = view.document;
+      let target = null;
 
-        // Hide the form view when clicking outside the balloon.
-        clickOutsideHandler( {
-          emitter: formView,
-          activator: () => this._balloon.visibleView === formView,
-          contextElements: [ this._balloon.view.element ],
-          callback: () => this._hideUI()
-        } );
+      // Set a target position by converting view selection range to DOM.
+      target = () => view.domConverter.viewRangeToDom(
+        viewDocument.selection.getFirstRange()
+      );
 
-        return formView;
-      }
+      return {
+        target
+      };
+    }
 
-      _getBalloonPositionData() {
-        const view = this.editor.editing.view;
-        const viewDocument = view.document;
-        let target = null;
+    _showUI() {
+      this._balloon.add( {
+        view: this.formView,
+        position: this._getBalloonPositionData()
+      } );
 
-        // Set a target position by converting view selection range to DOM.
-        target = () => view.domConverter.viewRangeToDom(
-          viewDocument.selection.getFirstRange()
-        );
+      this.formView.focus();
+    }
 
-        return {
-          target
-        };
-      }
-
-      _showUI() {
-        this._balloon.add( {
-          view: this.formView,
-          position: this._getBalloonPositionData()
-        } );
-
-        this.formView.focus();
-      }
-
-      _hideUI() {
-        this.formView.promptInputView.fieldView.value = '';
-        this.formView.element.reset();
-        this._balloon.remove( this.formView );
-        this.editor.editing.view.focus();
-      }
+    _hideUI() {
+      this.formView.promptInputView.fieldView.value = '';
+      this.formView.element.reset();
+      this._balloon.remove( this.formView );
+      this.editor.editing.view.focus();
+    }
 }

@@ -1,17 +1,19 @@
 import { Command } from 'ckeditor5/src/core';
 import FormView from './form';
 import { ContextualBalloon, clickOutsideHandler } from 'ckeditor5/src/ui';
+import OpenAiRequest from "../api/request";
 
 export default class ToneCommand extends Command {
     constructor(editor, config) {
-        super(editor);
-        this._balloon = this.editor.plugins.get( ContextualBalloon );
-        this.formView = this._createFormView();
-        this._config = config;
+      super(editor);
+      this._balloon = this.editor.plugins.get( ContextualBalloon );
+      this.formView = this._createFormView();
+      this._config = config;
+      this._request = this.editor.plugins.get( OpenAiRequest );
     }
 
     execute(options = {}) {
-        this._showUI();
+      this._showUI();
     }
 
     _createFormView() {
@@ -26,33 +28,10 @@ export default class ToneCommand extends Command {
         for (const item of range.getItems()) {
           selectedText = item.data;
         }
-
-        const prompt = 'Change the tone of the following text to be more ' + formView.toneInputView.fieldView.element.value + ': ' + selectedText;
         this._hideUI();
-
-          // @todo Need to have an AJAX indicator while the API waits for a response.
-          // @todo add error handling
-          editor.model.change(async writer => {
-
-
-            const response = await fetch(drupalSettings.path.baseUrl + 'api/openai-ckeditor/completion', {
-              method: 'POST',
-              credentials: 'same-origin',
-              body: JSON.stringify({'prompt': prompt, 'options': this._config}),
-            });
-
-            const reader = response.body.getReader();
-
-            while (true) {
-              const {value, done} = await reader.read();
-              const text = new TextDecoder().decode(value);
-              if (done) break;
-              editor.model.insertContent(
-                writer.createText(text)
-              );
-            }
-          } );
-        } );
+        const prompt = 'Change the tone of the following text to be more ' + formView.toneInputView.fieldView.element.value + ': ' + selectedText;
+        this._request.doRequest('api/openai-ckeditor/completion', {'prompt': prompt, 'options': this._config});
+      });
 
         // Hide the form view after clicking the "Cancel" button.
         this.listenTo(formView, 'cancel', () => {
