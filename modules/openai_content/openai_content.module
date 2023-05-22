@@ -10,7 +10,6 @@ use Drupal\Core\Ajax\HtmlCommand;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
-use Drupal\node\Entity\Node;
 use Drupal\openai\Utility\StringHelper;
 
 /**
@@ -82,7 +81,7 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
     $form['openai_summarize']['target_field'] = [
       '#type' => 'select',
       '#title' => t('Choose field'),
-      '#description' => t('Select what field you would like to create a summary of.'),
+      '#description' => t('Select what field you would like to create a summary from.'),
       '#options' => $options,
     ];
 
@@ -113,7 +112,7 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
     $form['openai_suggest']['target_field'] = [
       '#type' => 'select',
       '#title' => t('Choose field'),
-      '#description' => t('Select what field you would like to suggest taxonomy of.'),
+      '#description' => t('Select what field you would like to suggest taxonomy from.'),
       '#options' => $options,
     ];
 
@@ -137,16 +136,16 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
 }
 
 /**
- * Get a list of all text with summary fields on the current node.
+ * Get a list of all string and text fields on the current node.
  *
- * @param Node $node
- *   The node on the form.
+ * @param ContentEntityInterface $entity
+ *   The content entity on the form.
  *
  * @return array
- *   List of all text with summary fields
+ *   List of all valid field options.
  */
-function _get_all_text_with_summary_fields(ContentEntityInterface $node) {
-  $fields = $node->getFieldDefinitions();
+function _get_all_text_with_summary_fields(ContentEntityInterface $entity) {
+  $fields = $entity->getFieldDefinitions();
   $options = [];
 
   foreach ($fields as $field) {
