@@ -44,19 +44,36 @@ class Completion implements ContainerInjectionInterface {
    */
   public function generate(Request $request) {
     $data = json_decode($request->getContent());
+    $use_chat_endpoint = str_contains($data->options->model, 'gpt');
 
-    $stream = $this->client->completions()->createStreamed(
-      [
-        'model' => $data->options->model ?? 'text-davinci-003',
-        'prompt' => trim($data->prompt),
-        'temperature' => floatval($data->options->temperature),
-        'max_tokens' => (int) $data->options->max_tokens,
-      ]
-    );
+    if (!$use_chat_endpoint) {
+      $stream = $this->client->completions()->createStreamed(
+        [
+          'model' => $data->options->model ?? 'text-davinci-003',
+          'prompt' => trim($data->prompt),
+          'temperature' => floatval($data->options->temperature),
+          'max_tokens' => (int) $data->options->max_tokens,
+        ]
+      );
+    } else {
+      $messages = [
+        ['role' => 'system', 'content' => 'You are an expert in content editing and an assistant to a user writing content for their website. Please return all answers without using first, second, or third person voice.'],
+        ['role' => 'user', 'content' => trim($data->prompt)]
+      ];
 
-    return new StreamedResponse(function () use ($stream) {
+      $stream = $this->client->chat()->createStreamed(
+        [
+          'model' => $data->options->model ?? 'gpt-3.5-turbo',
+          'messages' => $messages,
+          'temperature' => floatval($data->options->temperature),
+          'max_tokens' => (int) $data->options->max_tokens,
+        ]
+      );
+    }
+
+    return new StreamedResponse(function () use ($stream, $use_chat_endpoint) {
       foreach ($stream as $data) {
-        echo $data->choices[0]->text;
+        echo (!$use_chat_endpoint) ? $data->choices[0]->text : $data->choices[0]->delta->content;
         ob_flush();
         flush();
       }

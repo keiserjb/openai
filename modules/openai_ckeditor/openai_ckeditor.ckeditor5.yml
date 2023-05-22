@@ -4,9 +4,9 @@ openai_ckeditor_openai:
       - openai.OpenAI
     config:
       completion:
-        model: 'text-davinci-003'
+        model: 'gpt-3.5-turbo'
         temperature: 0.2
-        max_tokens: 256
+        max_tokens: 512
   drupal:
     label: OpenAI tools
     library: openai_ckeditor/openai

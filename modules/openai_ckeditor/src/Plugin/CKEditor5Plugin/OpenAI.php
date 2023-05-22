@@ -24,9 +24,9 @@ class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurab
    */
   const DEFAULT_CONFIGURATION = [
     'completion' => [
-      'model' => 'text-davinci-003',
+      'model' => 'gpt-3.5-turbo',
       'temperature' => 0.2,
-      'max_tokens' => 256,
+      'max_tokens' => 512,
     ]
   ];
 
@@ -60,13 +60,19 @@ class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurab
       '#type' => 'select',
       '#title' => $this->t('Default model'),
       '#options' => [
+        'gpt-4' => 'gpt-4',
+        'gpt-4-0314' => 'gpt-4-0314',
+        'gpt-4-32k' => 'gpt-4-32k',
+        'gpt-4-32k-0314' => 'gpt-4-32k-0314',
+        'gpt-3.5-turbo' => 'gpt-3.5-turbo',
+        'gpt-3.5-turbo-0301' => 'gpt-3.5-turbo-0301',
         'text-davinci-003' => 'text-davinci-003',
         'text-curie-001' => 'text-curie-001',
         'text-babbage-001' => 'text-babbage-001',
         'text-ada-001' => 'text-ada-001',
       ],
-      '#default_value' => $this->configuration['completion']['model'] ?? 'text-davinci-003',
-      '#description' => $this->t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/models']),
+      '#default_value' => $this->configuration['completion']['model'] ?? 'gpt-3.5-turbo',
+      '#description' => $this->t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model. Note that newer GPT models may be invite only.', ['@link' => 'https://platform.openai.com/docs/models']),
     ];
 
     $form['completion']['temperature'] = [
@@ -86,7 +92,7 @@ class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurab
       '#max' => 4096,
       '#step' => 1,
       '#default_value' => $this->configuration['completion']['max_tokens'] ?? '128',
-      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Most models have a context length of 2048 tokens (except for the newest models, which support 4096).'),
+      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Most models have a context length of 2048 tokens (except for the newest models, which support 4096). Newer GPT-4 models support upwards of 32k tokens. Check the <a href="@link">models overview</a> for more details.', ['@link' => 'https://platform.openai.com/docs/models/gpt-4']),
     ];
 
     return $form;
