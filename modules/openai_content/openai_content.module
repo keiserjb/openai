@@ -7,9 +7,10 @@
 
 use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Ajax\HtmlCommand;
+use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\node\NodeInterface;
-use Drupal\Component\Utility\Unicode;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\node\Entity\Node;
 use Drupal\openai\Utility\StringHelper;
 
 /**
@@ -18,7 +19,11 @@ use Drupal\openai\Utility\StringHelper;
 function openai_content_form_alter(array &$form, FormStateInterface $form_state, $form_id) {
   $account = \Drupal::currentUser();
 
-  if (preg_match('/node_(add|.*_edit)_form/', $form_id) && $account->hasPermission('access openai content tools')) {
+  /** @var \Drupal\node\Entity\Node $entity */
+  if (preg_match('/node_(.*)_form/', $form_id) && $account->hasPermission('access openai content tools')) {
+    $entity = $form_state->getFormObject()->getEntity();
+    $options = _get_all_text_with_summary_fields($entity);
+
     $form['openai_tone_edit'] = [
       '#type' => 'details',
       '#title' => t('Adjust content tone'),
@@ -28,6 +33,13 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
 
     $form['openai_tone_edit']['message'] = [
       '#markup' => t('Have OpenAI check your content and adjust the tone of it for different reader audiences for you.'),
+    ];
+
+    $form['openai_tone_edit']['target_field'] = [
+      '#type' => 'select',
+      '#title' => t('Choose field'),
+      '#description' => t('Select what field you would like to change the tone of.'),
+      '#options' => $options,
     ];
 
     // @todo: these values should be configurable options
@@ -64,6 +76,14 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
       '#type' => 'details',
       '#title' => t('Summarize text'),
       '#group' => 'advanced',
+      '#tree' => TRUE,
+    ];
+
+    $form['openai_summarize']['target_field'] = [
+      '#type' => 'select',
+      '#title' => t('Choose field'),
+      '#description' => t('Select what field you would like to create a summary of.'),
+      '#options' => $options,
     ];
 
     $form['openai_summarize']['response'] = [
@@ -87,6 +107,14 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
       '#type' => 'details',
       '#title' => t('Suggest taxonomy'),
       '#group' => 'advanced',
+      '#tree' => TRUE,
+    ];
+
+    $form['openai_suggest']['target_field'] = [
+      '#type' => 'select',
+      '#title' => t('Choose field'),
+      '#description' => t('Select what field you would like to suggest taxonomy of.'),
+      '#options' => $options,
     ];
 
     $form['openai_suggest']['response'] = [
@@ -109,6 +137,35 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
 }
 
 /**
+ * Get a list of all text with summary fields on the current node.
+ *
+ * @param Node $node
+ *   The node on the form.
+ *
+ * @return array
+ *   List of all text with summary fields
+ */
+function _get_all_text_with_summary_fields(ContentEntityInterface $node) {
+  $fields = $node->getFieldDefinitions();
+  $options = [];
+
+  foreach ($fields as $field) {
+    if (in_array($field->getType(), ['text_with_summary', 'text_long', 'string', 'string_long'])) {
+      $label = $field->getLabel();
+
+      if ($label instanceof TranslatableMarkup) {
+        $label = $label->render();
+      }
+
+      $options[$field->getName()] = $label;
+    }
+  }
+
+  asort($options);
+  return $options;
+}
+
+/**
  * The AJAX callback for adjusting the tone of body content.
  *
  * @param array $form
@@ -120,17 +177,19 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
  *   The HTML response.
  */
 function openai_content_node_adjust_tone(array &$form, FormStateInterface $form_state) {
-  $body = $form_state->getValue('body')[0]['value'];
-  $tone = $form_state->getValue('openai_tone_edit')['tone'];
+  $openai_tone_edit = $form_state->getValue('openai_tone_edit');
+  $target_field = $openai_tone_edit['target_field'];
+  $target_field_value = $form_state->getValue($target_field)[0]['value'];
+  $tone = $openai_tone_edit['tone'];
 
-  if (!empty($body)) {
+  if (!empty($target_field_value)) {
     $client = \Drupal::service('openai.client');
-    $body = StringHelper::prepareText($body, [], 3900);
+    $truncated_value = StringHelper::prepareText($target_field_value, [], 3900);
 
     $response = $client->completions()->create(
       [
         'model' => 'text-davinci-003',
-        'prompt' => 'Change the tone of the following text to be more ' . $tone . ' using the same language as the following text:\r\n"' . $body . '"',
+        'prompt' => 'Change the tone of the following text to be more ' . $tone . ' using the same language as the following text:\r\n"' . $truncated_value . '"',
         'temperature' => 0.7,
         'max_tokens' => 2048,
       ],
@@ -139,7 +198,7 @@ function openai_content_node_adjust_tone(array &$form, FormStateInterface $form_
     $result = $response->toArray();
     $text = trim($result["choices"][0]["text"]) ?? t('No result could be generated.');
   } else {
-    $text = t('The body field has no text. Please supply content to the body field.');
+    $text = t('The @field field has no text. Please supply content to the @field field.', ['@field' => $target_field]);
   }
 
   $response = new AjaxResponse();
@@ -159,16 +218,18 @@ function openai_content_node_adjust_tone(array &$form, FormStateInterface $form_
  *   The HTML response.
  */
 function openai_content_node_field_summarize(array &$form, FormStateInterface $form_state) {
-  $body = $form_state->getValue('body')[0]['value'];
+  $openai_summarize = $form_state->getValue('openai_summarize');
+  $target_field = $openai_summarize['target_field'];
+  $target_field_value = $form_state->getValue($target_field)[0]['value'];
 
-  if (!empty($body)) {
+  if (!empty($target_field_value)) {
     $client = \Drupal::service('openai.client');
-    $body = StringHelper::prepareText($body, [], 3900);
+    $truncated_value = StringHelper::prepareText($target_field_value, [], 3900);
 
     $response = $client->completions()->create(
       [
         'model' => 'text-davinci-003',
-        'prompt' => 'Create a detailed summary of the following text in less than 130 words using the same language as the following text:\r\n"' . $body . '"',
+        'prompt' => 'Create a detailed summary of the following text in less than 130 words using the same language as the following text:\r\n"' . $truncated_value . '"',
         'temperature' => 0.7,
         'max_tokens' => 2048,
       ],
@@ -177,7 +238,7 @@ function openai_content_node_field_summarize(array &$form, FormStateInterface $f
     $result = $response->toArray();
     $text = trim($result["choices"][0]["text"]) ?? t('No result could be generated.');
   } else {
-    $text = t('The body field has no text. Please supply content to the body field.');
+    $text = t('The @field field has no text. Please supply content to the @field field.', ['@field' => $target_field]);
   }
 
   $response = new AjaxResponse();
@@ -197,16 +258,18 @@ function openai_content_node_field_summarize(array &$form, FormStateInterface $f
  *   The HTML response.
  */
 function openai_content_node_suggest_taxonomy(array &$form, FormStateInterface $form_state) {
-  $body = $form_state->getValue('body')[0]['value'];
+  $openai_suggest = $form_state->getValue('openai_suggest');
+  $target_field = $openai_suggest['target_field'];
+  $target_field_value = $form_state->getValue($target_field)[0]['value'];
 
-  if (!empty($body)) {
+  if (!empty($target_field_value)) {
     $client = \Drupal::service('openai.client');
-    $body = StringHelper::prepareText($body, [], 3900);
+    $truncated_value = StringHelper::prepareText($target_field_value, [], 3900);
 
     $response = $client->completions()->create(
       [
         'model' => 'text-davinci-003',
-        'prompt' => 'Suggest five words to classify the following text using the same language as the text. The words must be nouns or adjectives in a comma delimited list:\r\n"' . $body . '"',
+        'prompt' => 'Suggest five words to classify the following text using the same language as the input text. The words must be nouns or adjectives in a comma delimited list:\r\n"' . $truncated_value . '"',
         'temperature' => 0.4,
         'max_tokens' => 2048,
       ],
@@ -215,7 +278,7 @@ function openai_content_node_suggest_taxonomy(array &$form, FormStateInterface $
     $result = $response->toArray();
     $text = trim($result["choices"][0]["text"]) ?? t('No terms could be generated from the provided input.');
   } else {
-    $text = t('The body field has no text. Please supply content to the body field.');
+    $text = t('The @field field has no text. Please supply content to the @field field.', ['@field' => $target_field]);
   }
 
   $response = new AjaxResponse();
