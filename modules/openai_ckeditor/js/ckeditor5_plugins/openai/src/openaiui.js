@@ -66,17 +66,6 @@ export default class OpenAIUI extends Plugin {
       items.add( {
         type: 'button',
         model: new Model( {
-          isEnabled: config.completion.enabled,
-          label: 'Reformat/correct HTML',
-          withText: true,
-          command: 'ReformatHTMLCommand',
-          group: config.completion
-        } )
-      });
-
-      items.add( {
-        type: 'button',
-        model: new Model( {
             isEnabled: config.completion.enabled,
             label: 'Translate',
             withText: true,
@@ -85,27 +74,17 @@ export default class OpenAIUI extends Plugin {
         } )
       });
 
-      // items.add( {
-      //   type: 'button',
-      //   model: new Model( {
-      //       isEnabled: false,
-      //       label: 'Ask ChatGPT',
-      //       withText: true,
-      //       command: '',
-      //       group: {}
-      //   } )
-      // });
-      //
-      // items.add( {
-      //   type: 'button',
-      //   model: new Model( {
-      //       isEnabled: false,
-      //       label: 'Generate image',
-      //       withText: true,
-      //       command: '',
-      //       group: {}
-      //   } )
-      // });
+      items.add( {
+        type: 'button',
+        model: new Model( {
+          isEnabled: config.completion.enabled,
+          label: 'Reformat/correct HTML',
+          withText: true,
+          command: 'ReformatHTMLCommand',
+          group: config.completion
+        } )
+      });
+
       //
       // items.add( {
       //   type: 'button',

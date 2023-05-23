@@ -26,7 +26,9 @@ export default class ToneCommand extends Command {
         let selectedText = '';
 
         for (const item of range.getItems()) {
-          selectedText += item.data;
+          if (typeof item.data !== undefined) {
+            selectedText += item.data + ' ';
+          }
         }
 
         this._hideUI();

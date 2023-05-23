@@ -16,7 +16,9 @@ export default class ReformatHTMLCommand extends Command {
     let selectedText = '';
 
     for (const item of range.getItems()) {
-      selectedText += item.data;
+      if (typeof item.data !== undefined) {
+        selectedText += item.data + ' ';
+      }
     }
 
     const prompt = 'Please fix this HTML to be correct and semantic using only lists, headers, or paragraph tags: ' + selectedText;

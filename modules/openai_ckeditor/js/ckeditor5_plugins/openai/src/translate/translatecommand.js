@@ -27,7 +27,9 @@ export default class TranslateCommand extends Command {
         let selectedText = '';
 
         for (const item of range.getItems()) {
-          selectedText += item.data;
+          if (typeof item.data !== undefined) {
+            selectedText += item.data + ' ';
+          }
         }
 
         const prompt = 'Translate the selected text into ' + formView.languageInputView.fieldView.element.value + ': ' + selectedText;

@@ -15,10 +15,11 @@ export default class SummarizeCommand extends Command {
     let selectedText = '';
 
     for (const item of range.getItems()) {
-      selectedText += item.data;
+      if (typeof item.data !== undefined) {
+        selectedText += item.data + ' ';
+      }
     }
 
-    console.log(selectedText);
     const prompt = 'Summarize the following text into something more compact using the same language as the following text: ' + selectedText;
     this._request.doRequest('api/openai-ckeditor/completion', {'prompt': prompt, 'options': this._config});
   }
