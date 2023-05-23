@@ -35,6 +35,16 @@ class StringHelperTest extends UnitTestCase {
              <p>Foo bar baz, test? Good!</p>";
     $text = StringHelper::prepareText($text);
     $this->assertSame('Foo Foo bar baz, test? Good!', $text);
+
+    $text = "<h1>Foo</h1>
+             <p>Foo test <drupal-media uuid='12345' /></p>";
+    $text = StringHelper::prepareText($text);
+    $this->assertSame('Foo Foo test', $text);
+
+    $text = "<h1>Foo</h1>
+             <p>Foo test <drupal-media uuid='12345'>some text</drupal-media></p>";
+    $text = StringHelper::prepareText($text);
+    $this->assertSame('Foo Foo test', $text);
   }
 
   /**

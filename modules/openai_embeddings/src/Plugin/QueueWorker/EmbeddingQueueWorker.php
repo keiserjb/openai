@@ -132,7 +132,7 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
           $field_values = $entity->get($field->getName())->getValue();
 
           foreach ($field_values as $delta => $data) {
-            if (!mb_strlen($data['value'])) {
+            if (!array_key_exists('value', $data) || empty($data['value'])) {
               continue;
             }
 

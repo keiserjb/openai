@@ -36,7 +36,7 @@ class StringHelper {
    */
   public static function prepareText(string $text, array $removeHtmlElements = [], int $max_length = 10000): string {
     // Never include the contents of the following tags.
-    $removeHtmlElements += ['pre', 'code', 'script', 'iframe'];
+    $removeHtmlElements += ['pre', 'code', 'script', 'iframe', 'drupal-media'];
 
     // Ensure we have a root element since LIBXML_HTML_NOIMPLIED is being used.
     // @see https://stackoverflow.com/questions/29493678/loadhtml-libxml-html-noimplied-on-an-html-fragment-generates-incorrect-tags
@@ -45,7 +45,10 @@ class StringHelper {
     $dom = new \DOMDocument('5.0', 'utf-8');
     $dom->formatOutput = FALSE;
     $dom->preserveWhiteSpace = TRUE;
+    $previous = libxml_use_internal_errors(TRUE);
     $dom->loadHTML(mb_convert_encoding($text, 'HTML-ENTITIES', 'UTF-8'), LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NOBLANKS);
+    libxml_clear_errors();
+    libxml_use_internal_errors($previous);
     $removeElements = [];
 
     // Collect a list of DOM nodes we want to remove.
