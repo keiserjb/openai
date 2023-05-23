@@ -25,7 +25,7 @@ export default class ReformatHTMLCommand extends Command {
       return;
     }
 
-    const prompt = 'Please fix this HTML to be correct and semantic using only lists, headers, or paragraph tags: ' + selectedText;
+    const prompt = 'Please fix this text to be marked up with semantic HTML using only lists, headers, or paragraph tags: ' + selectedText;
 
     status.fire('openai_status', {
       status: 'Waiting for response...'
@@ -48,13 +48,16 @@ export default class ReformatHTMLCommand extends Command {
             });
 
             response.text().then((result) => {
+              status.fire('openai_status', {
+                status: 'Writing response...'
+              });
               this._writeHTML(result, range);
+            }).then(() => {
+              setTimeout(() => {
+                status.fire('openai_status', {status: 'Idle'});
+              }, 3000);
             });
           }
-
-          setTimeout(() => {
-            status.fire('openai_status', {status: 'Idle'});
-          }, 3000);
         })
     } );
   }
