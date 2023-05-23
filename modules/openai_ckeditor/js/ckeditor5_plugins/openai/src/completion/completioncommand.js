@@ -23,6 +23,11 @@ export default class CompletionCommand extends Command {
       this.listenTo( formView, 'submit', () => {
         const prompt = formView.promptInputView.fieldView.element.value;
         this._hideUI();
+
+        if (!prompt.length) {
+          return;
+        }
+
         this._request.doRequest('api/openai-ckeditor/completion', {'prompt': prompt, 'options': this._config});
       });
 
