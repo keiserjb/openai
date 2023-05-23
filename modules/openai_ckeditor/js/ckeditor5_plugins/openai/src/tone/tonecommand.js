@@ -23,11 +23,12 @@ export default class ToneCommand extends Command {
       this.listenTo( formView, 'submit', () => {
         const selection = editor.model.document.selection;
         const range = selection.getFirstRange();
-        let selectedText = null;
+        let selectedText = '';
 
         for (const item of range.getItems()) {
-          selectedText = item.data;
+          selectedText += item.data;
         }
+
         this._hideUI();
         const prompt = 'Change the tone of the following text to be more ' + formView.toneInputView.fieldView.element.value + ' using the same language as the following text: ' + selectedText;
         this._request.doRequest('api/openai-ckeditor/completion', {'prompt': prompt, 'options': this._config});

@@ -13,10 +13,10 @@ export default class ReformatHTMLCommand extends Command {
     const selection = editor.model.document.selection;
     const range = selection.getFirstRange();
     const status = this._status;
-    let selectedText = null;
+    let selectedText = '';
 
     for (const item of range.getItems()) {
-      selectedText = item.data;
+      selectedText += item.data;
     }
 
     const prompt = 'Please fix this HTML to be correct and semantic using only lists, headers, or paragraph tags: ' + selectedText;

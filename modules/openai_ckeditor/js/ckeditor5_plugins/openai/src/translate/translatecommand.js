@@ -24,10 +24,10 @@ export default class TranslateCommand extends Command {
       this.listenTo( formView, 'submit', () => {
         const selection = editor.model.document.selection;
         const range = selection.getFirstRange();
-        let selectedText = null;
+        let selectedText = '';
 
         for (const item of range.getItems()) {
-          selectedText = item.data; //return the selected text
+          selectedText += item.data;
         }
 
         const prompt = 'Translate the selected text into ' + formView.languageInputView.fieldView.element.value + ': ' + selectedText;
