@@ -5,10 +5,12 @@
  * Contains hook implementations for this module.
  */
 
+use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Ajax\HtmlCommand;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Render\Markup;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\openai\Utility\StringHelper;
 
@@ -22,6 +24,37 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
   if (preg_match('/node_(.*)_form/', $form_id) && $account->hasPermission('access openai content tools')) {
     $entity = $form_state->getFormObject()->getEntity();
     $options = _get_all_text_with_summary_fields($entity);
+
+    $form['openai_moderate'] = [
+      '#type' => 'details',
+      '#title' => t('Analyze text'),
+      '#group' => 'advanced',
+      '#tree' => TRUE,
+    ];
+
+    $form['openai_moderate']['target_field'] = [
+      '#type' => 'select',
+      '#title' => t('Choose field'),
+      '#description' => t('Select what field you would like to analyze.'),
+      '#options' => $options,
+    ];
+
+    $form['openai_moderate']['response'] = [
+      '#type' => 'markup',
+      '#markup' => t('OpenAI can analyze content and tell you what <a href=":link" target="_blank">content policies it may violate</a>. This is beneficial if your audience are certain demographics and sensitive to certain categories. Note that this is only a useful guide.', [':link' => 'https://platform.openai.com/docs/guides/moderation/overview']),
+      '#prefix' => '<div id="openai-moderate-response">',
+      '#suffix' => '</div>',
+    ];
+
+    $form['openai_moderate']['do_moderate'] = [
+      '#type' => 'button',
+      '#value' => t('Analyze'),
+      '#limit_validation_errors' => [],
+      '#ajax' => [
+        'callback' => 'openai_content_node_analyze_content',
+        'wrapper' => 'openai-moderate-response',
+      ],
+    ];
 
     $form['openai_tone_edit'] = [
       '#type' => 'details',
@@ -282,5 +315,69 @@ function openai_content_node_suggest_taxonomy(array &$form, FormStateInterface $
 
   $response = new AjaxResponse();
   $response->addCommand(new HtmlCommand('#openai-suggest-response', $text));
+  return $response;
+}
+
+/**
+ * The AJAX callback for analyzing content.
+ *
+ * @param array $form
+ *   The node form.
+ * @param \Drupal\Core\Form\FormStateInterface $form_state
+ *   The form state.
+ *
+ * @return \Drupal\Core\Ajax\AjaxResponse
+ *   The HTML response.
+ */
+function openai_content_node_analyze_content(array &$form, FormStateInterface $form_state) {
+  $openai_analyze = $form_state->getValue('openai_moderate');
+  $target_field = $openai_analyze['target_field'];
+  $target_field_value = $form_state->getValue($target_field)[0]['value'];
+
+  if (!empty($target_field_value)) {
+    /** @var \OpenAI\Client $client */
+    $client = \Drupal::service('openai.client');
+    $truncated_value = StringHelper::prepareText($target_field_value, [], 8000);
+    $renderer = \Drupal::service('renderer');
+
+    $response = $client->moderations()->create(
+      [
+        'model' => 'text-moderation-latest',
+        'input' => $truncated_value,
+      ],
+    );
+
+    $result = $response->toArray();
+    $flagged = (bool) $result["results"][0]["flagged"];
+    $content = [];
+
+    $content['results'] = [
+      '#theme' => 'item_list',
+      '#list_type' => 'ul',
+      '#items' => [],
+      '#empty' => t('The text does not violate any content policies noted by OpenAI/ChatGPT.'),
+    ];
+
+    if ($flagged) {
+      $content['heading'] = [
+        '#markup' => '<p>' . t('Violation(s) found for these categories:') . '</p>',
+      ];
+
+      $violated_categories = array_filter($result["results"][0]["categories"]);
+
+      foreach ($violated_categories as $category => $did_violate) {
+        $content['results']['#items'][] = Unicode::ucfirst($category);
+      }
+    }
+
+    asort($content);
+
+    $output = $renderer->render($content);
+  } else {
+    $output = t('The @field field has no text. Please supply content to the @field field.', ['@field' => $target_field]);
+  }
+
+  $response = new AjaxResponse();
+  $response->addCommand(new HtmlCommand('#openai-moderate-response', $output));
   return $response;
 }
