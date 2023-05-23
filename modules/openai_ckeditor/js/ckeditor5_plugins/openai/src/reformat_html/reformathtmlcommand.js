@@ -21,6 +21,10 @@ export default class ReformatHTMLCommand extends Command {
       }
     }
 
+    if (!selectedText.length) {
+      return;
+    }
+
     const prompt = 'Please fix this HTML to be correct and semantic using only lists, headers, or paragraph tags: ' + selectedText;
 
     status.fire('openai_status', {

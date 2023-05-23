@@ -32,6 +32,10 @@ export default class TranslateCommand extends Command {
           }
         }
 
+        if (!selectedText.length) {
+          return;
+        }
+
         const prompt = 'Translate the selected text into ' + formView.languageInputView.fieldView.element.value + ': ' + selectedText;
         this._hideUI();
         this._request.doRequest('api/openai-ckeditor/completion', {'prompt': prompt, 'options': this._config});

@@ -31,6 +31,10 @@ export default class ToneCommand extends Command {
           }
         }
 
+        if (!selectedText.length) {
+          return;
+        }
+
         this._hideUI();
         const prompt = 'Change the tone of the following text to be more ' + formView.toneInputView.fieldView.element.value + ' using the same language as the following text: ' + selectedText;
         this._request.doRequest('api/openai-ckeditor/completion', {'prompt': prompt, 'options': this._config});
