@@ -80,4 +80,13 @@ class StringHelperTest extends UnitTestCase {
     $this->assertSame('Dinosaurs', $text);
   }
 
+  /**
+   * Test that a string with Unicode characters does not have those characters removed.
+   */
+  public function testStringWithUnicodeCharacters(): void {
+    $text = "<p>En ø er et landområde helt omgivet af vand ved normalvandstand, der er mindre end et kontinent og større end en sten eller et skær. En lille ø kaldes for en holm eller småø.</p>";
+    $text = StringHelper::prepareText($text);
+    $this->assertSame('En ø er et landområde helt omgivet af vand ved normalvandstand, der er mindre end et kontinent og større end en sten eller et skær. En lille ø kaldes for en holm eller småø.', $text);
+  }
+
 }

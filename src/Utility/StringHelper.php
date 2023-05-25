@@ -47,6 +47,7 @@ class StringHelper {
     $dom->preserveWhiteSpace = TRUE;
     $previous = libxml_use_internal_errors(TRUE);
     $dom->loadHTML(mb_convert_encoding($text, 'HTML-ENTITIES', 'UTF-8'), LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NOBLANKS);
+    $dom->encoding = 'utf-8';
     libxml_clear_errors();
     libxml_use_internal_errors($previous);
     $removeElements = [];
@@ -65,13 +66,13 @@ class StringHelper {
       $removeElement->parentNode->removeChild($removeElement);
     }
 
-    $text = $dom->saveHTML();
+    $text = $dom->saveHTML($dom->documentElement);
     $text = html_entity_decode($text);
     $text = strip_tags(trim($text));
     $text = str_replace(["\r\n", "\r", "\n", "\\r", "\\n", "\\r\\n"], "", $text);
     $text = trim($text);
     $text = preg_replace("/  +/", ' ', $text);
-    $text = preg_replace("/[^a-z0-9.?!,' ]/i", '', $text);
+    $text = preg_replace("/[^\w.?!,' ]/iu", '', $text);
     // @todo Here is where we could remove stopwords
     return Unicode::truncate($text, $max_length, TRUE);
   }
