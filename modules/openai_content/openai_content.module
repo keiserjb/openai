@@ -8,10 +8,12 @@
 use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Ajax\HtmlCommand;
+use Drupal\Core\Entity\ContentEntityFormInterface;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\node\NodeForm;
 use Drupal\openai\Utility\StringHelper;
 
 /**
@@ -19,10 +21,11 @@ use Drupal\openai\Utility\StringHelper;
  */
 function openai_content_form_alter(array &$form, FormStateInterface $form_state, $form_id) {
   $account = \Drupal::currentUser();
+  $form_object = $form_state->getFormObject();
 
-  /** @var \Drupal\node\Entity\Node $entity */
-  if (preg_match('/node_(.*)_form/', $form_id) && $account->hasPermission('access openai content tools')) {
-    $entity = $form_state->getFormObject()->getEntity();
+  if ($form_object instanceof ContentEntityFormInterface && $account->hasPermission('access openai content tools')) {
+    /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
+    $entity = $form_object->getEntity();
     $options = _get_all_text_with_summary_fields($entity);
 
     $form['openai_moderate'] = [
