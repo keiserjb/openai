@@ -5,5 +5,5 @@ package: OpenAI
 core_version_requirement: ^10
 configure: openai_dblog.settings
 dependencies:
-  - drupal:dblog
+  - dblog
   - openai:openai
