@@ -24,6 +24,7 @@ class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurab
    */
   const DEFAULT_CONFIGURATION = [
     'completion' => [
+      'enabled' => FALSE,
       'model' => 'gpt-3.5-turbo',
       'temperature' => 0.2,
       'max_tokens' => 512,

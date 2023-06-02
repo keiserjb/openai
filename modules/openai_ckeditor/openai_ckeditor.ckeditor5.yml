@@ -4,6 +4,7 @@ openai_ckeditor_openai:
       - openai.OpenAI
     config:
       completion:
+        enabled: false
         model: 'gpt-3.5-turbo'
         temperature: 0.2
         max_tokens: 512
