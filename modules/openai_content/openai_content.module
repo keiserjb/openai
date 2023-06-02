@@ -11,9 +11,7 @@ use Drupal\Core\Ajax\HtmlCommand;
 use Drupal\Core\Entity\ContentEntityFormInterface;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Render\Markup;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
-use Drupal\node\NodeForm;
 use Drupal\openai\Utility\StringHelper;
 
 /**
@@ -27,6 +25,7 @@ function openai_content_form_alter(array &$form, FormStateInterface $form_state,
     /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
     $entity = $form_object->getEntity();
     $options = _get_all_text_with_summary_fields($entity);
+    $options = array_intersect_key($options, $form);
 
     $form['openai_moderate'] = [
       '#type' => 'details',
@@ -186,6 +185,11 @@ function _get_all_text_with_summary_fields(ContentEntityInterface $entity) {
 
   foreach ($fields as $field) {
     if (in_array($field->getType(), ['text_with_summary', 'text_long', 'string', 'string_long'])) {
+      // @todo: How to skip special fields?
+      if (in_array($field->getName(), ['revision_log', 'revision_log_message'])) {
+        continue;
+      }
+
       $label = $field->getLabel();
 
       if ($label instanceof TranslatableMarkup) {
