@@ -5,7 +5,7 @@ export default class FormView extends View {
   constructor( locale ) {
     super( locale );
 
-    this.promptInputView = this._createInput('Insert text from this prompt:');
+    this.promptInputView = this._createInput('Ask ChatGPT for an idea or suggestion:');
 
     this.saveButtonView = this._createButton(
       'Submit', icons.check, 'ck-button-save'

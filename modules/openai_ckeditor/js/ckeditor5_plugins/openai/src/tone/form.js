@@ -5,7 +5,7 @@ export default class FormView extends View {
   constructor( locale ) {
     super( locale );
 
-    this.toneInputView = this._createInput('Enter an adjective:');
+    this.toneInputView = this._createInput('Enter an adjective / descriptive phrase:');
 
     this.saveButtonView = this._createButton(
       'Submit', icons.check, 'ck-button-save'
