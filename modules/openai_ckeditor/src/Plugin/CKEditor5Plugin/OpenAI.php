@@ -66,6 +66,7 @@ class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurab
         'gpt-4-32k' => 'gpt-4-32k',
         'gpt-4-32k-0314' => 'gpt-4-32k-0314',
         'gpt-3.5-turbo' => 'gpt-3.5-turbo',
+        'gpt-3.5-turbo-16k' => 'gpt-3.5-turbo-16k',
         'gpt-3.5-turbo-0301' => 'gpt-3.5-turbo-0301',
         'text-davinci-003' => 'text-davinci-003',
         'text-curie-001' => 'text-curie-001',

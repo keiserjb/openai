@@ -69,9 +69,10 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
       '#type' => 'select',
       '#title' => $this->t('Model'),
       '#options' => [
-        'gpt-4' => 'gpt-4 (currently beta invite only)',
-        'gpt-4-32k' => 'gpt-4-32k (currently beta invite only)',
+        'gpt-4' => 'gpt-4',
+        'gpt-4-32k' => 'gpt-4-32k',
         'gpt-3.5-turbo' => 'gpt-3.5-turbo',
+        'gpt-3.5-turbo-16k' => 'gpt-3.5-turbo-16k',
         'gpt-3.5-turbo-0301' => 'gpt-3.5-turbo-0301',
       ],
       '#default_value' => 'gpt-3.5-turbo',

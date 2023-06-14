@@ -57,24 +57,40 @@ class OpenAIDbLogController extends DbLogController {
         ],
         [
           'data' => [
-            '#markup' => $exists["explanation"],
+            '#markup' => nl2br($exists["explanation"]),
           ],
         ],
       ];
     }
     else {
       try {
-        $response = $this->client->completions()->create(
-          [
-            'model' => $model,
-            'prompt' => 'What does this error mean and how can I fix it? The error is: "' . $message . '"',
-            'temperature' => 0.4,
-            'max_tokens' => 1024,
-          ],
-        );
+        if (str_contains($model, 'gpt')) {
+          $messages = [
+            ['role' => 'system', 'content' => 'You are a PHP, Drupal 9 and Drupal 10 expert programmer. Please return all answers without using first, second, or third person voice.'],
+            ['role' => 'user', 'content' => 'What does this error mean on my Drupal site and how can I fix it? The error is: "' . $message . '"']
+          ];
+
+          $response = $this->client->chat()->create(
+            [
+              'model' => $model,
+              'messages' => $messages,
+              'temperature' => 0.4,
+              'max_tokens' => 3900,
+            ]
+          );
+        } else {
+          $response = $this->client->completions()->create(
+            [
+              'model' => $model,
+              'prompt' => 'What does this error mean on my Drupal site and how can I fix it? The error is: "' . $message . '"',
+              'temperature' => 0.4,
+              'max_tokens' => 2048,
+            ],
+          );
+        }
 
         $result = $response->toArray();
-        $explanation = strip_tags(trim($result["choices"][0]["text"]));
+        $explanation = str_contains($model, 'gpt') ? strip_tags(trim($result["choices"][0]["message"]["content"])) : strip_tags(trim($result["choices"][0]["text"]));
         $this->insertExplanation($hash, $message, $explanation);
       }
       catch (\Exception $e) {
@@ -88,7 +104,7 @@ class OpenAIDbLogController extends DbLogController {
         ],
         [
           'data' => [
-            '#markup' => $explanation ?? 'No possible explanations were found, or the API service is not responding.',
+            '#markup' => nl2br($explanation) ?? 'No possible explanations were found, or the API service is not responding.',
           ],
         ],
       ];
