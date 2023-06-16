@@ -72,11 +72,11 @@ class PromptForm extends FormBase {
     $form['max_tokens'] = [
       '#type' => 'number',
       '#title' => $this->t('Max tokens'),
-      '#min' => 0,
-      '#max' => 4096,
+      '#min' => 128,
+      '#max' => 4097,
       '#step' => 1,
       '#default_value' => '128',
-      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Most models have a context length of 2048 tokens (except for the newest models, which support 4096).'),
+      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Most models have a context length of 2048 tokens (except for the newest models, which support 4097).'),
     ];
 
     $form['response'] = [
@@ -110,7 +110,27 @@ class PromptForm extends FormBase {
   /**
    * {@inheritdoc}
    */
-  public function validateForm(array &$form, FormStateInterface $form_state) {}
+  public function validateForm(array &$form, FormStateInterface $form_state) {
+    $model = $form_state->getValue('model');
+    $max_tokens = (int) $form_state->getValue('max_tokens');
+
+    switch ($model) {
+      case 'text-davinci-003':
+        if ($max_tokens > 4097) {
+          $form_state->setError($form['max_tokens'], $this->t('The model you have selected only supports a maximum of 4097 tokens. Please reduce the max token value to 4097 or lower.'));
+        }
+        break;
+      case 'text-curie-001':
+      case 'text-babage-001':
+      case 'text-ada-001':
+        if ($max_tokens > 2049) {
+          $form_state->setError($form['max_tokens'], $this->t('The model you have selected only supports a maximum of 2049 tokens. Please reduce the max token value to 2049 or lower.'));
+        }
+        break;
+      default:
+        break;
+    }
+  }
 
   /**
    * {@inheritdoc}

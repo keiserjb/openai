@@ -100,11 +100,11 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
     $form['gpt']['max_tokens'] = [
       '#type' => 'number',
       '#title' => $this->t('Max tokens'),
-      '#min' => 0,
-      '#max' => 4096,
+      '#min' => 128,
+      '#max' => 32768,
       '#step' => 1,
       '#default_value' => '512',
-      '#description' => $this->t('The maximum number of tokens to generate in the response. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Most models have a context length of 4,096 tokens (except for the newest GPT-4 models, which can support up to 32,768). Note that requesting to generate too many nodes or having a high token count can take much longer.'),
+      '#description' => $this->t('The maximum number of tokens to generate in the response. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Most models have a context length of 4096 tokens (except for the newest GPT-4 models, which can support up to 32768). Note that requesting to generate too many nodes or having a high token count can take much longer.'),
     ];
 
     $form['gpt']['html'] = [
@@ -121,6 +121,36 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
     unset($form['title_length']);
 
     return $form;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function settingsFormValidate(array $form, FormStateInterface $form_state) {
+    $model = $form_state->getValue('model');
+    $max_tokens = (int) $form_state->getValue('max_tokens');
+
+    switch ($model) {
+      case 'gpt-4':
+      case 'gpt-4-0314':
+        if ($max_tokens > 8192) {
+          $form_state->setError($form['gpt']['max_tokens'], $this->t('The model you have selected only supports a maximum of 8192 tokens. Please reduce the max token value to 8192 or lower.'));
+        }
+        break;
+      case 'gpt-3.5-turbo':
+      case 'gpt-3.5-turbo-0301':
+        if ($max_tokens > 4096) {
+          $form_state->setError($form['gpt']['max_tokens'], $this->t('The model you have selected only supports a maximum of 4096 tokens. Please reduce the max token value to 4096 or lower.'));
+        }
+        break;
+      case 'gpt-3.5-turbo-16k':
+        if ($max_tokens > 16384) {
+          $form_state->setError($form['gpt']['max_tokens'], $this->t('The model you have selected only supports a maximum of 16384 tokens. Please reduce the max token value to 16384 or lower.'));
+        }
+        break;
+      default:
+        break;
+    }
   }
 
   /**

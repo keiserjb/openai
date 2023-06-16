@@ -90,11 +90,11 @@ class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurab
     $form['completion']['max_tokens'] = [
       '#type' => 'number',
       '#title' => $this->t('Max tokens'),
-      '#min' => 0,
-      '#max' => 4096,
+      '#min' => 128,
+      '#max' => 32768,
       '#step' => 1,
       '#default_value' => $this->configuration['completion']['max_tokens'] ?? '128',
-      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Most models have a context length of 2048 tokens (except for the newest models, which support 4096). Newer GPT-4 models support upwards of 32k tokens. Check the <a href="@link">models overview</a> for more details.', ['@link' => 'https://platform.openai.com/docs/models/gpt-4']),
+      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Most models have a context length of 2048-4097 tokens. Newer GPT-4 models support upwards of 32768 tokens. Check the <a href="@link">models overview</a> for more details.', ['@link' => 'https://platform.openai.com/docs/models/gpt-4']),
     ];
 
     return $form;
@@ -103,7 +103,45 @@ class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurab
   /**
    * {@inheritdoc}
    */
-  public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {}
+  public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
+    $values = $form_state->getValues();
+    $model = $values['completion']['model'];
+    $max_tokens = (int) $values['completion']['max_tokens'];
+
+    switch ($model) {
+      case 'gpt-4':
+      case 'gpt-4-0314':
+        if ($max_tokens > 8192) {
+          $form_state->setError($form['completion']['max_tokens'], $this->t('The model you have selected only supports a maximum of 8192 tokens. Please reduce the max token value to 8192 or lower.'));
+        }
+        break;
+      case 'gpt-3.5-turbo':
+      case 'gpt-3.5-turbo-0301':
+        if ($max_tokens > 4096) {
+          $form_state->setError($form['completion']['max_tokens'], $this->t('The model you have selected only supports a maximum of 4096 tokens. Please reduce the max token value to 4096 or lower.'));
+        }
+        break;
+      case 'gpt-3.5-turbo-16k':
+        if ($max_tokens > 16384) {
+          $form_state->setError($form['completion']['max_tokens'], $this->t('The model you have selected only supports a maximum of 16384 tokens. Please reduce the max token value to 16384 or lower.'));
+        }
+        break;
+      case 'text-davinci-003':
+        if ($max_tokens > 4097) {
+          $form_state->setError($form['completion']['max_tokens'], $this->t('The model you have selected only supports a maximum of 4097 tokens. Please reduce the max token value to 4097 or lower.'));
+        }
+        break;
+      case 'text-curie-001':
+      case 'text-babage-001':
+      case 'text-ada-001':
+        if ($max_tokens > 2049) {
+          $form_state->setError($form['completion']['max_tokens'], $this->t('The model you have selected only supports a maximum of 2049 tokens. Please reduce the max token value to 2049 or lower.'));
+        }
+        break;
+      default:
+        break;
+    }
+  }
 
   /**
    * {@inheritdoc}
