@@ -127,6 +127,7 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
    * {@inheritdoc}
    */
   public function settingsFormValidate(array $form, FormStateInterface $form_state) {
+    parent::settingsFormValidate($form, $form_state);
     $model = $form_state->getValue('model');
     $max_tokens = (int) $form_state->getValue('max_tokens');
 
