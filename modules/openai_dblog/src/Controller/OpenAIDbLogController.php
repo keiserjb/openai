@@ -104,7 +104,7 @@ class OpenAIDbLogController extends DbLogController {
         ],
         [
           'data' => [
-            '#markup' => nl2br($explanation) ?? 'No possible explanations were found, or the API service is not responding.',
+            '#markup' => isset($explanation) ? nl2br($explanation) : 'No possible explanations were found, or the API service is not responding.',
           ],
         ],
       ];
