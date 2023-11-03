@@ -54,9 +54,10 @@ Enable the core OpenAI module and one or more submodules that meet your need.
 The following are basic configurations for enabling streamed response
 support when using Apache in DDEV or Docker4Drupal setups.
 
-If you are using DDEV you need to switch server type to apache-fpm and in
-the folder `.ddev/apache` create the file `apache-streaming.conf` with the
-following:
+If you are using DDEV with nginx, no additional change is needed.
+
+If you are using DDEV with apache, in the folder `.ddev/apache`
+create the file `apache-streaming.conf` with the following:
 
 ```apacheconf
 <IfModule proxy_fcgi_module>

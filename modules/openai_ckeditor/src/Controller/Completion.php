@@ -77,7 +77,11 @@ class Completion implements ContainerInjectionInterface {
         ob_flush();
         flush();
       }
-    }, 200, ['Content-Type' => 'text/plain']);
+    }, 200, [
+      'Cache-Control'     => 'no-cache, must-revalidate',
+      'Content-Type'      => 'text/event-stream',
+      'X-Accel-Buffering' => 'no',
+    ]);
   }
 
 }
