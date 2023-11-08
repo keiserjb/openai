@@ -107,7 +107,7 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
       '#max' => 32768,
       '#step' => 1,
       '#default_value' => '512',
-      '#description' => $this->t('The maximum number of tokens to generate in the response. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Most models have a context length of 4096 tokens (except for the newest GPT-4 models, which can support up to 32768). Note that requesting to generate too many nodes or having a high token count can take much longer.'),
+      '#description' => $this->t('The maximum number of tokens to generate in the response. The token count of your prompt plus max_tokens cannot exceed the model\'s context length.'),
     ];
 
     $form['gpt']['html'] = [

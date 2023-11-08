@@ -102,7 +102,7 @@ class ChatGptForm extends FormBase {
       '#max' => 32768,
       '#step' => 1,
       '#default_value' => '128',
-      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Most models have a context length of 4097 tokens (except for the newest models, which can support up to 32768).'),
+      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length.'),
     ];
 
     $form['options']['system'] = [

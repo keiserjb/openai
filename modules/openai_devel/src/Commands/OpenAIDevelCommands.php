@@ -137,7 +137,7 @@ class OpenAIDevelCommands extends DrushCommands {
    * @option model The OpenAI GPT model to use.
    * @option system The "system profile" helps set the behavior of the ChatGPT response. You can change/influence how it responds by adjusting the above instruction. Try adding instructions related to the types of content you wish to generate for different results.
    * @option temperature What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
-   * @option max_tokens The maximum number of tokens to generate in the response. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Most models have a context length of 4,096 tokens (except for the newest GPT-4 models, which can support up to 32,768).
+   * @option max_tokens The maximum number of tokens to generate in the response. The token count of your prompt plus max_tokens cannot exceed the model\'s context length.
    * @option html If TRUE, OpenAI will be instructed to format the replies in basic HTML format for text formatted fields. Warning, this will consume many more tokens in the response.
    */
   public function content($num = 15, array $options = [
