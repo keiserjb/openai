@@ -86,3 +86,14 @@ function openai_embeddings_schema() {
 
   return $schema;
 }
+
+/**
+ * Allow disabling of namespace, maintain status quo of false.
+ */
+function openai_embeddings_update_10001() {
+  $config = \Drupal::configFactory()->getEditable('openai_embeddings.pinecone_client');
+  if ($config->get('disable_namespace') === NULL) {
+    $config->set('disable_namespace', FALSE);
+    $config->save();
+  }
+}

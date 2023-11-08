@@ -31,3 +31,6 @@ openai_embeddings.pinecone_client:
     hostname:
       type: string
       label: 'The hostname or base URI of the API.'
+    disable_namespace:
+      type: boolean
+      label: 'Disable namespace use if on the free starter plan'

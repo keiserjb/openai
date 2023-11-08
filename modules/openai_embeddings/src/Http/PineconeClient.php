@@ -63,6 +63,9 @@ class PineconeClient {
       'includeValues' => $include_values,
       'namespace' => $namespace,
     ];
+    if (!empty($namespace)) {
+      $payload['namespace'] = $namespace;
+    }
 
     if (!empty($filters)) {
       $payload['filter'] = $filters;
@@ -86,13 +89,16 @@ class PineconeClient {
    *   The API response.
    */
   public function upsert(array $vectors, string $namespace = '') {
+    $payload = [
+      'vectors' => $vectors,
+    ];
+    if (!empty($namespace)) {
+      $payload['namespace'] = $namespace;
+    }
     return $this->client->post(
       '/vectors/upsert',
       [
-        'json' => [
-          'vectors' => $vectors,
-          'namespace' => $namespace,
-        ]
+        'json' => $payload,
       ]
     );
   }
@@ -109,13 +115,16 @@ class PineconeClient {
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
   public function fetch(array $ids, string $namespace = '') {
+    $payload = [
+      'ids' => $ids,
+    ];
+    if (!empty($namespace)) {
+      $payload['namespace'] = $namespace;
+    }
     return $this->client->get(
       '/vectors/fetch',
       [
-        'query' => [
-          'ids' => $ids,
-          'namespace' => $namespace
-        ]
+        'query' => $payload,
       ]
     );
   }
@@ -147,7 +156,9 @@ class PineconeClient {
       $payload['deleteAll'] = $deleteAll;
     }
 
-    $payload['namespace'] = $namespace;
+    if (!empty($namespace)) {
+      $payload['namespace'] = $namespace;
+    }
 
     if (!empty($ids)) {
       $payload['ids'] = $ids;

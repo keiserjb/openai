@@ -143,6 +143,13 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('The hostname or base URI where your Pinecone instance is located.'),
     ];
 
+    $form['connections']['pinecone']['disable_namespace'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Disable namespace'),
+      '#default_value' => $this->config('openai_embeddings.pinecone_client')->get('disable_namespace'),
+      '#description' => $this->t('The starter plan does not support namespaces. This means that all items get indexed together by disabling this; however, it allows you to at least demo the features.'),
+    ];
+
     return parent::buildForm($form, $form_state);
   }
 
@@ -176,6 +183,7 @@ class SettingsForm extends ConfigFormBase {
     $this->config('openai_embeddings.pinecone_client')
       ->set('api_key', $pinecone['api_key'])
       ->set('hostname', $pinecone['hostname'])
+      ->set('disable_namespace', $pinecone['disable_namespace'])
       ->save();
 
     parent::submitForm($form, $form_state);

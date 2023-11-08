@@ -72,6 +72,13 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
   protected $pinecone;
 
   /**
+   * The pinecone configuration object.
+   *
+   * @var \Drupal\Core\Config\ImmutableConfig
+   */
+  protected $pineconeConfig;
+
+  /**
    * The logger factory service.
    *
    * @var \Drupal\Core\Logger\LoggerChannelFactoryInterface
@@ -89,6 +96,7 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
     $this->config = $config_factory->get('openai_embeddings.settings');
     $this->client = $client;
     $this->pinecone = $pinecone_client;
+    $this->pineconeConfig = $config_factory->get('openai_embeddings.pinecone_client');
     $this->logger = $logger_channel_factory->get('openai_embeddings');
   }
 
@@ -151,7 +159,10 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
 
               $embeddings = $response->toArray();
 
-              $namespace = $entity->getEntityTypeId() . ':' . $field->getName();
+              $namespace = '';
+              if (!$this->pineconeConfig->get('disable_namespace')) {
+                $namespace = $entity->getEntityTypeId() . ':' . $field->getName();
+              }
 
               $vectors = [
                 'id' => $this->generateUniqueId($entity, $field->getName(), $delta),
