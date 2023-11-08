@@ -38,9 +38,9 @@ class ApiSettingsForm extends ConfigFormBase {
 
     $form['api_org'] = [
       '#type' => 'textfield',
-      '#title' => $this->t('Organization name/ID'),
+      '#title' => $this->t('Organization ID'),
       '#default_value' => $this->config('openai.settings')->get('api_org'),
-      '#description' => $this->t('The organization name or ID on your OpenAI account. This is required for some OpenAI services to work correctly.'),
+      '#description' => $this->t('The organization ID on your OpenAI account. This is required for some OpenAI services to work correctly.'),
     ];
 
     return parent::buildForm($form, $form_state);
