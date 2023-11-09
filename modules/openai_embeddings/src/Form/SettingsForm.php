@@ -30,6 +30,13 @@ class SettingsForm extends ConfigFormBase {
   protected $entityTypeBundleInfo;
 
   /**
+   * The vector client plugin manager.
+   *
+   * @var \Drupal\openai_embeddings\VectorClientPluginManager
+   */
+  protected $pluginManager;
+
+  /**
    * {@inheritdoc}
    */
   public function getFormId() {
@@ -53,6 +60,7 @@ class SettingsForm extends ConfigFormBase {
     $instance = parent::create($container);
     $instance->entityTypeManager = $container->get('entity_type.manager');
     $instance->entityTypeBundleInfo = $container->get('entity_type.bundle.info');
+    $instance->pluginManager = $container->get('plugin.manager.vector_client');
     return $instance;
   }
 
@@ -123,10 +131,29 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('Searching vector/embedding data is only available one of these services.... TBD'),
     ];
 
+    // Generate an array of annotated plugins for generating PDF.
+    $plugins = [];
+    foreach ($this->pluginManager->getDefinitions() as $pid => $plugin) {
+      $plugins[$pid] = $plugin['label'];
+    }
+    $form['connections']['vector_client_plugin'] = [
+      '#title' => $this->t('Vector client plugin'),
+      '#type' => 'select',
+      '#required' => TRUE,
+      '#options' => $plugins,
+      '#description' => $this->t('Choose the vector database to store embeddings in.'),
+      '#default_value' => $this->config('openai_embeddings.settings')->get('vector_client_plugin'),
+    ];
+
     $form['connections']['pinecone'] = [
       '#type' => 'details',
       '#title' => $this->t('Pinecone'),
       '#description' => $this->t('Configure Pinecone settings (need links + description)'),
+      '#states' => [
+        'visible' => [
+          'select[name="connections[vector_client_plugin]"]' => ['value' => 'pinecone'],
+        ],
+      ],
     ];
 
     $form['connections']['pinecone']['api_key'] = [
@@ -134,6 +161,11 @@ class SettingsForm extends ConfigFormBase {
       '#title' => $this->t('API Key'),
       '#default_value' => $this->config('openai_embeddings.pinecone_client')->get('api_key'),
       '#description' => $this->t('The API key is required to make calls to Pinecone for vector searching.'),
+      '#states' => [
+        'visible' => [
+          'select[name="connections[vector_client_plugin]"]' => ['value' => 'pinecone'],
+        ],
+      ],
     ];
 
     $form['connections']['pinecone']['hostname'] = [
@@ -141,6 +173,11 @@ class SettingsForm extends ConfigFormBase {
       '#title' => $this->t('Hostname'),
       '#default_value' => $this->config('openai_embeddings.pinecone_client')->get('hostname'),
       '#description' => $this->t('The hostname or base URI where your Pinecone instance is located.'),
+      '#states' => [
+        'visible' => [
+          'select[name="connections[vector_client_plugin]"]' => ['value' => 'pinecone'],
+        ],
+      ],
     ];
 
     $form['connections']['pinecone']['disable_namespace'] = [
@@ -172,14 +209,16 @@ class SettingsForm extends ConfigFormBase {
     $stopwords = explode(', ', mb_strtolower($form_state->getValue('stopwords')));
     sort($stopwords);
 
+    $connections = $form_state->getValue('connections');
+
     $this->config('openai_embeddings.settings')
       ->set('entity_types', $entity_types)
       ->set('stopwords', $stopwords)
       ->set('model', $form_state->getValue('model'))
+      ->set('vector_client_plugin', $connections['vector_client_plugin'])
       ->save();
 
-    $pinecone = $form_state->getValue('connections')['pinecone'];
-
+    $pinecone = $connections['pinecone'];
     $this->config('openai_embeddings.pinecone_client')
       ->set('api_key', $pinecone['api_key'])
       ->set('hostname', $pinecone['hostname'])

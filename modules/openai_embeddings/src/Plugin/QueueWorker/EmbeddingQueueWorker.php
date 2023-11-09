@@ -13,6 +13,7 @@ use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\QueueWorkerBase;
 use Drupal\openai\Utility\StringHelper;
 use Drupal\openai_embeddings\Http\PineconeClient;
+use Drupal\openai_embeddings\VectorClientPluginManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use OpenAI\Client;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -65,11 +66,11 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
   protected $client;
 
   /**
-   * The Pinecone client.
+   * The vector client plugin manager.
    *
-   * @var \Drupal\openai_embeddings\Http\PineconeClient
+   * @var \Drupal\openai_embeddings\VectorClientPluginManager
    */
-  protected $pinecone;
+  protected $pluginManager;
 
   /**
    * The pinecone configuration object.
@@ -88,14 +89,14 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
   /**
    * {@inheritdoc}
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, Connection $connection, ConfigFactoryInterface $config_factory, Client $client, PineconeClient $pinecone_client, LoggerChannelFactoryInterface $logger_channel_factory) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, EntityFieldManagerInterface $entity_field_manager, Connection $connection, ConfigFactoryInterface $config_factory, Client $client, VectorClientPluginManager $plugin_manager, LoggerChannelFactoryInterface $logger_channel_factory) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
     $this->entityTypeManager = $entity_type_manager;
     $this->entityFieldManager = $entity_field_manager;
     $this->database = $connection;
     $this->config = $config_factory->get('openai_embeddings.settings');
     $this->client = $client;
-    $this->pinecone = $pinecone_client;
+    $this->pluginManager = $plugin_manager;
     $this->pineconeConfig = $config_factory->get('openai_embeddings.pinecone_client');
     $this->logger = $logger_channel_factory->get('openai_embeddings');
   }
@@ -113,7 +114,7 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
       $container->get('database'),
       $container->get('config.factory'),
       $container->get('openai.client'),
-      $container->get('openai_embeddings.pinecone_client'),
+      $container->get('plugin.manager.vector_client'),
       $container->get('logger.factory'),
     );
   }
@@ -134,6 +135,8 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
       $field_types = $this->getFieldTypes();
       $stopwords = $this->config->get('stopwords');
       $model = $this->config->get('model');
+      $plugin_id = $this->config->get('vector_client_plugin');
+      $vector_client_plugin = $this->pluginManager->createInstance($plugin_id);
 
       foreach ($fields as $field) {
         if (in_array($field->getType(), $field_types)) {
@@ -176,7 +179,7 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
                 ]
               ];
 
-              $this->pinecone->upsert($vectors, $namespace);
+              $vector_client_plugin->upsert($vectors, $namespace);
 
               $this->database->merge('openai_embeddings')
                 ->keys(

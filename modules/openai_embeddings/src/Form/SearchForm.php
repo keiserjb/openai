@@ -71,7 +71,7 @@ class SearchForm extends FormBase {
     $form['namespace'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Namespace'),
-      '#description' => $this->t('Enter the namespace to search through. You can find the namespaces on the Stats tab.'),
+      '#description' => $this->t('Enter the namespace to search through. You can find the namespaces on the Stats tab. Leave blank if you are on the Starter plan.'),
       '#maxlength' => 64,
     ];
 

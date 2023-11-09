@@ -63,6 +63,7 @@ class PineconeClient {
       'includeValues' => $include_values,
       'namespace' => $namespace,
     ];
+
     if (!empty($namespace)) {
       $payload['namespace'] = $namespace;
     }
@@ -92,9 +93,11 @@ class PineconeClient {
     $payload = [
       'vectors' => $vectors,
     ];
+
     if (!empty($namespace)) {
       $payload['namespace'] = $namespace;
     }
+
     return $this->client->post(
       '/vectors/upsert',
       [
@@ -118,9 +121,11 @@ class PineconeClient {
     $payload = [
       'ids' => $ids,
     ];
+
     if (!empty($namespace)) {
       $payload['namespace'] = $namespace;
     }
+
     return $this->client->get(
       '/vectors/fetch',
       [

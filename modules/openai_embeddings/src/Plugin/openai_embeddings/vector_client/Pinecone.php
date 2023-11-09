@@ -47,7 +47,9 @@ class Pinecone extends VectorClientPluginBase {
   public function __construct(array $configuration, $plugin_id, $plugin_definition, ClientFactory $factory, ConfigFactoryInterface $config_factory) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
 
-    $this->config = $config_factory->getEditable('plugin.plugin_configuration.vector_client.' . $plugin_id);
+    // @todo: this should pull from the plugin configuration
+    //$this->config = $config_factory->get('plugin.plugin_configuration.vector_client.' . $plugin_id);
+    $this->config = $config_factory->get('openai_embeddings.pinecone_client');
 
     $this->client = $factory->fromOptions([
       'headers' => [
@@ -115,13 +117,19 @@ class Pinecone extends VectorClientPluginBase {
    * @return \Psr\Http\Message\ResponseInterface
    *   The API response.
    */
-  public function upsert(array $vectors) {
+  public function upsert(array $vectors, string $namespace = '') {
+    $payload = [
+      'vectors' => $vectors,
+    ];
+
+    if (!empty($namespace)) {
+      $payload['namespace'] = $namespace;
+    }
+
     return $this->client->post(
       '/vectors/upsert',
       [
-        'json' => [
-          'vectors' => $vectors,
-        ]
+        'json' => $payload,
       ]
     );
   }

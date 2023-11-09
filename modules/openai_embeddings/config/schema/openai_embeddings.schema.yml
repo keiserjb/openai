@@ -20,6 +20,9 @@ openai_embeddings.settings:
     model:
       type: string
       label: 'OpenAI model to use'
+    vector_client_plugin:
+      type: string
+      label: 'Vector client plugin to use.'
 
 openai_embeddings.pinecone_client:
   type: config_object

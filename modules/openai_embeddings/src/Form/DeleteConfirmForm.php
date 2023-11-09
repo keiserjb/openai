@@ -56,7 +56,7 @@ class DeleteConfirmForm extends ConfirmFormBase {
    * {@inheritdoc}
    */
   public function getDescription() {
-    return $this->t('This will delete all items in your Pinecone instance.');
+    return $this->t('This will delete all items in your Pinecone instance. Note that this action is NOT permitted if you are on the Starter plan with Pinecone.');
   }
 
   /**
