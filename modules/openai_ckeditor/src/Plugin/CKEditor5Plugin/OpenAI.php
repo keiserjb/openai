@@ -94,7 +94,6 @@ class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurab
       '#type' => 'number',
       '#title' => $this->t('Max tokens'),
       '#min' => 128,
-      '#max' => 32768,
       '#step' => 1,
       '#default_value' => $this->configuration['completion']['max_tokens'] ?? '128',
       '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Check the <a href="@link">models overview</a> for more details.', ['@link' => 'https://platform.openai.com/docs/models/gpt-4']),

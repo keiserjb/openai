@@ -104,7 +104,6 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
       '#type' => 'number',
       '#title' => $this->t('Max tokens'),
       '#min' => 128,
-      '#max' => 32768,
       '#step' => 1,
       '#default_value' => '512',
       '#description' => $this->t('The maximum number of tokens to generate in the response. The token count of your prompt plus max_tokens cannot exceed the model\'s context length.'),
