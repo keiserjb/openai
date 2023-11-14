@@ -80,7 +80,7 @@ class SettingsForm extends ConfigFormBase {
       '#type' => 'fieldset',
       '#tree' => TRUE,
       '#title' => $this->t('Enable analysis of these entities and their bundles'),
-      '#description' => $this->t('Select which bundles of these entity types to generate embeddings from. Note that more content that you analyze will use more of your API usage. Check your <a href="@link">OpenAI account</a> for usage and billing details.', ['@link' => 'https://platform.openai.com/account/usage']),
+      '#description' => $this->t('Select which bundles of these entity types to generate embeddings from. Note that more content that you analyze will use more of your API usage. Check your <a href=":link">OpenAI account</a> for usage and billing details.', [':link' => 'https://platform.openai.com/account/usage']),
     ];
 
     foreach ($entity_types as $entity_type => $entity_label) {
@@ -121,7 +121,7 @@ class SettingsForm extends ConfigFormBase {
         'text-embedding-ada-002' => 'text-embedding-ada-002',
       ],
       '#default_value' => $this->config('openai_embeddings.settings')->get('model'),
-      '#description' => $this->t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/guides/embeddings/embedding-models']),
+      '#description' => $this->t('Select which model to use to analyze text. See the <a href=":link">model overview</a> for details about each model.', [':link' => 'https://platform.openai.com/docs/guides/embeddings/embedding-models']),
     ];
 
     $form['connections'] = [

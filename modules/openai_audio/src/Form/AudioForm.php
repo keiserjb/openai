@@ -58,7 +58,7 @@ class AudioForm extends FormBase {
         'translate' => 'Translate',
       ],
       '#default_value' => 'transcribe',
-      '#description' => $this->t('The task to use to process the audio file. "Transcribe": transcribes the audio to the same language as the audio. "Translate": translates and transcribes the audio into English. See the <a href="@link">speech to text guide</a> for further details.', ['@link' => 'https://platform.openai.com/docs/guides/speech-to-text']),
+      '#description' => $this->t('The task to use to process the audio file. "Transcribe": transcribes the audio to the same language as the audio. "Translate": translates and transcribes the audio into English. See the <a href=":link">speech to text guide</a> for further details.', [':link' => 'https://platform.openai.com/docs/guides/speech-to-text']),
     ];
 
     $form['response'] = [

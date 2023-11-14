@@ -82,7 +82,7 @@ class ChatGptForm extends FormBase {
         'gpt-3.5-turbo-0301' => 'gpt-3.5-turbo-0301',
       ],
       '#default_value' => 'gpt-3.5-turbo',
-      '#description' => $this->t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/models/gpt-3.5']),
+      '#description' => $this->t('Select which model to use to analyze text. See the <a href=":link">model overview</a> for details about each model.', [':link' => 'https://platform.openai.com/docs/models/gpt-3.5']),
     ];
 
     $form['options']['temperature'] = [

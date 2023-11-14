@@ -84,7 +84,7 @@ class TextToSpeechForm extends FormBase {
         'tts-1-hd' => 'TTS-1-HD: The latest text to speech model, optimized for quality.',
       ],
       '#default_value' => 'tts-1',
-      '#description' => $this->t('The model to use to turn text into speech. See the @link for more information.', ['@link' => 'https://platform.openai.com/docs/models/tts']),
+      '#description' => $this->t('The model to use to turn text into speech. See the <a href=":link">link</a> for more information.', [':link' => 'https://platform.openai.com/docs/models/tts']),
     ];
 
     $form['voice'] = [
@@ -99,7 +99,7 @@ class TextToSpeechForm extends FormBase {
         'shimmer' => 'Shimmer',
       ],
       '#default_value' => 'alloy',
-      '#description' => $this->t('The voice to use to turn text into speech. See the @link for more information.', ['@link' => 'https://platform.openai.com/docs/guides/text-to-speech/voice-options']),
+      '#description' => $this->t('The voice to use to turn text into speech. See the <a href=":link">link</a> for more information.', [':link' => 'https://platform.openai.com/docs/guides/text-to-speech/voice-options']),
     ];
 
     $form['response_format'] = [
@@ -112,7 +112,7 @@ class TextToSpeechForm extends FormBase {
         'flac' => 'FLAC',
       ],
       '#default_value' => 'mp3',
-      '#description' => $this->t('The audio format of the result. See the @link for more information.', ['@link' => 'https://platform.openai.com/docs/guides/text-to-speech/supported-output-formats']),
+      '#description' => $this->t('The audio format of the result. See the <a href=":link">link</a> for more information.', [':link' => 'https://platform.openai.com/docs/guides/text-to-speech/supported-output-formats']),
     ];
 
     $form['response'] = [

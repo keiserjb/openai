@@ -44,7 +44,7 @@ class OpenAIDbLogController extends DbLogController {
       return $build;
     }
 
-    $header = $this->t('Explanation (powered by <a href="@link">OpenAI</a>)', ['@link' => 'https://openai.com']);
+    $header = $this->t('Explanation (powered by <a href=":link">OpenAI</a>)', [':link' => 'https://openai.com']);
     $message = Unicode::truncate(trim(strip_tags($rows[5][1]->render())), 256, TRUE);
     $hash = $this->generateHash($message);
     $exists = $this->hashSearch($hash);

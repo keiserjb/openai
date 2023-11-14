@@ -77,7 +77,7 @@ class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurab
         'text-ada-001' => 'text-ada-001',
       ],
       '#default_value' => $this->configuration['completion']['model'] ?? 'gpt-3.5-turbo',
-      '#description' => $this->t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model. Note that newer GPT models may be invite only.', ['@link' => 'https://platform.openai.com/docs/models']),
+      '#description' => $this->t('Select which model to use to analyze text. See the <a href=":link">model overview</a> for details about each model. Note that newer GPT models may be invite only.', [':link' => 'https://platform.openai.com/docs/models']),
     ];
 
     $form['completion']['temperature'] = [
@@ -96,7 +96,7 @@ class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurab
       '#min' => 128,
       '#step' => 1,
       '#default_value' => $this->configuration['completion']['max_tokens'] ?? '128',
-      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Check the <a href="@link">models overview</a> for more details.', ['@link' => 'https://platform.openai.com/docs/models/gpt-4']),
+      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Check the <a href=":link">models overview</a> for more details.', [':link' => 'https://platform.openai.com/docs/models/gpt-4']),
     ];
 
     return $form;

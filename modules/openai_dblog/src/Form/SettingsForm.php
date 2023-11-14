@@ -58,7 +58,7 @@ class SettingsForm extends ConfigFormBase {
       '#title' => $this->t('Log level(s) to analyze'),
       '#options' => $options,
       '#default_value' => $this->config('openai_dblog.settings')->get('levels'),
-      '#description' => $this->t('Select which log levels should be analyzed when viewed. Note that non error levels like notice and debug are noisy and may cause wasted API usage. Check your <a href="@link">OpenAI account</a> for usage details.', ['@link' => 'https://platform.openai.com/account/usage']),
+      '#description' => $this->t('Select which log levels should be analyzed when viewed. Note that non error levels like notice and debug are noisy and may cause wasted API usage. Check your <a href=":link">OpenAI account</a> for usage details.', [':link' => 'https://platform.openai.com/account/usage']),
     ];
 
     $form['model'] = [
@@ -79,7 +79,7 @@ class SettingsForm extends ConfigFormBase {
         'text-ada-001' => 'text-ada-001',
       ],
       '#default_value' => $this->config('openai_dblog.settings')->get('model'),
-      '#description' => $this->t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/models/gpt-3']),
+      '#description' => $this->t('Select which model to use to analyze text. See the <a href=":link">model overview</a> for details about each model.', [':link' => 'https://platform.openai.com/docs/models/gpt-3']),
     ];
 
     return parent::buildForm($form, $form_state);

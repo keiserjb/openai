@@ -56,7 +56,7 @@ class PromptForm extends FormBase {
         'text-ada-001' => 'text-ada-001',
       ],
       '#default_value' => 'text-davinci-003',
-      '#description' => $this->t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/models']),
+      '#description' => $this->t('Select which model to use to analyze text. See the <a href=":link">model overview</a> for details about each model.', [':link' => 'https://platform.openai.com/docs/models']),
     ];
 
     $form['temperature'] = [
