@@ -72,7 +72,7 @@ class DalleForm extends FormBase {
     $form['prompt'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Prompt'),
-      '#description' => $this->t('A text description of the desired image(s). The maximum length is 1000 characters for dall-e-2 and 4000 characters for dall-e-3.'),
+      '#description' => $this->t('A text description of the desired image(s). The maximum length is 1000 characters for dall-e-2 and 4000 characters for dall-e-3. Please note that OpenAI may reject prompts it deems in violation of their content standards.'),
       '#required' => TRUE,
     ];
 
@@ -225,7 +225,9 @@ class DalleForm extends FormBase {
    *   The modified form element.
    */
   public function getResponse(array &$form, FormStateInterface $form_state) {
-    if (empty($form_state->getErrors())) {
+    $storage = $form_state->getStorage();
+
+    if (empty($form_state->getErrors()) && !empty($storage['filepath'])) {
       $storage = $form_state->getStorage();
 
       if ($storage['format'] === 'b64_json') {
@@ -258,6 +260,7 @@ class DalleForm extends FormBase {
     $size = $form_state->getValue('size');
     $style = $form_state->getValue('style');
     $format = $form_state->getValue('response_format');
+    $form_state->setStorage([]);
 
     try {
       $parameters = [
