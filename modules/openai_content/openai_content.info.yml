@@ -1,4 +1,4 @@
-name: OpenAI Content Tools
+name: OpenAI Content Editing Tools
 type: module
 description: Adds assistive tools for different areas of the content editing process for entities.
 package: OpenAI

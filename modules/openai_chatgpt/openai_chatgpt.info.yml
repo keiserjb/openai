@@ -1,4 +1,4 @@
-name: OpenAI ChatGPT
+name: OpenAI ChatGPT Explorer
 type: module
 description: Adds a form in the admin to interact with OpenAI over the ChatGPT API endpoint.
 package: OpenAI

@@ -1,4 +1,4 @@
-name: OpenAI ChatGPT Devel Generate
+name: OpenAI Devel Generate
 type: module
 description: Adds GPT generational capability to Devel generate commands.
 package: OpenAI

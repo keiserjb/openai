@@ -1,4 +1,4 @@
-name: OpenAI Prompt
+name: OpenAI Prompt Completion Explorer
 type: module
 description: Adds a form in the admin to enter a prompt and get a response back from OpenAI, similar to ChatGPT.
 package: OpenAI

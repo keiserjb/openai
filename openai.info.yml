@@ -1,4 +1,4 @@
-name: OpenAI
+name: OpenAI Core
 type: module
 description: A set of modules to enable OpenAI integration with Drupal and augment the content experience with AI assisted tools.
 package: OpenAI
