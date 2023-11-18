@@ -22,10 +22,25 @@ openai_embeddings.settings:
       label: 'OpenAI model to use'
     vector_client_plugin:
       type: string
-      label: 'Vector client plugin to use.'
+      label: 'Primary vector client plugin to use.'
+    vector_clients:
+      type: sequence
+      sequence:
+        type: mapping
+        label: 'Configuration of the individual vector clients'
+        orderby: key
+        mapping:
+          id:
+            type: string
+          data:
+            type: openai_embeddings.vector_client.[%parent.id]
 
-openai_embeddings.pinecone_client:
-  type: config_object
+openai_embeddings.vector_client.*:
+  type: mapping
+  label: 'Vector client settings'
+
+openai_embeddings.vector_client.pinecone_client:
+  type: mapping
   label: 'Pinecone client settings'
   mapping:
     api_key:

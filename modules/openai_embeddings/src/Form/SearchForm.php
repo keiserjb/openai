@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\openai_embeddings\Form;
 
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\openai\Utility\StringHelper;
@@ -21,14 +22,14 @@ class SearchForm extends FormBase {
    *
    * @var \OpenAI\Client
    */
-  protected $client;
+  protected $openAiClient;
 
   /**
-   * The Pinecone HTTP client.
+   * The vector client plugin manager.
    *
-   * @var \Drupal\openai_embeddings\Http\PineconeClient
+   * @var \Drupal\openai_embeddings\VectorClientPluginManager
    */
-  protected $pinecone;
+  protected $pluginManager;
 
   /**
    * The entity type manager service.
@@ -49,8 +50,8 @@ class SearchForm extends FormBase {
    */
   public static function create(ContainerInterface $container) {
     $instance = parent::create($container);
-    $instance->client = $container->get('openai.client');
-    $instance->pinecone = $container->get('openai_embeddings.pinecone_client');
+    $instance->openAiClient = $container->get('openai.client');
+    $instance->pluginManager = $container->get('plugin.manager.vector_client');
     $instance->entityTypeManager = $container->get('entity_type.manager');
     return $instance;
   }
@@ -139,14 +140,16 @@ class SearchForm extends FormBase {
     $namespace = $form_state->getValue('namespace');
     $text = StringHelper::prepareText($query, [], 1024);
 
-    $response = $this->client->embeddings()->create([
+    $response = $this->openAiClient->embeddings()->create([
       'model' => 'text-embedding-ada-002',
       'input' => $text,
     ]);
 
     $result = $response->toArray();
 
-    $pinecone_query = $this->pinecone->query(
+    $plugin_id = $this->configFactory()->get('openai_embeddings.settings')->get('vector_client_plugin');
+    $vector_client = $this->pluginManager->createInstance($plugin_id);
+    $pinecone_query = $vector_client->query(
       $result["data"][0]["embedding"],
       8,
       TRUE,
@@ -170,8 +173,12 @@ class SearchForm extends FormBase {
         continue;
       }
 
-      $entity = $this->entityTypeManager->getStorage($match->metadata->entity_type)->load($match->metadata->entity_id);
-      $output .= '<li>' . $entity->toLink()->toString() . ' had a score of ' . $match->score . '</li>';
+      $entity = $this->entityTypeManager
+        ->getStorage($match->metadata->entity_type)
+        ->load($match->metadata->entity_id);
+      if ($entity instanceof EntityInterface) {
+        $output .= '<li>' . $entity->toLink()->toString() . ' had a score of ' . $match->score . '</li>';
+      }
 
       $tracked[$match->metadata->entity_type][] = $match->metadata->entity_id;
     }

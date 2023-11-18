@@ -97,3 +97,22 @@ function openai_embeddings_update_10001() {
     $config->save();
   }
 }
+
+/**
+ * Move pinecone configuration to mapped embeddings configuration.
+ */
+function openai_embeddings_update_10002() {
+  $pinecone_config = \Drupal::configFactory()->getEditable('openai_embeddings.pinecone_client');
+  if ($pinecone_config) {
+
+    // Move the pinecone config into the embeddings settings mapped data.
+    $embeddings_config = \Drupal::configFactory()->getEditable('openai_embeddings.settings');
+    $embeddings_config->set('vector_clients.pinecone.hostname', $pinecone_config->get('hostname'));
+    $embeddings_config->set('vector_clients.pinecone.api_key', $pinecone_config->get('api_key'));
+    $embeddings_config->set('vector_clients.pinecone.disable_namespace', $pinecone_config->get('disable_namespace'));
+    $embeddings_config->save();
+
+    // Delete the original pinecone config.
+    $pinecone_config->delete();
+  }
+}

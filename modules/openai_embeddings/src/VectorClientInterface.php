@@ -12,10 +12,10 @@ interface VectorClientInterface extends ConfigurableInterface, PluginFormInterfa
 
   public function query(array $parameters);
 
-  public function insert(array $parameters);
-
-  public function update(array $parameters);
+  public function upsert(array $parameters);
 
   public function delete(array $parameters);
+
+  public function stats(): array;
 
 }

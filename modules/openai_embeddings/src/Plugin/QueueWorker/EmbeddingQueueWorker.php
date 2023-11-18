@@ -12,7 +12,6 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\QueueWorkerBase;
 use Drupal\openai\Utility\StringHelper;
-use Drupal\openai_embeddings\Http\PineconeClient;
 use Drupal\openai_embeddings\VectorClientPluginManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use OpenAI\Client;
@@ -73,13 +72,6 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
   protected $pluginManager;
 
   /**
-   * The pinecone configuration object.
-   *
-   * @var \Drupal\Core\Config\ImmutableConfig
-   */
-  protected $pineconeConfig;
-
-  /**
    * The logger factory service.
    *
    * @var \Drupal\Core\Logger\LoggerChannelFactoryInterface
@@ -97,7 +89,6 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
     $this->config = $config_factory->get('openai_embeddings.settings');
     $this->client = $client;
     $this->pluginManager = $plugin_manager;
-    $this->pineconeConfig = $config_factory->get('openai_embeddings.pinecone_client');
     $this->logger = $logger_channel_factory->get('openai_embeddings');
   }
 
@@ -163,7 +154,7 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
               $embeddings = $response->toArray();
 
               $namespace = '';
-              if (!$this->pineconeConfig->get('disable_namespace')) {
+              if (!$this->config->get('vector_clients.' . $plugin_id . '.disable_namespace')) {
                 $namespace = $entity->getEntityTypeId() . ':' . $field->getName();
               }
 
@@ -229,7 +220,7 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
   }
 
   /**
-   * Generates a unique id for the record in Pinecone.
+   * Generates a unique id for the record in the vector database.
    *
    * @param \Drupal\Core\Entity\EntityInterface $entity
    *   The entity being upserted.

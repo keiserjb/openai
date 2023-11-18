@@ -4,16 +4,11 @@ declare(strict_types=1);
 
 namespace Drupal\openai_embeddings\Plugin\openai_embeddings\vector_client;
 
-use Drupal\Component\Utility\NestedArray;
-use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Component\Serialization\Json;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Http\ClientFactory;
-use Drupal\openai_embeddings\Annotation\VectorClient;
-use Drupal\openai_embeddings\VectorClientInterface;
 use GuzzleHttp\Client;
-use Drupal\Core\Plugin\PluginBase;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\openai_embeddings\VectorClientPluginBase;
+use GuzzleHttp\Exception\RequestException;
 
 /**
  * @VectorClient(
@@ -25,49 +20,23 @@ use Drupal\openai_embeddings\VectorClientPluginBase;
 class Pinecone extends VectorClientPluginBase {
 
   /**
-   * The HTTP client.
+   * Get the pinecone client.
    *
-   * @var \GuzzleHttp\Client
+   * @return Client
+   *   The http client.
    */
-  protected $client;
-
-  /**
-   * The configuration factory object.
-   *
-   * @var \Drupal\Core\Config\ImmutableConfig
-   */
-  protected $config;
-
-  /**
-   * Constructs a new Pinecone client.
-   *
-   * @param \Drupal\Core\Http\ClientFactory $factory
-   *   The HTTP client factory service.
-   */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, ClientFactory $factory, ConfigFactoryInterface $config_factory) {
-    parent::__construct($configuration, $plugin_id, $plugin_definition);
-
-    // @todo: this should pull from the plugin configuration
-    //$this->config = $config_factory->get('plugin.plugin_configuration.vector_client.' . $plugin_id);
-    $this->config = $config_factory->get('openai_embeddings.pinecone_client');
-
-    $this->client = $factory->fromOptions([
-      'headers' => [
-        'Content-Type' => 'application/json',
-        'API-Key' => $this->config->get('api_key'),
-      ],
-      'base_uri' => $this->config->get('hostname')
-    ]);
-  }
-
-  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
-    return new static(
-      $configuration,
-      $plugin_id,
-      $plugin_definition,
-      $container->get('http_client_factory'),
-      $container->get('config.factory'),
-    );
+  public function getClient(): Client {
+    if (!isset($this->httpClient)) {
+      $options = [
+        'headers' => [
+          'Content-Type' => 'application/json',
+          'API-Key' => $this->getConfiguration()['api_key'],
+        ],
+        'base_uri' => $this->getConfiguration()['hostname'],
+      ];
+      $this->httpClient = $this->http_client_factory->fromOptions($options);
+    }
+    return $this->httpClient;
   }
 
   /**
@@ -96,11 +65,15 @@ class Pinecone extends VectorClientPluginBase {
       'namespace' => $namespace,
     ];
 
+    if (!empty($namespace)) {
+      $payload['namespace'] = $namespace;
+    }
+
     if (!empty($filters)) {
       $payload['filter'] = $filters;
     }
 
-    return $this->client->post(
+    return $this->getClient()->post(
       '/query',
       [
         'json' => $payload
@@ -126,31 +99,12 @@ class Pinecone extends VectorClientPluginBase {
       $payload['namespace'] = $namespace;
     }
 
-    return $this->client->post(
+    return $this->getClient()->post(
       '/vectors/upsert',
       [
         'json' => $payload,
       ]
     );
-  }
-
-
-  /**
-   * {@inheritdoc}
-   */
-  public function getConfiguration() {
-    return $this->configuration;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function setConfiguration(array $configuration) {
-    $this->configuration = NestedArray::mergeDeep($this->defaultConfiguration(), $configuration);
-    $this->config
-      ->set('hostname', $this->configuration['hostname'])
-      ->set('api_key', $this->configuration['api_key'])
-      ->save();
   }
 
   /**
@@ -160,19 +114,141 @@ class Pinecone extends VectorClientPluginBase {
     return [
       'hostname' => '',
       'api_key' => '',
+      'disable_namespace' => 0,
     ];
   }
 
-  public function insert(array $parameters) {
-    // TODO: Implement insert() method.
+  /**
+   * Look up and returns vectors, by ID, from a single namespace.
+   *
+   * @param array $ids
+   *   One or more IDs to fetch.
+   * @param string $namespace
+   *   The namespace to search in, if applicable.
+   *
+   * @return \Psr\Http\Message\ResponseInterface
+   * @throws \GuzzleHttp\Exception\GuzzleException
+   */
+  public function fetch(array $ids, string $namespace = '') {
+    $payload = [
+      'ids' => $ids,
+    ];
+
+    if (!empty($namespace)) {
+      $payload['namespace'] = $namespace;
+    }
+
+    return $this->getClient()->get(
+      '/vectors/fetch',
+      [
+        'query' => $payload,
+      ]
+    );
   }
 
-  public function update(array $parameters) {
-    // TODO: Implement update() method.
+  /**
+   * Delete records in Pinecone.
+   *
+   * @param array $ids
+   *   One or more IDs to delete.
+   * @param bool $deleteAll
+   *   This indicates that all vectors in the index namespace
+   *   should be deleted. Use with caution.
+   * @param string $namespace
+   *   The namespace to delete vectors from, if applicable.
+   * @param array $filter
+   *   If specified, the metadata filter here will be used to select
+   *   the vectors to delete. This is mutually exclusive with
+   *   specifying ids to delete in the ids param or using $deleteAll.
+   *
+   * @return \Psr\Http\Message\ResponseInterface
+   * @throws \GuzzleHttp\Exception\GuzzleException
+   */
+  public function delete(array $ids = [], bool $deleteAll = FALSE, string $namespace = '', array $filter = []) {
+    $payload = [];
+
+    // If filter is provided, deleteAll can not be true.
+    // If there are no filters, pass what the developer passed.
+    if (empty($filter)) {
+      $payload['deleteAll'] = $deleteAll;
+    }
+
+    if (!empty($namespace)) {
+      $payload['namespace'] = $namespace;
+    }
+
+    if (!empty($ids)) {
+      $payload['ids'] = $ids;
+    }
+
+    if (!empty($filter)) {
+      $payload['filter'] = $filter;
+    }
+
+    return $this->getClient()->post(
+      '/vectors/delete',
+      [
+        'json' => $payload
+      ]
+    );
   }
 
-  public function delete(array $parameters) {
-    // TODO: Implement delete() method.
+  /**
+   * Returns statistics about the index's contents.
+   */
+  public function stats(): array {
+    return $this->buildStatsTable();
+  }
+
+  /**
+   * Build a table with statistics specific to Pinecone.
+   *
+   * @return array
+   *   The stats table render array.
+   */
+  public function buildStatsTable(): array {
+    $rows = [];
+
+    $header = [
+      [
+        'data' => $this->t('Namespaces'),
+      ],
+      [
+        'data' => $this->t('Vector Count'),
+      ],
+    ];
+
+    try {
+      $stats = $this->getClient()->post(
+        '/describe_index_stats',
+      );
+      $response = Json::decode($stats->getBody()->getContents());
+
+      foreach ($response['namespaces'] as $key => $namespace) {
+        if (!mb_strlen($key)) {
+          $label = $this->t('No namespace entered');
+        }
+        else {
+          $label = $key;
+        }
+
+        $rows[] = [
+          $label,
+          $namespace['vectorCount'],
+        ];
+      }
+    }
+    catch (RequestException | \Exception $e) {
+      $this->logger->error('An exception occurred when trying to view index stats. It is likely either configuration is missing or a network error occurred.');
+    }
+
+    $build['stats'] = [
+      '#type' => 'table',
+      '#header' => $header,
+      '#rows' => $rows,
+      '#empty' => $this->t('No statistics are available.'),
+    ];
+    return $build;
   }
 
   /**
@@ -182,15 +258,22 @@ class Pinecone extends VectorClientPluginBase {
     $form['api_key'] = [
       '#type' => 'textfield',
       '#title' => $this->t('API Key'),
-      '#default_value' => $this->config->get('api_key'),
+      '#default_value' => $this->getConfiguration()['api_key'],
       '#description' => $this->t('The API key is required to make calls to Pinecone for vector searching.'),
     ];
 
     $form['hostname'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Hostname'),
-      '#default_value' => $this->config->get('hostname'),
+      '#default_value' => $this->getConfiguration()['hostname'],
       '#description' => $this->t('The hostname or base URI where your Pinecone instance is located.'),
+    ];
+
+    $form['disable_namespace'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Disable namespace'),
+      '#default_value' => $this->getConfiguration()['disable_namespace'],
+      '#description' => $this->t('The starter plan does not support namespaces. This means that all items get indexed together by disabling this; however, it allows you to at least demo the features.'),
     ];
 
     return $form;
@@ -201,12 +284,5 @@ class Pinecone extends VectorClientPluginBase {
    */
   public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
     // TODO: Implement validateConfigurationForm() method.
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function submitConfigurationForm(array &$form, FormStateInterface $form_state) {
-    $this->setConfiguration($form_state->getValues());
   }
 }

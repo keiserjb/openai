@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Drupal\openai_embeddings\Form;
 
-use Drupal\Component\Utility\Unicode;
+use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Entity\ContentEntityType;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Form\SubformState;
+use Drupal\Core\Plugin\PluginFormInterface;
+use Drupal\openai_embeddings\VectorClientPluginBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -48,8 +51,7 @@ class SettingsForm extends ConfigFormBase {
    */
   protected function getEditableConfigNames() {
     return [
-      'openai_embeddings.settings',
-      'openai_embeddings.pinecone_client'
+      'openai_embeddings.settings'
     ];
   }
 
@@ -145,47 +147,25 @@ class SettingsForm extends ConfigFormBase {
       '#default_value' => $this->config('openai_embeddings.settings')->get('vector_client_plugin'),
     ];
 
-    $form['connections']['pinecone'] = [
-      '#type' => 'details',
-      '#title' => $this->t('Pinecone'),
-      '#description' => $this->t('Configure Pinecone settings (need links + description)'),
-      '#states' => [
-        'visible' => [
-          'select[name="connections[vector_client_plugin]"]' => ['value' => 'pinecone'],
+    foreach ($this->pluginManager->getDefinitions() as $pid => $plugin) {
+      /** @var \Drupal\openai_embeddings\VectorClientPluginBase $plugin */
+      $plugin_instance = $this->pluginManager->createInstance($pid);
+      $form['connections'][$pid] = [
+        '#type' => 'details',
+        '#title' => $plugin_instance->getPluginDefinition()['label'],
+        '#description' => $this->t('Configure @plugin settings.', [
+          '@plugin' => $plugin_instance->getPluginDefinition()['label'],
+        ]),
+        '#states' => [
+          'visible' => [
+            'select[name="connections[vector_client_plugin]"]' => ['value' => $pid],
+          ],
         ],
-      ],
-    ];
+      ];
 
-    $form['connections']['pinecone']['api_key'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('API Key'),
-      '#default_value' => $this->config('openai_embeddings.pinecone_client')->get('api_key'),
-      '#description' => $this->t('The API key is required to make calls to Pinecone for vector searching.'),
-      '#states' => [
-        'visible' => [
-          'select[name="connections[vector_client_plugin]"]' => ['value' => 'pinecone'],
-        ],
-      ],
-    ];
-
-    $form['connections']['pinecone']['hostname'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Hostname'),
-      '#default_value' => $this->config('openai_embeddings.pinecone_client')->get('hostname'),
-      '#description' => $this->t('The hostname or base URI where your Pinecone instance is located.'),
-      '#states' => [
-        'visible' => [
-          'select[name="connections[vector_client_plugin]"]' => ['value' => 'pinecone'],
-        ],
-      ],
-    ];
-
-    $form['connections']['pinecone']['disable_namespace'] = [
-      '#type' => 'checkbox',
-      '#title' => $this->t('Disable namespace'),
-      '#default_value' => $this->config('openai_embeddings.pinecone_client')->get('disable_namespace'),
-      '#description' => $this->t('The starter plan does not support namespaces. This means that all items get indexed together by disabling this; however, it allows you to at least demo the features.'),
-    ];
+      $subform_state = SubformState::createForSubform($form['connections'][$pid], $form, $form_state);
+      $form['connections'][$pid] = $plugin_instance->buildConfigurationForm($form['connections'][$pid], $subform_state);
+    }
 
     return parent::buildForm($form, $form_state);
   }
@@ -218,12 +198,10 @@ class SettingsForm extends ConfigFormBase {
       ->set('vector_client_plugin', $connections['vector_client_plugin'])
       ->save();
 
-    $pinecone = $connections['pinecone'];
-    $this->config('openai_embeddings.pinecone_client')
-      ->set('api_key', $pinecone['api_key'])
-      ->set('hostname', $pinecone['hostname'])
-      ->set('disable_namespace', $pinecone['disable_namespace'])
-      ->save();
+    /** @var \Drupal\openai_embeddings\VectorClientPluginBase $plugin */
+    $plugin = $this->pluginManager->createInstance($connections['vector_client_plugin']);
+    $subform_state = SubformState::createForSubform($form['connections'][$connections['vector_client_plugin']], $form, $form_state);
+    $plugin->submitConfigurationForm($form, $subform_state);
 
     parent::submitForm($form, $form_state);
   }

@@ -25,8 +25,11 @@ function openai_embeddings_entity_update(EntityInterface $entity) {
  * Implements hook_entity_delete().
  */
 function openai_embeddings_entity_delete(EntityInterface $entity) {
-  /** @var \Drupal\openai_embeddings\Http\PineconeClient $pinecone */
-  $pinecone = \Drupal::service('openai_embeddings.pinecone_client');
+  $plugin_id = \Drupal::configFactory()
+    ->get('openai_embeddings.settings')
+    ->get('vector_client_plugin');
+  $vector_client = \Drupal::service('plugin.manager.vector_client')
+    ->createInstance($plugin_id);
 
   try {
     $records = \Drupal::database()->query('SELECT entity_id, entity_type, field_name FROM {openai_embeddings} WHERE entity_id = :entity_id AND entity_type = :entity_type',
@@ -37,7 +40,7 @@ function openai_embeddings_entity_delete(EntityInterface $entity) {
     );
 
     foreach ($records as $record) {
-      $pinecone->delete(
+      $vector_client->delete(
         [],
         FALSE,
         $record->entity_type . ':' . $record->field_name,
@@ -50,7 +53,7 @@ function openai_embeddings_entity_delete(EntityInterface $entity) {
     }
   }
   catch (\Exception $e) {
-    \Drupal::logger('openai_embeddings')->error('Error trying to delete record(s) in Pinecone.');
+    \Drupal::logger('openai_embeddings')->error('Error trying to delete record(s) in the vector database.');
   }
 
   \Drupal::database()->delete('openai_embeddings')
