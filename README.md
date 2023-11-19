@@ -39,15 +39,16 @@ Enable the core OpenAI module and one or more submodules that meet your need.
 
 ### Included modules
 
-- OpenAI Content Generator (experimental)
 - OpenAI Audio
 - OpenAI ChatGPT
 - OpenAI CKEditor integration
 - OpenAI Content Tools
+- OpenAI DALL·E
 - OpenAI Log Analyzer
 - OpenAI ChatGPT Devel Generate
 - OpenAI Embeddings
 - OpenAI Prompt
+- OpenAI TTS
 
 ## Webserver Streaming Support
 
@@ -102,4 +103,4 @@ makes no guarantees in regard to your webserver configuration.
 - Laurence Mercer - [laurencemercer](https://www.drupal.org/u/laurencemercer)
 - Raffaele Chiocca - [rafuel92](https://www.drupal.org/u/rafuel92)
 - Julien Alombert - [Julien Alombert](https://www.drupal.org/u/julien-alombert)
-
+- Scott Euser - [scott_euser](https://www.drupal.org/u/scott_euser)

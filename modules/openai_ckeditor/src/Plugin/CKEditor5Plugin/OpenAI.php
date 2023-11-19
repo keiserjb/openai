@@ -7,15 +7,27 @@ namespace Drupal\openai_ckeditor\Plugin\CKEditor5Plugin;
 use Drupal\ckeditor5\Plugin\CKEditor5PluginConfigurableTrait;
 use Drupal\ckeditor5\Plugin\CKEditor5PluginDefault;
 use Drupal\ckeditor5\Plugin\CKEditor5PluginConfigurableInterface;
+use Drupal\ckeditor5\Plugin\CKEditor5PluginDefinition;
+use Drupal\Core\Entity\EntityDisplayRepositoryInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\editor\EditorInterface;
+use Drupal\openai\OpenAIApi;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * CKEditor 5 OpenAI Completion plugin configuration.
  */
-class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurableInterface {
+class OpenAI extends CKEditor5PluginDefault implements ContainerFactoryPluginInterface, CKEditor5PluginConfigurableInterface {
 
   use CKEditor5PluginConfigurableTrait;
+
+  /**
+   * The OpenAI API wrapper.
+   *
+   * @var \Drupal\openai\OpenAIApi
+   */
+  protected $api;
 
   /**
    * The default configuration for this plugin.
@@ -39,6 +51,34 @@ class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurab
   }
 
   /**
+   * OpenAI CKEditor plugin constructor.
+   *
+   * @param array $configuration
+   *   A configuration array containing information about the plugin instance.
+   * @param string $plugin_id
+   *   The plugin_id for the plugin instance.
+   * @param \Drupal\ckeditor5\Plugin\CKEditor5PluginDefinition $plugin_definition
+   *   The plugin implementation definition.
+   * @param \Drupal\openai\OpenAIApi $api
+   *    The OpenAI API wrapper.
+   */
+  public function __construct(array $configuration, string $plugin_id, CKEditor5PluginDefinition $plugin_definition, OpenAIApi $api) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition);
+    $this->api = $api;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
+    return new static(
+      $configuration,
+      $plugin_id,
+      $plugin_definition,
+      $container->get('openai.api'));
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function buildConfigurationForm(array $form, FormStateInterface $form_state) {
@@ -57,25 +97,12 @@ class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurab
       '#description' => $this->t('Enable this editor feature.'),
     ];
 
+    $models = $this->api->filterModels(['gpt', 'text']);
+
     $form['completion']['model'] = [
       '#type' => 'select',
       '#title' => $this->t('Default model'),
-      '#options' => [
-        'gpt-4-1106-preview' => 'gpt-4-1106-preview',
-        'gpt-4-vision-preview' => 'gpt-4-vision-preview',
-        'gpt-4' => 'gpt-4',
-        'gpt-4-0314' => 'gpt-4-0314',
-        'gpt-4-32k' => 'gpt-4-32k',
-        'gpt-4-32k-0314' => 'gpt-4-32k-0314',
-        'gpt-3.5-turbo-1106' => 'gpt-3.5-turbo-1106',
-        'gpt-3.5-turbo' => 'gpt-3.5-turbo',
-        'gpt-3.5-turbo-16k' => 'gpt-3.5-turbo-16k',
-        'gpt-3.5-turbo-0301' => 'gpt-3.5-turbo-0301',
-        'text-davinci-003' => 'text-davinci-003',
-        'text-curie-001' => 'text-curie-001',
-        'text-babbage-001' => 'text-babbage-001',
-        'text-ada-001' => 'text-ada-001',
-      ],
+      '#options' => $models,
       '#default_value' => $this->configuration['completion']['model'] ?? 'gpt-3.5-turbo',
       '#description' => $this->t('Select which model to use to analyze text. See the <a href=":link">model overview</a> for details about each model. Note that newer GPT models may be invite only.', [':link' => 'https://platform.openai.com/docs/models']),
     ];
@@ -175,5 +202,4 @@ class OpenAI extends CKEditor5PluginDefault implements CKEditor5PluginConfigurab
       ]
     ];
   }
-
 }

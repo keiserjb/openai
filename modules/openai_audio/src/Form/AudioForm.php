@@ -15,11 +15,11 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class AudioForm extends FormBase {
 
   /**
-   * The OpenAI client.
+   * The OpenAI API wrapper.
    *
-   * @var \OpenAI\Client
+   * @var \Drupal\openai\OpenAIApi
    */
-  protected $client;
+  protected $api;
 
   /**
    * {@inheritdoc}
@@ -33,7 +33,7 @@ class AudioForm extends FormBase {
    */
   public static function create(ContainerInterface $container) {
     $instance = parent::create($container);
-    $instance->client = $container->get('openai.client');
+    $instance->api = $container->get('openai.api');
     return $instance;
   }
 
@@ -41,7 +41,6 @@ class AudioForm extends FormBase {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
-
     $form['audio'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Audio file path'),
@@ -126,15 +125,13 @@ class AudioForm extends FormBase {
     $audio = $form_state->getValue('audio');
     $task = $form_state->getValue('task');
 
-    $response = $this->client->audio()->$task([
-      'model' => 'whisper-1',
-      'file' => fopen($audio, 'r'),
-      'response_format' => 'verbose_json',
-    ]);
+    $result = $this->api->speechToText(
+      'whisper-1',
+      $audio,
+      $task
+    );
 
-    $result = $response->toArray();
-
-    $form_state->setStorage(['text' => $result['text']]);
+    $form_state->setStorage(['text' => $result]);
     $form_state->setRebuild();
   }
 }

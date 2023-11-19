@@ -13,18 +13,18 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class SettingsForm extends ConfigFormBase {
 
   /**
-   * The OpenAI client.
+   * The OpenAI API wrapper.
    *
-   * @var \OpenAI\Client
+   * @var \Drupal\openai\OpenAIApi
    */
-  protected $client;
+  protected $api;
 
   /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container) {
     $instance = parent::create($container);
-    $instance->client = $container->get('openai.client');
+    $instance->api = $container->get('openai.api');
     return $instance;
   }
 
@@ -61,23 +61,12 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('Select which log levels should be analyzed when viewed. Note that non error levels like notice and debug are noisy and may cause wasted API usage. Check your <a href=":link">OpenAI account</a> for usage details.', [':link' => 'https://platform.openai.com/account/usage']),
     ];
 
+    $models = $this->api->filterModels(['gpt', 'text']);
+
     $form['model'] = [
       '#type' => 'select',
       '#title' => $this->t('Model to use'),
-      '#options' => [
-        'gpt-4-1106-preview' => 'gpt-4-1106-preview',
-        'gpt-4-vision-preview' => 'gpt-4-vision-preview',
-        'gpt-4' => 'gpt-4',
-        'gpt-4-32k' => 'gpt-4-32k',
-        'gpt-3.5-turbo-1106' => 'gpt-3.5-turbo-1106',
-        'gpt-3.5-turbo' => 'gpt-3.5-turbo',
-        'gpt-3.5-turbo-16k' => 'gpt-3.5-turbo-16k',
-        'gpt-3.5-turbo-0301' => 'gpt-3.5-turbo-0301',
-        'text-davinci-003' => 'text-davinci-003',
-        'text-curie-001' => 'text-curie-001',
-        'text-babbage-001' => 'text-babbage-001',
-        'text-ada-001' => 'text-ada-001',
-      ],
+      '#options' => $models,
       '#default_value' => $this->config('openai_dblog.settings')->get('model'),
       '#description' => $this->t('Select which model to use to analyze text. See the <a href=":link">model overview</a> for details about each model.', [':link' => 'https://platform.openai.com/docs/models/gpt-3']),
     ];

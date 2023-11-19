@@ -18,11 +18,11 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class TextToSpeechForm extends FormBase {
 
   /**
-   * The OpenAI client.
+   * The OpenAI API wrapper.
    *
-   * @var \OpenAI\Client
+   * @var \Drupal\openai\OpenAIApi
    */
-  protected $client;
+  protected $api;
 
   /**
    * The file system service.
@@ -57,7 +57,7 @@ class TextToSpeechForm extends FormBase {
    */
   public static function create(ContainerInterface $container) {
     $instance = parent::create($container);
-    $instance->client = $container->get('openai.client');
+    $instance->api = $container->get('openai.api');
     $instance->fileSystem = $container->get('file_system');
     $instance->time = $container->get('datetime.time');
     $instance->fileUrlGenerator = $container->get('file_url_generator');
@@ -68,7 +68,6 @@ class TextToSpeechForm extends FormBase {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
-
     $form['text'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Text to convert'),
@@ -76,13 +75,12 @@ class TextToSpeechForm extends FormBase {
       '#required' => TRUE,
     ];
 
+    $models = $this->api->filterModels(['tts']);
+
     $form['model'] = [
       '#type' => 'select',
       '#title' => $this->t('Model'),
-      '#options' => [
-        'tts-1' => 'TTS-1: The latest text to speech model, optimized for speed.',
-        'tts-1-hd' => 'TTS-1-HD: The latest text to speech model, optimized for quality.',
-      ],
+      '#options' => $models,
       '#default_value' => 'tts-1',
       '#description' => $this->t('The model to use to turn text into speech. See the <a href=":link">link</a> for more information.', [':link' => 'https://platform.openai.com/docs/models/tts']),
     ];
@@ -188,13 +186,7 @@ class TextToSpeechForm extends FormBase {
     $format = $form_state->getValue('response_format');
 
     try {
-      $response = $this->client->audio()->speech([
-        'model' => $model,
-        'voice' => $voice,
-        'input' => $text,
-        'response_format' => $format,
-      ]);
-
+      $response = $this->api->textToSpeech($model, $text, $voice, $format);
       $filename = 'tts_result-' . $this->time->getCurrentTime() . '.' . $format;
       $file_uri = $this->fileSystem->saveData($response, 'public://' . $filename, FileSystemInterface::EXISTS_REPLACE);
       $file = File::create(['uri' => $file_uri]);

@@ -19,11 +19,11 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class DalleForm extends FormBase {
 
   /**
-   * The OpenAI client.
+   * The OpenAI API wrapper.
    *
-   * @var \OpenAI\Client
+   * @var \Drupal\openai\OpenAIApi
    */
-  protected $client;
+  protected $api;
 
   /**
    * The file system service.
@@ -58,7 +58,7 @@ class DalleForm extends FormBase {
    */
   public static function create(ContainerInterface $container) {
     $instance = parent::create($container);
-    $instance->client = $container->get('openai.client');
+    $instance->api = $container->get('openai.api');
     $instance->fileSystem = $container->get('file_system');
     $instance->time = $container->get('datetime.time');
     $instance->fileUrlGenerator = $container->get('file_url_generator');
@@ -76,13 +76,12 @@ class DalleForm extends FormBase {
       '#required' => TRUE,
     ];
 
+    $models = $this->api->filterModels(['dall']);
+
     $form['model'] = [
       '#type' => 'select',
       '#title' => $this->t('Model'),
-      '#options' => [
-        'dall-e-3' => 'DALL·E 3 - The latest DALL·E model released in Nov 2023',
-        'dall-e-2' => 'DALL·E 2 - The previous DALL·E model released in Nov 2022.',
-      ],
+      '#options' => $models,
       '#default_value' => 'dall-e-3',
       '#description' => $this->t('The model to use to generate an image. See the <a href=":link">link</a> for more information.', [':link' => 'https://platform.openai.com/docs/models/dall-e']),
     ];
@@ -146,6 +145,21 @@ class DalleForm extends FormBase {
       ],
       '#default_value' => 'url',
       '#description' => $this->t('The image format of the result. See the <a href=":link">link</a> for more information.', [':link' => 'https://platform.openai.com/docs/api-reference/images/create#images-create-response_format']),
+    ];
+
+    $form['filename'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Filename'),
+      '#default_value' => 'dalle_image',
+      '#states' => [
+        'visible' => [
+          [
+            ':input[name="response_format"]' => ['value' => 'b64_json']
+          ]
+        ]
+      ],
+      '#required' => TRUE,
+      '#description' => $this->t('The filename to save the result as.'),
     ];
 
     $form['response'] = [
@@ -260,27 +274,16 @@ class DalleForm extends FormBase {
     $size = $form_state->getValue('size');
     $style = $form_state->getValue('style');
     $format = $form_state->getValue('response_format');
+    $filename = $form_state->getValue('filename');
     $form_state->setStorage([]);
 
+    // Example of getting the result and handling it.
     try {
-      $parameters = [
-        'prompt' => $prompt,
-        'model' => $model,
-        'size' => $size,
-        'response_format' => $format,
-      ];
-
-      if ($model === 'dall-e-3') {
-        $parameters['quality'] = $quality;
-        $parameters['style'] = $style;
-      }
-
-      $response = $this->client->images()->create($parameters);
-      $response = $response->toArray();
+      $result = $this->api->images($model, $prompt, $size, $format, $quality, $style);
 
       if ($format === 'b64_json') {
-        $filename = 'dalle_result-' . $this->time->getCurrentTime() . '.png';
-        $data = base64_decode($response['data'][0]['b64_json']);
+        $filename = $filename . '.png';
+        $data = base64_decode($result);
         $file_uri = $this->fileSystem->saveData($data, 'public://' . $filename, FileSystemInterface::EXISTS_REPLACE);
         $file = File::create(['uri' => $file_uri]);
         $file->setOwnerId($this->currentUser()->id());
@@ -291,7 +294,7 @@ class DalleForm extends FormBase {
       $form_state->setStorage(
         [
           'filename' => ($format === 'b64_json') ? $file->getFilename() : 'DALL·E result',
-          'filepath' => ($format === 'b64_json') ? $file->getFileUri() : $response['data'][0]['url'],
+          'filepath' => ($format === 'b64_json') ? $file->getFileUri() : $result,
           'format' => $format,
         ],
       );

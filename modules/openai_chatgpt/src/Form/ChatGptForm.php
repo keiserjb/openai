@@ -14,11 +14,11 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class ChatGptForm extends FormBase {
 
   /**
-   * The OpenAI client.
+   * The OpenAI API wrapper.
    *
-   * @var \OpenAI\Client
+   * @var \Drupal\openai\OpenAIApi
    */
-  protected $client;
+  protected $api;
 
   /**
    * {@inheritdoc}
@@ -32,7 +32,7 @@ class ChatGptForm extends FormBase {
    */
   public static function create(ContainerInterface $container) {
     $instance = parent::create($container);
-    $instance->client = $container->get('openai.client');
+    $instance->api = $container->get('openai.api');
     return $instance;
   }
 
@@ -40,25 +40,12 @@ class ChatGptForm extends FormBase {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
-
     $form['text'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Ask ChatGPT'),
       '#rows' => 1,
-      '#description' => $this->t('Enter your text here. When submitted, OpenAI will generate a response from its Chats endpoint. Please note that each query counts against your API usage for OpenAI. Based on the complexity of your text, OpenAI traffic, and other factors, a response can sometimes take up to 10-15 seconds to complete. Please allow the operation to finish.  Be cautious not to exceed the requests per minute quota (20/Minute by default), or you may be temporarily blocked.'),
+      '#description' => $this->t('Enter your text here. When submitted, OpenAI will generate a response from its Chats endpoint. Please note that each query counts against your API usage for OpenAI. Based on the complexity of your text, OpenAI traffic, and other factors, a response can sometimes take up to 10-15 seconds to complete. Please allow the operation to finish. Be cautious not to exceed the requests per minute quota (20/Minute by default), or you may be temporarily blocked.'),
       '#required' => TRUE,
-    ];
-
-    $form['response'] = [
-      '#type' => 'textarea',
-      '#title' => $this->t('Response'),
-      '#attributes' =>
-        [
-          'readonly' => 'readonly',
-        ],
-      '#prefix' => '<div id="openai-chatgpt-response">',
-      '#suffix' => '</div>',
-      '#description' => $this->t('The response from OpenAI will appear in the textbox above.')
     ];
 
     $form['options'] = array(
@@ -68,19 +55,12 @@ class ChatGptForm extends FormBase {
       '#open' => FALSE,
     );
 
+    $models = $this->api->filterModels(['gpt']);
+
     $form['options']['model'] = [
       '#type' => 'select',
       '#title' => $this->t('Model'),
-      '#options' => [
-        'gpt-4-1106-preview' => 'gpt-4-1106-preview',
-        'gpt-4-vision-preview' => 'gpt-4-vision-preview',
-        'gpt-4' => 'gpt-4',
-        'gpt-4-32k' => 'gpt-4-32k',
-        'gpt-3.5-turbo-1106' => 'gpt-3.5-turbo-1106',
-        'gpt-3.5-turbo' => 'gpt-3.5-turbo',
-        'gpt-3.5-turbo-16k' => 'gpt-3.5-turbo-16k',
-        'gpt-3.5-turbo-0301' => 'gpt-3.5-turbo-0301',
-      ],
+      '#options' => $models,
       '#default_value' => 'gpt-3.5-turbo',
       '#description' => $this->t('Select which model to use to analyze text. See the <a href=":link">model overview</a> for details about each model.', [':link' => 'https://platform.openai.com/docs/models/gpt-3.5']),
     ];
@@ -110,6 +90,18 @@ class ChatGptForm extends FormBase {
       '#default_value' => 'You are a friendly helpful assistant inside of a Drupal website. Be encouraging and polite and ask follow up questions of the user after giving the answer.',
       '#description' => $this->t('The "profile" helps set the behavior of the ChatGPT response. You can change/influence how it response by adjusting the above instruction. If you want to change this value after starting a conversation, you will need to reload the form first.'),
       '#required' => TRUE,
+    ];
+
+    $form['response'] = [
+      '#type' => 'textarea',
+      '#title' => $this->t('Response from OpenAI'),
+      '#attributes' =>
+        [
+          'readonly' => 'readonly',
+        ],
+      '#prefix' => '<div id="openai-chatgpt-response">',
+      '#suffix' => '</div>',
+      '#description' => $this->t('The response from OpenAI will appear in the textbox above.')
     ];
 
     $form['actions'] = [
@@ -212,18 +204,8 @@ class ChatGptForm extends FormBase {
       ];
     }
 
-    $response = $this->client->chat()->create(
-      [
-        'model' => $model,
-        'messages' => $messages,
-        'temperature' => (int) $temperature,
-        'max_tokens' => (int) $max_tokens,
-      ],
-    );
-
-    $result = $response->toArray();
-
-    $messages[] = ['role' => 'assistant', 'content' => trim($result["choices"][0]["message"]["content"])];
+    $result = $this->api->chat($model, $messages, $temperature, $max_tokens);
+    $messages[] = ['role' => 'assistant', 'content' => $result];
     $form_state->setStorage(['messages' => $messages]);
     $form_state->setRebuild(TRUE);
   }

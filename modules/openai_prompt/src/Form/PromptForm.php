@@ -6,7 +6,7 @@ namespace Drupal\openai_prompt\Form;
 
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
-use OpenAI\Client;
+use Drupal\openai\OpenAIApi;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -15,11 +15,11 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class PromptForm extends FormBase {
 
   /**
-   * The OpenAI client.
+   * The OpenAI API wrapper.
    *
-   * @var \OpenAI\Client
+   * @var \Drupal\openai\OpenAIApi
    */
-  protected $client;
+  protected $api;
 
   /**
    * {@inheritdoc}
@@ -28,9 +28,12 @@ class PromptForm extends FormBase {
     return 'openai_prompt_prompt';
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public static function create(ContainerInterface $container) {
     $instance = parent::create($container);
-    $instance->client = $container->get('openai.client');
+    $instance->api = $container->get('openai.api');
     return $instance;
   }
 
@@ -38,7 +41,6 @@ class PromptForm extends FormBase {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
-
     $form['prompt'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Enter your prompt here. When submitted, OpenAI will generate a response. Please note that each query counts against your API usage for OpenAI.'),
@@ -46,20 +48,24 @@ class PromptForm extends FormBase {
       '#required' => TRUE,
     ];
 
-    $form['model'] = [
+    $models = $this->api->filterModels(['text']);
+
+    $form['options'] = array(
+      '#type' => 'details',
+      '#title' => t('Options'),
+      '#description' => t('Set various options related to how ChatGPT generates its response.'),
+      '#open' => FALSE,
+    );
+
+    $form['options']['model'] = [
       '#type' => 'select',
       '#title' => $this->t('Model to use'),
-      '#options' => [
-        'text-davinci-003' => 'text-davinci-003',
-        'text-curie-001' => 'text-curie-001',
-        'text-babbage-001' => 'text-babbage-001',
-        'text-ada-001' => 'text-ada-001',
-      ],
+      '#options' => $models,
       '#default_value' => 'text-davinci-003',
       '#description' => $this->t('Select which model to use to analyze text. See the <a href=":link">model overview</a> for details about each model.', [':link' => 'https://platform.openai.com/docs/models']),
     ];
 
-    $form['temperature'] = [
+    $form['options']['temperature'] = [
       '#type' => 'number',
       '#title' => $this->t('Temperature'),
       '#min' => 0,
@@ -69,7 +75,7 @@ class PromptForm extends FormBase {
       '#description' => $this->t('What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.'),
     ];
 
-    $form['max_tokens'] = [
+    $form['options']['max_tokens'] = [
       '#type' => 'number',
       '#title' => $this->t('Max tokens'),
       '#min' => 128,
@@ -141,18 +147,8 @@ class PromptForm extends FormBase {
     $temperature = $form_state->getValue('temperature');
     $max_tokens = $form_state->getValue('max_tokens');
 
-    $response = $this->client->completions()->create(
-      [
-        'model' => $model,
-        'prompt' => trim($prompt),
-        'temperature' => (int) $temperature,
-        'max_tokens' => (int) $max_tokens,
-      ],
-    );
-
-    $result = $response->toArray();
-
-    $form['response']['#value'] = trim($result["choices"][0]["text"]) ?? $this->t('No answer was provided.');
+    $response = $this->api->completions($model, $prompt, $temperature, $max_tokens);
+    $form['response']['#value'] = trim($response) ?? $this->t('No answer was provided.');
     return $form['response'];
   }
 

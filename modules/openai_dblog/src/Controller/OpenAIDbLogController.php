@@ -14,18 +14,18 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class OpenAIDbLogController extends DbLogController {
 
   /**
-   * The OpenAI client.
+   * The OpenAI API wrapper.
    *
-   * @var \OpenAI\Client
+   * @var \Drupal\openai\OpenAIApi
    */
-  protected $client;
+  protected $api;
 
   /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container) {
     $instance = parent::create($container);
-    $instance->client = $container->get('openai.client');
+    $instance->api = $container->get('openai.api');
     return $instance;
   }
 
@@ -70,28 +70,13 @@ class OpenAIDbLogController extends DbLogController {
             ['role' => 'user', 'content' => 'What does this error mean on my Drupal site and how can I fix it? The error is: "' . $message . '"']
           ];
 
-          $response = $this->client->chat()->create(
-            [
-              'model' => $model,
-              'messages' => $messages,
-              'temperature' => 0.4,
-              'max_tokens' => 3900,
-            ]
-          );
+          $result = $this->api->chat($model, $messages, 0.4, 3900);
         } else {
-          $response = $this->client->completions()->create(
-            [
-              'model' => $model,
-              'prompt' => 'What does this error mean on my Drupal site and how can I fix it? The error is: "' . $message . '"',
-              'temperature' => 0.4,
-              'max_tokens' => 2048,
-            ],
-          );
+          $prompt = 'What does this error mean on my Drupal site and how can I fix it? The error is: "' . $message . '"';
+          $result = $this->api->completions($model, $prompt, 0.4, 2048);
         }
 
-        $result = $response->toArray();
-        $explanation = str_contains($model, 'gpt') ? strip_tags(trim($result["choices"][0]["message"]["content"])) : strip_tags(trim($result["choices"][0]["text"]));
-        $this->insertExplanation($hash, $message, $explanation);
+        $this->insertExplanation($hash, $message, $result);
       }
       catch (\Exception $e) {
         $this->getLogger('openai_dblog')->error('Error when trying to obtain a response from OpenAI.');
@@ -104,7 +89,7 @@ class OpenAIDbLogController extends DbLogController {
         ],
         [
           'data' => [
-            '#markup' => isset($explanation) ? nl2br($explanation) : 'No possible explanations were found, or the API service is not responding.',
+            '#markup' => isset($result) ? nl2br($result) : 'No possible explanations were found, or the API service is not responding.',
           ],
         ],
       ];
