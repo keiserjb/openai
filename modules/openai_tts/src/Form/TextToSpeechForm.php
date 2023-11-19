@@ -148,7 +148,7 @@ class TextToSpeechForm extends FormBase {
     $text = $form_state->getValue('text');
 
     if (mb_strlen($text) > 4096) {
-      $form_state->setErrorByName('text', 'The input cannot exceed 4096 characters,');
+      $form_state->setErrorByName('text', 'The input cannot exceed 4096 characters.');
     }
   }
 
