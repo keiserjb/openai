@@ -23,7 +23,8 @@ class TextToSpeech extends OpenAIActionBase {
       'model' => 'tts-1',
       'voice' => 'alloy',
       'response_format' => 'mp3',
-      'token_name' => '',
+      'token_input' => '',
+      'token_result' => '',
       ] + parent::defaultConfiguration();
   }
 
@@ -33,14 +34,22 @@ class TextToSpeech extends OpenAIActionBase {
   public function buildConfigurationForm(array $form, FormStateInterface $form_state): array {
     $form = parent::buildConfigurationForm($form, $form_state);
 
-    $form['token_name'] = [
+    $form['token_input'] = [
       '#type' => 'textfield',
-      '#title' => $this->t('Name of data token'),
-      '#default_value' => $this->configuration['token_name'],
-      '#description' => $this->t('The text input for OpenAI will be loaded from this token and be converted. Note that a the input cannot exceed 4096 characters. The result from OpenAI will be stored back into this token.'),
+      '#title' => $this->t('Token input'),
+      '#default_value' => $this->configuration['token_input'],
+      '#description' => $this->t('The text input for OpenAI will be loaded from this token. Note that a the input cannot exceed 4096 characters.'),
       '#weight' => -10,
       '#eca_token_reference' => TRUE,
-      '#required' => TRUE,
+    ];
+
+    $form['token_result'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Token result'),
+      '#default_value' => $this->configuration['token_result'],
+      '#description' => $this->t('The response from OpenAI will be stored into the token result field to be used in future steps.'),
+      '#weight' => -9,
+      '#eca_token_reference' => TRUE,
     ];
 
     $form['model'] = [
@@ -88,7 +97,8 @@ class TextToSpeech extends OpenAIActionBase {
    */
   public function submitConfigurationForm(array &$form, FormStateInterface $form_state): void {
     $this->configuration['model'] = $form_state->getValue('model');
-    $this->configuration['token_name'] = $form_state->getValue('token_name');
+    $this->configuration['token_input'] = $form_state->getValue('token_input');
+    $this->configuration['token_result'] = $form_state->getValue('token_result');
     $this->configuration['voice'] = $form_state->getValue('voice');
     $this->configuration['response_format'] = $form_state->getValue('response_format');
     parent::submitConfigurationForm($form, $form_state);
@@ -98,7 +108,7 @@ class TextToSpeech extends OpenAIActionBase {
    * {@inheritdoc}
    */
   public function execute() {
-    $token_value = trim($this->tokenServices->getTokenData($this->configuration['token_name']));
+    $token_value = trim($this->tokenServices->getTokenData($this->configuration['token_input']));
 
     if (mb_strlen($token_value) > 4096) {
       throw new \RuntimeException('The input cannot exceed 4096 characters.');
@@ -111,7 +121,7 @@ class TextToSpeech extends OpenAIActionBase {
       $this->configuration['response_format']
     );
 
-    $this->tokenServices->addTokenData($this->configuration['token_name'], $response);
+    $this->tokenServices->addTokenData($this->configuration['token_result'], $response);
   }
 
 }

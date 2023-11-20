@@ -23,7 +23,8 @@ class SpeechToText extends OpenAIActionBase {
       'model' => 'tts-1',
       'voice' => 'alloy',
       'response_format' => 'mp3',
-      'token_name' => '',
+      'token_input' => '',
+      'token_result' => '',
       ] + parent::defaultConfiguration();
   }
 
@@ -33,14 +34,22 @@ class SpeechToText extends OpenAIActionBase {
   public function buildConfigurationForm(array $form, FormStateInterface $form_state): array {
     $form = parent::buildConfigurationForm($form, $form_state);
 
-    $form['token_name'] = [
+    $form['token_input'] = [
       '#type' => 'textfield',
-      '#title' => $this->t('Name of data token'),
-      '#default_value' => $this->configuration['token_name'],
+      '#title' => $this->t('Token input'),
+      '#default_value' => $this->configuration['token_input'],
       '#description' => $this->t('The absolute path to the audio file. Maximum file size 25 MB. Allowed file types: mp3, mp4, mpeg, mpga, m4a, wav, and webm.'),
       '#weight' => -10,
       '#eca_token_reference' => TRUE,
-      '#required' => TRUE,
+    ];
+
+    $form['token_result'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Token result'),
+      '#default_value' => $this->configuration['token_result'],
+      '#description' => $this->t('The response from OpenAI will be stored into the token result field to be used in future steps.'),
+      '#weight' => -9,
+      '#eca_token_reference' => TRUE,
     ];
 
     $form['model'] = [
@@ -71,7 +80,8 @@ class SpeechToText extends OpenAIActionBase {
    */
   public function submitConfigurationForm(array &$form, FormStateInterface $form_state): void {
     $this->configuration['model'] = $form_state->getValue('model');
-    $this->configuration['token_name'] = $form_state->getValue('token_name');
+    $this->configuration['token_input'] = $form_state->getValue('token_input');
+    $this->configuration['token_result'] = $form_state->getValue('token_result');
     $this->configuration['task'] = $form_state->getValue('task');
     parent::submitConfigurationForm($form, $form_state);
   }
@@ -80,7 +90,7 @@ class SpeechToText extends OpenAIActionBase {
    * {@inheritdoc}
    */
   public function execute() {
-    $token_value = trim($this->tokenServices->getTokenData($this->configuration['token_name']));
+    $token_value = trim($this->tokenServices->getTokenData($this->configuration['token_input']));
 
     $response = $this->api->speechToText(
       $this->configuration['model'],
@@ -88,7 +98,7 @@ class SpeechToText extends OpenAIActionBase {
       $this->configuration['task']
     );
 
-    $this->tokenServices->addTokenData($this->configuration['token_name'], $response);
+    $this->tokenServices->addTokenData($this->configuration['token_result'], $response);
   }
 
 }

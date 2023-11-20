@@ -24,7 +24,8 @@ class Completion extends OpenAIActionBase {
       'prompt' => 'Enter your prompt for OpenAI / ChatGPT here.',
       'temperature' => '0.4',
       'max_tokens' => 256,
-      'token_name' => '',
+      'token_input' => '',
+      'token_result' => '',
       ] + parent::defaultConfiguration();
   }
 
@@ -34,12 +35,21 @@ class Completion extends OpenAIActionBase {
   public function buildConfigurationForm(array $form, FormStateInterface $form_state): array {
     $form = parent::buildConfigurationForm($form, $form_state);
 
-    $form['token_name'] = [
+    $form['token_input'] = [
       '#type' => 'textfield',
-      '#title' => $this->t('Name of data token'),
-      '#default_value' => $this->configuration['token_name'],
-      '#description' => $this->t('The data input for OpenAI will be loaded into this specified token. The response from OpenAI will be stored back into this token.'),
+      '#title' => $this->t('Token input'),
+      '#default_value' => $this->configuration['token_input'],
+      '#description' => $this->t('The data input for OpenAI.'),
       '#weight' => -10,
+      '#eca_token_reference' => TRUE,
+    ];
+
+    $form['token_result'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Token result'),
+      '#default_value' => $this->configuration['token_result'],
+      '#description' => $this->t('The response from OpenAI will be stored into the token result field to be used in future steps.'),
+      '#weight' => -9,
       '#eca_token_reference' => TRUE,
     ];
 
@@ -92,7 +102,8 @@ class Completion extends OpenAIActionBase {
     $this->configuration['prompt'] = $form_state->getValue('prompt');
     $this->configuration['temperature'] = $form_state->getValue('temperature');
     $this->configuration['max_tokens'] = $form_state->getValue('max_tokens');
-    $this->configuration['token_name'] = $form_state->getValue('token_name');
+    $this->configuration['token_input'] = $form_state->getValue('token_input');
+    $this->configuration['token_result'] = $form_state->getValue('token_result');
     parent::submitConfigurationForm($form, $form_state);
   }
 
@@ -100,8 +111,8 @@ class Completion extends OpenAIActionBase {
    * {@inheritdoc}
    */
   public function execute() {
-    $token_value = $this->tokenServices->getTokenData($this->configuration['token_name']);
-    $prompt = $this->tokenServices->replace($this->configuration['prompt'], [$this->configuration['token_name'] => $token_value->getValue()]);
+    $token_value = $this->tokenServices->getTokenData($this->configuration['token_input']);
+    $prompt = $this->tokenServices->replace($this->configuration['prompt'], [$this->configuration['token_input'] => $token_value->getValue()]);
 
     $response = $this->api->completions(
       $this->configuration['model'],
@@ -110,7 +121,7 @@ class Completion extends OpenAIActionBase {
       (int) $this->configuration['max_tokens']
     );
 
-    $this->tokenServices->addTokenData($this->configuration['token_name'], $response);
+    $this->tokenServices->addTokenData($this->configuration['token_result'], $response);
   }
 
 }
