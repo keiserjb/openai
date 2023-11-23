@@ -62,7 +62,6 @@ class Pinecone extends VectorClientPluginBase {
       'topK' => $top_k,
       'includeMetadata' => $include_metadata,
       'includeValues' => $include_values,
-      'namespace' => $namespace,
     ];
 
     if (!empty($namespace)) {
@@ -171,6 +170,16 @@ class Pinecone extends VectorClientPluginBase {
     // If there are no filters, pass what the developer passed.
     if (empty($filter)) {
       $payload['deleteAll'] = $deleteAll;
+    }
+
+    // If filter is provided, ensure that it is not free
+    // Pinecone.
+    if (!$payload['deleteAll'] && $this->getConfiguration()['disable_namespace']) {
+      throw new \Exception($this->t('Pinecone free starter plan does not support filters on deletion.')->render());
+    }
+    elseif ($payload['deleteAll'] && $this->getConfiguration()['disable_namespace']) {
+      $this->messenger->addWarning('Pinecone free starter plan does not support Delete All. Please visit the Pinecone website to manually clear the index.');
+      throw new \Exception($this->t('Pinecone free starter plan does not support filters on deletion.')->render());
     }
 
     if (!empty($namespace)) {

@@ -7,6 +7,7 @@ use Drupal\Core\Config\Config;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Http\ClientFactory;
+use Drupal\Core\Messenger\MessengerInterface;
 use Drupal\Core\Plugin\PluginBase;
 use GuzzleHttp\Client;
 use Psr\Log\LoggerInterface;
@@ -32,6 +33,13 @@ abstract class VectorClientPluginBase extends PluginBase implements VectorClient
   protected Config $config;
 
   /**
+   * The messenger.
+   *
+   * @var \Drupal\Core\Messenger\MessengerInterface
+   */
+  protected $messenger;
+
+  /**
    * Constructs a \Drupal\Component\Plugin\PluginBase object.
    *
    * @param array $configuration
@@ -46,6 +54,8 @@ abstract class VectorClientPluginBase extends PluginBase implements VectorClient
    *   The config factory service.
    * @param \Psr\Log\LoggerInterface $logger
    *   The openai embeddings logger.
+   * @param \Drupal\Core\Messenger\MessengerInterface $messenger
+   *    The messenger.
    */
   public function __construct(
     array $configuration,
@@ -53,9 +63,11 @@ abstract class VectorClientPluginBase extends PluginBase implements VectorClient
     array $plugin_definition,
     protected ClientFactory $http_client_factory,
     protected ConfigFactoryInterface $config_factory,
-    protected LoggerInterface $logger
+    protected LoggerInterface $logger,
+    MessengerInterface $messenger
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
+    $this->messenger = $messenger;
 
     // Get the configuration mapping within the openai_embeddings settings.
     // If none is found, set to the default configuration.
@@ -75,7 +87,8 @@ abstract class VectorClientPluginBase extends PluginBase implements VectorClient
       $plugin_definition,
       $container->get('http_client_factory'),
       $container->get('config.factory'),
-      $container->get('logger.factory')->get('openai_embeddings')
+      $container->get('logger.factory')->get('openai_embeddings'),
+      $container->get('messenger')
     );
   }
 
