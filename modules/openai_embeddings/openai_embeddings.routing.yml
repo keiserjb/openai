@@ -15,8 +15,8 @@ openai_embeddings.search:
 openai_embeddings.stats:
   path: '/admin/config/openai/openai-embeddings/settings/stats'
   defaults:
-    _title: 'Pinecone stats'
-    _controller: 'Drupal\openai_embeddings\Controller\PineconeStats::index'
+    _title: 'Vector database stats'
+    _controller: 'Drupal\openai_embeddings\Controller\VectorDatabaseStats::index'
   requirements:
     _permission: 'administer site configuration'
 

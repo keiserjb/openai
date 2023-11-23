@@ -79,7 +79,10 @@ class SettingsForm extends ConfigFormBase {
       '#type' => 'fieldset',
       '#tree' => TRUE,
       '#title' => $this->t('Enable analysis of these entities and their bundles'),
-      '#description' => $this->t('Select which bundles of these entity types to generate embeddings from. Note that more content that you analyze will use more of your API usage. Check your <a href=":link">OpenAI account</a> for usage and billing details.', [':link' => 'https://platform.openai.com/account/usage']),
+      '#description' => $this->t('Select which bundles of these entity types to generate embeddings from, or alternatively use the <a href=":search_api_ai_link">Search API AI</a> module. Note that more content that you analyze will use more of your API usage. Check your <a href=":openai_link">OpenAI account</a> for usage and billing details.', [
+        ':search_api_ai_link' => 'https://www.drupal.org/project/search_api_ai',
+        ':openai_link' => 'https://platform.openai.com/account/usage',
+      ]),
     ];
 
     foreach ($entity_types as $entity_type => $entity_label) {
@@ -147,6 +150,10 @@ class SettingsForm extends ConfigFormBase {
     foreach ($this->pluginManager->getDefinitions() as $pid => $plugin) {
       /** @var \Drupal\openai_embeddings\VectorClientPluginBase $plugin */
       $plugin_instance = $this->pluginManager->createInstance($pid);
+      if (!method_exists($plugin_instance, 'buildConfigurationForm')) {
+        continue;
+      }
+
       $form['connections'][$pid] = [
         '#type' => 'details',
         '#title' => $plugin_instance->getPluginDefinition()['label'],
@@ -165,6 +172,24 @@ class SettingsForm extends ConfigFormBase {
     }
 
     return parent::buildForm($form, $form_state);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function validateForm(array &$form, FormStateInterface $form_state) {
+    parent::validateForm($form, $form_state);
+
+    foreach ($this->pluginManager->getDefinitions() as $pid => $plugin) {
+      /** @var \Drupal\openai_embeddings\VectorClientPluginBase $plugin */
+      $plugin_instance = $this->pluginManager->createInstance($pid);
+      if (!method_exists($plugin_instance, 'validateConfigurationForm')) {
+        continue;
+      }
+      $subform = &$form['connections'][$pid];
+      $subform_state = SubformState::createForSubform($form['connections'][$pid], $form, $form_state);
+      $plugin_instance->validateConfigurationForm($subform, $subform_state);
+    }
   }
 
   /**

@@ -10,7 +10,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 /**
  * Returns responses for OpenAI Embeddings routes.
  */
-class PineconeStats extends ControllerBase {
+class VectorDatabaseStats extends ControllerBase {
 
   /**
    * The controller constructor.
