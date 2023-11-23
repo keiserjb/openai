@@ -8,7 +8,7 @@ use Drupal\Core\Annotation\Translation;
 /**
  * Defines a VectorClient annotation object.
  *
- * Plugin Namespace: Plugin\VectorClient
+ * Plugin Namespace: Plugin\VectorClient.
  *
  * @see plugin_api
  *
@@ -26,18 +26,18 @@ class VectorClient extends Plugin {
   /**
    * The human-readable name of the plugin.
    *
-   * @ingroup plugin_translatable
-   *
    * @var \Drupal\Core\Annotation\Translation
+   *
+   * @ingroup plugin_translatable
    */
   public Translation $label;
 
   /**
    * The human-readable name of the plugin.
    *
-   * @ingroup plugin_translatable
-   *
    * @var \Drupal\Core\Annotation\Translation
+   *
+   * @ingroup plugin_translatable
    */
   public Translation $description;
 

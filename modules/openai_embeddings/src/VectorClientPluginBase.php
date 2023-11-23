@@ -55,7 +55,7 @@ abstract class VectorClientPluginBase extends PluginBase implements VectorClient
    * @param \Psr\Log\LoggerInterface $logger
    *   The openai embeddings logger.
    * @param \Drupal\Core\Messenger\MessengerInterface $messenger
-   *    The messenger.
+   *   The messenger.
    */
   public function __construct(
     array $configuration,

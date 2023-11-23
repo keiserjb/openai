@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Drupal\openai_embeddings\Form;
 
+use Drupal\Core\Ajax\AjaxResponse;
+use Drupal\Core\Ajax\HtmlCommand;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\openai\Utility\StringHelper;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Drupal\Core\Ajax\AjaxResponse;
-use Drupal\Core\Ajax\HtmlCommand;
 
 /**
  * Defines a search interface for testing vector search results.
@@ -80,10 +80,10 @@ class SearchForm extends FormBase {
       '#type' => 'select',
       '#title' => $this->t('Filter by'),
       '#options' => [
-        'node' => 'Nodes',
-        'taxonomy_term' => 'Taxonomy terms',
-        'media' => 'Media',
-        'paragraph' => 'Paragraphs',
+        'node' => $this->t('Nodes'),
+        'taxonomy_term' => $this->t('Taxonomy terms'),
+        'media' => $this->t('Media'),
+        'paragraph' => $this->t('Paragraphs'),
       ],
       '#description' => $this->t('Select an entity type to filter by.'),
     ];
@@ -155,7 +155,7 @@ class SearchForm extends FormBase {
       TRUE,
       FALSE,
       [
-        'entity_type' => $filter_by
+        'entity_type' => $filter_by,
       ],
       $namespace,
     );

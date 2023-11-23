@@ -4,13 +4,10 @@ declare(strict_types=1);
 
 namespace Drupal\openai_embeddings\Form;
 
-use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Entity\ContentEntityType;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Form\SubformState;
-use Drupal\Core\Plugin\PluginFormInterface;
-use Drupal\openai_embeddings\VectorClientPluginBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -51,7 +48,7 @@ class SettingsForm extends ConfigFormBase {
    */
   protected function getEditableConfigNames() {
     return [
-      'openai_embeddings.settings'
+      'openai_embeddings.settings',
     ];
   }
 
@@ -120,7 +117,7 @@ class SettingsForm extends ConfigFormBase {
       '#type' => 'select',
       '#title' => $this->t('Model to use'),
       '#options' => [
-        'text-embedding-ada-002' => 'text-embedding-ada-002',
+        'text-embedding-ada-002' => $this->t('text-embedding-ada-002'),
       ],
       '#default_value' => $this->config('openai_embeddings.settings')->get('model'),
       '#description' => $this->t('Select which model to use to analyze text. See the <a href=":link">model overview</a> for details about each model.', [':link' => 'https://platform.openai.com/docs/guides/embeddings/embedding-models']),
@@ -215,9 +212,6 @@ class SettingsForm extends ConfigFormBase {
   protected function getSupportedEntityTypes(): array {
     $entity_types = [];
 
-    /** @var \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager */
-    $entity_type_manager = \Drupal::service('entity_type.manager');
-
     $supported_types = [
       'node',
       'media',
@@ -227,8 +221,7 @@ class SettingsForm extends ConfigFormBase {
     ];
 
     // @todo Add an alter hook so custom entities can 'opt-in'
-
-    foreach ($entity_type_manager->getDefinitions() as $entity_name => $definition) {
+    foreach ($this->entityTypeManager->getDefinitions() as $entity_name => $definition) {
       if (!in_array($entity_name, $supported_types)) {
         continue;
       }

@@ -2,21 +2,19 @@
 
 namespace Drupal\openai_embeddings\Plugin\QueueWorker;
 
-use Drupal\Component\Utility\Unicode;
-use Drupal\Core\Annotation\QueueWorker;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
+use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityStorageException;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\QueueWorkerBase;
 use Drupal\openai\Utility\StringHelper;
 use Drupal\openai_embeddings\VectorClientPluginManager;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 use OpenAI\Client;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\Entity\EntityFieldManagerInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Queue worker for OpenAI Embeddings module.
@@ -167,7 +165,7 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
                   'bundle' => $entity->bundle(),
                   'field_name' => $field->getName(),
                   'field_delta' => $delta,
-                ]
+                ],
               ];
 
               $vector_client_plugin->upsert($vectors, $namespace);
@@ -190,10 +188,11 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
                 )
                 ->execute();
 
-              // sleep for 1.2 second(s)
+              // Sleep for 1.2 second(s)
               sleep(1);
               usleep(200000);
-            } catch (\Exception $e) {
+            }
+            catch (\Exception $e) {
               $this->logger->error(
                 'An exception occurred while trying to generate embeddings for a :entity_type with the ID of :entity_id on the :field_name field, with a delta of :field_delta. The bundle of this entity is :bundle. The error was :error',
                 [
@@ -204,18 +203,19 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
                   ':bundle' => $entity->bundle(),
                   ':error' => $e->getMessage(),
                 ]
-              );
+                          );
             }
           }
         }
       }
-    } catch (EntityStorageException|\Exception $e) {
+    }
+    catch (EntityStorageException | \Exception $e) {
       $this->logger->error('Error processing queue item. Queued entity type was :type and has an ID of :id.',
         [
           ':type' => $data['entity_type'],
-          ':id' => $data['entity_id']
+          ':id' => $data['entity_id'],
         ]
-      );
+          );
     }
   }
 
@@ -240,6 +240,7 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
    * A list of string/text field types.
    *
    * @return string[]
+   *   An array of field types that are supported.
    */
   protected function getFieldTypes(): array {
     return [
@@ -247,7 +248,7 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
       'string_long',
       'text',
       'text_long',
-      'text_with_summary'
+      'text_with_summary',
     ];
   }
 
@@ -265,4 +266,5 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
   protected function removeStopWord(string $word, string $text): string {
     return preg_replace("/\b$word\b/i", '', trim($text));
   }
+
 }

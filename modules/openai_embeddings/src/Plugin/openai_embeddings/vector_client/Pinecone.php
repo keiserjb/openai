@@ -6,11 +6,14 @@ namespace Drupal\openai_embeddings\Plugin\openai_embeddings\vector_client;
 
 use Drupal\Component\Serialization\Json;
 use Drupal\Core\Form\FormStateInterface;
-use GuzzleHttp\Client;
 use Drupal\openai_embeddings\VectorClientPluginBase;
+use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
+use Psr\Http\Message\ResponseInterface;
 
 /**
+ * Pinecone vector client plugin.
+ *
  * @VectorClient(
  *   id = "pinecone",
  *   label = "Pinecone",
@@ -22,7 +25,7 @@ class Pinecone extends VectorClientPluginBase {
   /**
    * Get the pinecone client.
    *
-   * @return Client
+   * @return \GuzzleHttp\Client
    *   The http client.
    */
   public function getClient(): Client {
@@ -46,17 +49,26 @@ class Pinecone extends VectorClientPluginBase {
    *   An array of floats. The size must match the vector size in Pinecone.
    * @param int $top_k
    *   How many matches should be returned.
-   * @param string $namespace
-   *   The namespace to use, if any.
    * @param bool $include_metadata
    *   Includes metadata for the records returned.
    * @param bool $include_values
    *   Includes the values for the records returned. Not usually recommended.
+   * @param array $filters
+   *   The filters to be applied.
+   * @param string $namespace
+   *   The namespace to use, if any.
    *
    * @return \Psr\Http\Message\ResponseInterface
    *   The API response.
    */
-  public function query(array $vector, int $top_k = 5, bool $include_metadata = FALSE, bool $include_values = FALSE, array $filters = [], string $namespace = '') {
+  public function query(
+    array $vector,
+    int $top_k = 5,
+    bool $include_metadata = FALSE,
+    bool $include_values = FALSE,
+    array $filters = [],
+    string $namespace = ''
+  ): ResponseInterface {
     $payload = [
       'vector' => $vector,
       'topK' => $top_k,
@@ -75,7 +87,7 @@ class Pinecone extends VectorClientPluginBase {
     return $this->getClient()->post(
       '/query',
       [
-        'json' => $payload
+        'json' => $payload,
       ]
     );
   }
@@ -85,11 +97,13 @@ class Pinecone extends VectorClientPluginBase {
    *
    * @param array $vectors
    *   An array of vector objects.
+   * @param string $namespace
+   *   The namespace to use, if any.
    *
    * @return \Psr\Http\Message\ResponseInterface
    *   The API response.
    */
-  public function upsert(array $vectors, string $namespace = '') {
+  public function upsert(array $vectors, string $namespace = ''): ResponseInterface {
     $payload = [
       'vectors' => $vectors,
     ];
@@ -126,9 +140,11 @@ class Pinecone extends VectorClientPluginBase {
    *   The namespace to search in, if applicable.
    *
    * @return \Psr\Http\Message\ResponseInterface
+   *   The response object.
+   *
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
-  public function fetch(array $ids, string $namespace = '') {
+  public function fetch(array $ids, string $namespace = ''): ResponseInterface {
     $payload = [
       'ids' => $ids,
     ];
@@ -161,9 +177,11 @@ class Pinecone extends VectorClientPluginBase {
    *   specifying ids to delete in the ids param or using $deleteAll.
    *
    * @return \Psr\Http\Message\ResponseInterface
+   *   The response object.
+   *
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
-  public function delete(array $ids = [], bool $deleteAll = FALSE, string $namespace = '', array $filter = []) {
+  public function delete(array $ids = [], bool $deleteAll = FALSE, string $namespace = '', array $filter = []): ResponseInterface {
     $payload = [];
 
     // If filter is provided, deleteAll can not be true.
@@ -175,11 +193,11 @@ class Pinecone extends VectorClientPluginBase {
     // If filter is provided, ensure that it is not free
     // Pinecone.
     if (!$payload['deleteAll'] && $this->getConfiguration()['disable_namespace']) {
-      throw new \Exception($this->t('Pinecone free starter plan does not support filters on deletion.')->render());
+      throw new \Exception('Pinecone free starter plan does not support filters on deletion.');
     }
     elseif ($payload['deleteAll'] && $this->getConfiguration()['disable_namespace']) {
       $this->messenger->addWarning('Pinecone free starter plan does not support Delete All. Please visit the Pinecone website to manually clear the index.');
-      throw new \Exception($this->t('Pinecone free starter plan does not support filters on deletion.')->render());
+      throw new \Exception('Pinecone free starter plan does not support filters on deletion.');
     }
 
     if (!empty($namespace)) {
@@ -197,7 +215,7 @@ class Pinecone extends VectorClientPluginBase {
     return $this->getClient()->post(
       '/vectors/delete',
       [
-        'json' => $payload
+        'json' => $payload,
       ]
     );
   }
@@ -292,6 +310,7 @@ class Pinecone extends VectorClientPluginBase {
    * {@inheritdoc}
    */
   public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
-    // TODO: Implement validateConfigurationForm() method.
+    // @todo Implement validateConfigurationForm() method.
   }
+
 }
