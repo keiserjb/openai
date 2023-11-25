@@ -28,32 +28,33 @@ function openai_embeddings_entity_delete(EntityInterface $entity) {
   $plugin_id = \Drupal::configFactory()
     ->get('openai_embeddings.settings')
     ->get('vector_client_plugin');
-  $vector_client = \Drupal::service('plugin.manager.vector_client')
-    ->createInstance($plugin_id);
+  if ($plugin_id) {
+    $vector_client = \Drupal::service('plugin.manager.vector_client')->createInstance($plugin_id);
 
-  try {
-    $records = \Drupal::database()->query('SELECT entity_id, entity_type, field_name FROM {openai_embeddings} WHERE entity_id = :entity_id AND entity_type = :entity_type',
-      [
-        ':entity_id' => $entity->id(),
-        ':entity_type' => $entity->getEntityTypeId(),
-      ]
-    );
-
-    foreach ($records as $record) {
-      $vector_client->delete(
-        [],
-        FALSE,
-        $record->entity_type . ':' . $record->field_name,
+    try {
+      $records = \Drupal::database()->query('SELECT entity_id, entity_type, field_name FROM {openai_embeddings} WHERE entity_id = :entity_id AND entity_type = :entity_type',
         [
-          'entity_id' => $entity->id(),
-          'entity_type' => $entity->getEntityTypeId(),
-          'bundle' => $entity->bundle(),
+          ':entity_id' => $entity->id(),
+          ':entity_type' => $entity->getEntityTypeId(),
         ]
       );
+
+      foreach ($records as $record) {
+        $vector_client->delete(
+          [],
+          FALSE,
+          $record->entity_type . ':' . $record->field_name,
+          [
+            'entity_id' => $entity->id(),
+            'entity_type' => $entity->getEntityTypeId(),
+            'bundle' => $entity->bundle(),
+          ]
+        );
+      }
     }
-  }
-  catch (\Exception $e) {
-    \Drupal::logger('openai_embeddings')->error('Error trying to delete record(s) in the vector database.');
+    catch (\Exception $e) {
+      \Drupal::logger('openai_embeddings')->error('Error trying to delete record(s) in the vector database.');
+    }
   }
 
   \Drupal::database()->delete('openai_embeddings')
