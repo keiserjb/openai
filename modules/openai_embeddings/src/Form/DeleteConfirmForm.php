@@ -72,7 +72,9 @@ class DeleteConfirmForm extends ConfirmFormBase {
     $plugin_id = $this->configFactory()->get('openai_embeddings.settings')->get('vector_client_plugin');
     $vector_client = $this->pluginManager->createInstance($plugin_id);
     foreach ($results as $result) {
-      $vector_client->delete([], TRUE, $result->entity_type . ':' . $result->field_name);
+      $vector_client->deleteAll([
+        'collection' => $result->entity_type,
+      ]);
     }
 
     $this->messenger()->addStatus($this->t('All items have been deleted in the vector database.'));

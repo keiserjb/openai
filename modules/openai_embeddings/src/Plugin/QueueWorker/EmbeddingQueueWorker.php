@@ -2,6 +2,7 @@
 
 namespace Drupal\openai_embeddings\Plugin\QueueWorker;
 
+use Drupal\Component\Serialization\Json;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
@@ -153,12 +154,12 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
 
               $namespace = '';
               if (!$this->config->get('vector_clients.' . $plugin_id . '.disable_namespace')) {
-                $namespace = $entity->getEntityTypeId() . ':' . $field->getName();
+                $namespace = $entity->getEntityTypeId();
               }
 
               $vectors = [
                 'id' => $this->generateUniqueId($entity, $field->getName(), $delta),
-                'values' => $embeddings["data"][0]["embedding"],
+                'values' => $embeddings['data'][0]['embedding'],
                 'metadata' => [
                   'entity_id' => $entity->id(),
                   'entity_type' => $entity->getEntityTypeId(),
@@ -168,24 +169,24 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
                 ],
               ];
 
-              $vector_client_plugin->upsert($vectors, $namespace);
+              $parameters = [
+                'vectors' => $vectors,
+                'collection' => $namespace,
+              ];
+              $vector_client_plugin->upsert($parameters);
 
               $this->database->merge('openai_embeddings')
-                ->keys(
-                  [
-                    'entity_id' => $entity->id(),
-                    'entity_type' => $entity->getEntityTypeId(),
-                    'bundle' => $entity->bundle(),
-                    'field_name' => $field->getName(),
-                    'field_delta' => $delta,
-                  ]
-                )
-                ->fields(
-                  [
-                    'embedding' => json_encode(['data' => $embeddings["data"][0]["embedding"]]) ?? [],
-                    'data' => json_encode(['usage' => $embeddings["usage"]]),
-                  ]
-                )
+                ->keys([
+                  'entity_id' => $entity->id(),
+                  'entity_type' => $entity->getEntityTypeId(),
+                  'bundle' => $entity->bundle(),
+                  'field_name' => $field->getName(),
+                  'field_delta' => $delta,
+                ])
+                ->fields([
+                  'embedding' => Json::encode(['data' => $embeddings['data'][0]['embedding']]) ?? [],
+                  'data' => Json::encode(['usage' => $embeddings['usage']]),
+                ])
                 ->execute();
 
               // Sleep for 1.2 second(s)
@@ -193,29 +194,24 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
               usleep(200000);
             }
             catch (\Exception $e) {
-              $this->logger->error(
-                'An exception occurred while trying to generate embeddings for a :entity_type with the ID of :entity_id on the :field_name field, with a delta of :field_delta. The bundle of this entity is :bundle. The error was :error',
-                [
-                  ':entity_type' => $entity->getEntityTypeId(),
-                  ':entity_id' => $entity->id(),
-                  ':field_name' => $field->getName(),
-                  ':field_delta' => $delta,
-                  ':bundle' => $entity->bundle(),
-                  ':error' => $e->getMessage(),
-                ]
-                          );
+              $this->logger->error('An exception occurred while trying to generate embeddings for a :entity_type with the ID of :entity_id on the :field_name field, with a delta of :field_delta. The bundle of this entity is :bundle. The error was :error', [
+                ':entity_type' => $entity->getEntityTypeId(),
+                ':entity_id' => $entity->id(),
+                ':field_name' => $field->getName(),
+                ':field_delta' => $delta,
+                ':bundle' => $entity->bundle(),
+                ':error' => $e->getMessage(),
+              ]);
             }
           }
         }
       }
     }
     catch (EntityStorageException | \Exception $e) {
-      $this->logger->error('Error processing queue item. Queued entity type was :type and has an ID of :id.',
-        [
-          ':type' => $data['entity_type'],
-          ':id' => $data['entity_id'],
-        ]
-          );
+      $this->logger->error('Error processing queue item. Queued entity type was :type and has an ID of :id.', [
+        ':type' => $data['entity_type'],
+        ':id' => $data['entity_id'],
+      ]);
     }
   }
 

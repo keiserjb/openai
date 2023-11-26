@@ -32,24 +32,21 @@ function openai_embeddings_entity_delete(EntityInterface $entity) {
     $vector_client = \Drupal::service('plugin.manager.vector_client')->createInstance($plugin_id);
 
     try {
-      $records = \Drupal::database()->query('SELECT entity_id, entity_type, field_name FROM {openai_embeddings} WHERE entity_id = :entity_id AND entity_type = :entity_type',
-        [
-          ':entity_id' => $entity->id(),
-          ':entity_type' => $entity->getEntityTypeId(),
-        ]
-      );
+      $records = \Drupal::database()->select('openai_embeddings', 'e')
+        ->fields('e', ['entity_id', 'entity_type', 'field_name'])
+        ->condition('entity_id', $entity->id())
+        ->condition('entity_type', $entity->getEntityTypeId())
+        ->execute();
 
       foreach ($records as $record) {
-        $vector_client->delete(
-          [],
-          FALSE,
-          $record->entity_type . ':' . $record->field_name,
-          [
+        $vector_client->delete([
+          'collection' => $record->entity_type . ':' . $record->field_name,
+          'filter' => [
             'entity_id' => $entity->id(),
             'entity_type' => $entity->getEntityTypeId(),
             'bundle' => $entity->bundle(),
-          ]
-        );
+          ],
+        ]);
       }
     }
     catch (\Exception $e) {

@@ -23,6 +23,17 @@ use Psr\Http\Message\ResponseInterface;
 class Pinecone extends VectorClientPluginBase {
 
   /**
+   * {@inheritdoc}
+   */
+  public function defaultConfiguration() {
+    return [
+      'hostname' => '',
+      'api_key' => '',
+      'disable_namespace' => 0,
+    ];
+  }
+
+  /**
    * Get the pinecone client.
    *
    * @return \GuzzleHttp\Client
@@ -45,149 +56,124 @@ class Pinecone extends VectorClientPluginBase {
   /**
    * Submits a query to the API service.
    *
-   * @param array $vector
-   *   An array of floats. The size must match the vector size in Pinecone.
-   * @param int $top_k
-   *   How many matches should be returned.
-   * @param bool $include_metadata
-   *   Includes metadata for the records returned.
-   * @param bool $include_values
-   *   Includes the values for the records returned. Not usually recommended.
-   * @param array $filters
-   *   The filters to be applied.
-   * @param string $namespace
-   *   The namespace to use, if any.
+   * @param array $parameters
+   *   An array with at least key 'vector'. The key 'collection'
+   *   is required if not using free Pinecone starter.
    *
    * @return \Psr\Http\Message\ResponseInterface
    *   The API response.
    */
-  public function query(
-    array $vector,
-    int $top_k = 5,
-    bool $include_metadata = FALSE,
-    bool $include_values = FALSE,
-    array $filters = [],
-    string $namespace = ''
-  ): ResponseInterface {
+  public function query(array $parameters): ResponseInterface {
+    if (empty($parameters['vector'])) {
+      throw new \Exception('Vector to query is required by Pinecone');
+    }
     $payload = [
-      'vector' => $vector,
-      'topK' => $top_k,
-      'includeMetadata' => $include_metadata,
-      'includeValues' => $include_values,
+      'vector' => $parameters['vector'] ?? FALSE,
+      'topK' => $parameters['top_k'] ?? 5,
+      'includeMetadata' => $parameters['include_metadata'] ?? TRUE,
+      'includeValues' => $parameters['include_values'] ?? FALSE,
     ];
 
-    if (!empty($namespace)) {
-      $payload['namespace'] = $namespace;
+    // We use 'collection' as that appears to be the more common naming
+    // across vector databases and that allows a consistent queue
+    // worker that does not care about the plugin used. For the pinecone
+    // query itself it expects 'namespace'.
+    if (!empty($parameters['collection'])) {
+      $payload['namespace'] = $parameters['collection'];
     }
 
     if (!empty($filters)) {
       $payload['filter'] = $filters;
     }
 
-    return $this->getClient()->post(
-      '/query',
-      [
-        'json' => $payload,
-      ]
-    );
+    return $this->getClient()->post('/query', [
+      'json' => $payload,
+    ]);
   }
 
   /**
-   * Upserts an array of vectors to Pinecone.
+   * Inserts or updates an array of vectors in Pinecone.
    *
-   * @param array $vectors
-   *   An array of vector objects.
-   * @param string $namespace
-   *   The namespace to use, if any.
+   * @param array $parameters
+   *   An array with at least key 'vectors'. The key 'collection'
+   *   is required if not using free Pinecone starter.
    *
    * @return \Psr\Http\Message\ResponseInterface
    *   The API response.
    */
-  public function upsert(array $vectors, string $namespace = ''): ResponseInterface {
+  public function upsert(array $parameters): ResponseInterface {
+    if (empty($parameters['vectors'])) {
+      throw new \Exception('Vectors to insert or update are required by Pinecone');
+    }
     $payload = [
-      'vectors' => $vectors,
+      'vectors' => $parameters['vectors'],
     ];
 
-    if (!empty($namespace)) {
-      $payload['namespace'] = $namespace;
+    // See description in ::query().
+    if (!empty($parameters['collection'])) {
+      $payload['namespace'] = $parameters['collection'];
     }
 
-    return $this->getClient()->post(
-      '/vectors/upsert',
-      [
-        'json' => $payload,
-      ]
-    );
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function defaultConfiguration() {
-    return [
-      'hostname' => '',
-      'api_key' => '',
-      'disable_namespace' => 0,
-    ];
+    return $this->getClient()->post('/vectors/upsert', [
+      'json' => $payload,
+    ]);
   }
 
   /**
    * Look up and returns vectors, by ID, from a single namespace.
    *
-   * @param array $ids
-   *   One or more IDs to fetch.
-   * @param string $namespace
-   *   The namespace to search in, if applicable.
+   * @param array $parameters
+   *   An array with at least key 'source_ids'. The key
+   *   'collection' is required if not using free Pinecone starter.
    *
    * @return \Psr\Http\Message\ResponseInterface
    *   The response object.
    *
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
-  public function fetch(array $ids, string $namespace = ''): ResponseInterface {
+  public function fetch(array $parameters): ResponseInterface {
+    if (empty($parameters['source_ids'])) {
+      throw new \Exception('Source IDs to retrieve are required by Milvus');
+    }
     $payload = [
-      'ids' => $ids,
+      'ids' => $parameters['source_ids'],
     ];
 
-    if (!empty($namespace)) {
-      $payload['namespace'] = $namespace;
+    // See description in ::query().
+    if (!empty($parameters['collection'])) {
+      $payload['namespace'] = $parameters['collection'];
     }
 
-    return $this->getClient()->get(
-      '/vectors/fetch',
-      [
-        'query' => $payload,
-      ]
-    );
+    return $this->getClient()->get('/vectors/fetch', [
+      'query' => $payload,
+    ]);
   }
 
   /**
    * Delete records in Pinecone.
    *
-   * @param array $ids
-   *   One or more IDs to delete.
-   * @param bool $deleteAll
-   *   This indicates that all vectors in the index namespace
-   *   should be deleted. Use with caution.
-   * @param string $namespace
-   *   The namespace to delete vectors from, if applicable.
-   * @param array $filter
-   *   If specified, the metadata filter here will be used to select
-   *   the vectors to delete. This is mutually exclusive with
-   *   specifying ids to delete in the ids param or using $deleteAll.
+   * @param array $parameters
+   *   An array with at least key 'source_ids'. The key
+   *   'collection' is required if not using free Pinecone starter.
    *
    * @return \Psr\Http\Message\ResponseInterface
    *   The response object.
    *
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
-  public function delete(array $ids = [], bool $deleteAll = FALSE, string $namespace = '', array $filter = []): ResponseInterface {
+  public function delete(array $parameters): ResponseInterface {
+    if (empty($parameters['source_ids']) && empty($parameters['deleteAll'])) {
+      throw new \Exception('Either "source_ids" to delete or "deleteAll" is required by Pinecone');
+    }
+    if (!empty($parameters['deleteAll'])) {
+      throw new \Exception('Please use the "deleteAll" method.');
+    }
     $payload = [];
 
-    // If filter is provided, deleteAll can not be true.
-    // If there are no filters, pass what the developer passed.
-    if (empty($filter)) {
-      $payload['deleteAll'] = $deleteAll;
+    if (!empty($parameters['source_ids'])) {
+      $payload = [
+        'ids' => $parameters['source_ids'],
+      ];
     }
 
     // If filter is provided, ensure that it is not free
@@ -200,24 +186,51 @@ class Pinecone extends VectorClientPluginBase {
       throw new \Exception('Pinecone free starter plan does not support filters on deletion.');
     }
 
-    if (!empty($namespace)) {
-      $payload['namespace'] = $namespace;
+    // See description in ::query().
+    if (!empty($parameters['collection'])) {
+      $payload['namespace'] = $parameters['collection'];
     }
 
-    if (!empty($ids)) {
-      $payload['ids'] = $ids;
+    if (!empty($parameters['filter'])) {
+      $payload['filter'] = $parameters['filter'];
     }
 
-    if (!empty($filter)) {
-      $payload['filter'] = $filter;
+    return $this->getClient()->post('/vectors/delete', [
+      'json' => $payload,
+    ]);
+  }
+
+  /**
+   * Delete all records in Pinecone.
+   *
+   * @param array $parameters
+   *   An array with at least key 'collection'. This method
+   *   is not allowed within the free Starter Pinecone. Full
+   *   deletion for the free Starter must be done via
+   *   Pinecone's website.
+   *
+   * @throws \GuzzleHttp\Exception\GuzzleException
+   */
+  public function deleteAll(array $parameters): void {
+
+    // If filter is provided, ensure that it is not free
+    // Pinecone.
+    if ($this->getConfiguration()['disable_namespace']) {
+      $this->messenger->addWarning('Pinecone free starter plan does not support Delete All. Please visit the Pinecone website to manually clear the index.');
+      throw new \Exception('Pinecone free starter plan does not support filters on deletion.');
+    }
+    if (empty($parameters['collection'])) {
+      throw new \Exception('Namespace is required for delete all within Pinecone. Please add the "collection" parameter.');
     }
 
-    return $this->getClient()->post(
-      '/vectors/delete',
-      [
-        'json' => $payload,
-      ]
-    );
+    $payload = [
+      'deleteAll' => TRUE,
+      'namespace' => $parameters['collection'],
+    ];
+
+    $this->getClient()->post('/vectors/delete', [
+      'json' => $payload,
+    ]);
   }
 
   /**
@@ -310,7 +323,15 @@ class Pinecone extends VectorClientPluginBase {
    * {@inheritdoc}
    */
   public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
-    // @todo Implement validateConfigurationForm() method.
+    try {
+      $this->getClient()->post(
+        '/describe_index_stats',
+      );
+    }
+    catch (\Exception $exception) {
+      $form_state->setErrorByName('api_key', $exception->getMessage());
+      $form_state->setErrorByName('hostname', $exception->getMessage());
+    }
   }
 
 }

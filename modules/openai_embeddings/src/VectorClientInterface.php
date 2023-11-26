@@ -15,6 +15,17 @@ use Psr\Http\Message\ResponseInterface;
 interface VectorClientInterface extends ConfigurableInterface, PluginFormInterface, ContainerFactoryPluginInterface {
 
   /**
+   * Fetch specific items from the vector database by source IDs.
+   *
+   * @param array $parameters
+   *   A mix of parameters.
+   *
+   * @return \Psr\Http\Message\ResponseInterface
+   *   The response object.
+   */
+  public function fetch(array $parameters): ResponseInterface;
+
+  /**
    * Query the vector database.
    *
    * @param array $parameters
@@ -46,6 +57,14 @@ interface VectorClientInterface extends ConfigurableInterface, PluginFormInterfa
    *   The response object.
    */
   public function delete(array $parameters): ResponseInterface;
+
+  /**
+   * Delete all from the vector database.
+   *
+   * @param array $parameters
+   *   A mix of parameters.
+   */
+  public function deleteAll(array $parameters): void;
 
   /**
    * Provide a render array showing vector database statistics.

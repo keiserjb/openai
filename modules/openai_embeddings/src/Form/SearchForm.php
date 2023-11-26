@@ -11,7 +11,6 @@ use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\openai\Utility\StringHelper;
-use Drupal\openai_embeddings\Plugin\openai_embeddings\vector_client\Milvus;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -151,58 +150,44 @@ class SearchForm extends FormBase {
 
     $plugin_id = $this->configFactory()->get('openai_embeddings.settings')->get('vector_client_plugin');
     $vector_client = $this->pluginManager->createInstance($plugin_id);
+    $query = $vector_client->query([
+      'vector' => $result['data'][0]['embedding'],
+      'top_k' => 8,
+      'collection' => $namespace,
+      'filter' => ['entity_type' => $filter_by],
+    ]);
+    $result = Json::decode($query->getBody()->getContents());
 
-    // @todo refactor this to care less about which plugin.
-    $output = '';
-    if ($vector_client instanceof Milvus) {
-      $milvus_query = $vector_client->query(
-        $result["data"][0]["embedding"],
-        8,
-        $namespace,
-        ['item_id'],
-      );
-      $results = Json::decode($milvus_query->getBody()->getContents())['data'];
-      if ($results) {
-        $output .= '<ol>';
-        foreach ($results as $result) {
-          $output .= '<li>' . $result['item_id'] . ' - distance: ' . $result['distance'] . '</li>';
-        }
-        $output .= '</ol>';
-      }
-    }
-    else {
-      $pinecone_query = $vector_client->query(
-        $result["data"][0]["embedding"],
-        8,
-        TRUE,
-        FALSE,
-        [
-          'entity_type' => $filter_by,
-        ],
-        $namespace,
-      );
-      $result = Json::decode($pinecone_query->getBody()->getContents());
-
+    // Milvus.
+    if (isset($result['data'])) {
       $output = '<ul>';
-      $tracked = [];
+      foreach ($result['data'] as $match) {
+        $output .= '<li>' . $match['id'] . ' had a distance of ' . $match['distance'] . '</li>';
+      }
+      $output .= '</ul>';
+    }
 
-      foreach ($result->matches as $match) {
-        if (isset($tracked[$match->metadata->entity_type]) && in_array($match->metadata->entity_id, $tracked[$match->metadata->entity_type])) {
+    // Pinecone.
+    if (isset($result['matches'])) {
+      $tracked = [];
+      $output = '<ul>';
+      foreach ($result['matches'] as $match) {
+        if (isset($tracked[$match['metadata']['entity_type']]) && in_array($match['metadata']['entity_id'], $tracked[$match['metadata']['entity_type']])) {
           continue;
         }
 
-        if ($match->score < $score_threshold) {
+        if ($match['score'] < $score_threshold) {
           continue;
         }
 
         $entity = $this->entityTypeManager
-          ->getStorage($match->metadata->entity_type)
-          ->load($match->metadata->entity_id);
+          ->getStorage($match['metadata']['entity_type'])
+          ->load($match['metadata']['entity_id']);
         if ($entity instanceof EntityInterface) {
-          $output .= '<li>' . $entity->toLink()->toString() . ' had a score of ' . $match->score . '</li>';
+          $output .= '<li>' . $entity->toLink()->toString() . ' had a score of ' . $match['score'] . '</li>';
         }
 
-        $tracked[$match->metadata->entity_type][] = $match->metadata->entity_id;
+        $tracked[$match['metadata']['entity_type']][] = $match['metadata']['entity_id'];
       }
       $output .= '</ul>';
 

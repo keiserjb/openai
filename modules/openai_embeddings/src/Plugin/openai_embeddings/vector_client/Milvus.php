@@ -57,30 +57,36 @@ class Milvus extends VectorClientPluginBase {
   /**
    * Submits a query to the API service.
    *
-   * @param array $vector
-   *   An array of floats. The size must match the vector size in Milvus.
-   * @param int $top_k
-   *   How many matches should be returned.
-   * @param string $collection
-   *   The collection to use, if any.
-   * @param array $outputFields
-   *   Output fields.
+   * @param array $parameters
+   *   An array of parameters include at least 'collection' and 'vector'.
    *
    * @return \Psr\Http\Message\ResponseInterface
    *   The API response.
    */
-  public function query(array $vector, int $top_k = 5, string $collection = '', $outputFields = []): ResponseInterface {
-    if (empty($collection)) {
+  public function query(array $parameters): ResponseInterface {
+    if (empty($parameters['collection'])) {
       throw new \Exception('Collection name is required by Milvus');
+    }
+    if (empty($parameters['vector'])) {
+      throw new \Exception('Vector to query is required by Milvus');
     }
 
     $payload = [
-      'vector' => $vector,
-      'collectionName' => $collection,
-      'limit' => $top_k,
+      'vector' => $parameters['vector'],
+      'collectionName' => $parameters['collection'],
+      'limit' => $parameters['top_k'] ?? 5,
     ];
-    if ($outputFields) {
-      $payload['outputFields'] = $outputFields;
+    if (!empty($parameters['outputFields'])) {
+      $payload['outputFields'] = $parameters['outputFields'];
+    }
+
+    // Build filters in the string format Milvus expects.
+    if (!empty($parameters['filter'])) {
+      $filters = [];
+      foreach ($parameters['filter'] as $key => $value) {
+        $filters[] = $key . ' in [\'' . (is_array($value) ? implode(', ', $value) : $value) . '\']';
+      }
+      $payload['filter'] = implode(', ', $filters);
     }
 
     return $this->getClient()->post('/v1/vector/search', [
@@ -89,54 +95,52 @@ class Milvus extends VectorClientPluginBase {
   }
 
   /**
-   * Upserts an array of vectors to Milvus.
+   * Inserts or updates an array of vectors to Milvus.
    *
-   * @param array $vectors
-   *   An array of vector objects.
-   * @param string $collection
-   *   The collection to use.
+   * @param array $parameters
+   *   An array with at least keys 'vectors' and 'collection'.
    *
    * @return \Psr\Http\Message\ResponseInterface
    *   The API response.
    */
-  public function upsert(array $vectors, string $collection = ''): ResponseInterface {
-    if (empty($collection)) {
+  public function upsert(array $parameters): ResponseInterface {
+    if (empty($parameters['collection'])) {
       throw new \Exception('Collection name is required by Milvus');
+    }
+    if (empty($parameters['vectors'])) {
+      throw new \Exception('Vectors to insert or update are required by Milvus');
     }
 
     // Create the collection if not yet existing.
-    if (!in_array($collection, $this->listCollections())) {
-      $this->getClient()->post('/v1/vector/collections/create', [
-        'json' => [
-          'collectionName' => $collection,
-          'dimension' => 1536,
-        ],
-        'debug' => TRUE,
-      ]);
+    if (!in_array($parameters['collection'], $this->listCollections())) {
+      $this->createCollection($parameters);
 
       // If Milvus fails to create the collection, eg due to invalid
       // characters, it does not throw an error.
-      if (!in_array($collection, $this->listCollections())) {
+      if (!in_array($parameters['collection'], $this->listCollections())) {
         throw new \Exception('Failed to create collection. Please try a different name without any special characters.');
       }
     }
 
     // Rearrange data coming from EmbeddingQueueWorker::processItem()
     // to match Milvus expectations.
-    $data = $vectors['metadata'];
-    $data['vector'] = $vectors['values'];
-    $data['source_id'] = $vectors['id'];
+    $data = $parameters['vectors']['metadata'];
+    $data['vector'] = $parameters['vectors']['values'];
+    $data['source_id'] = $parameters['vectors']['id'];
 
     // Delete the existing one if any.
     try {
-      $this->delete([$data['source_id']], $collection);
+      $this->delete([
+        'source_ids' => [$data['source_id']],
+        'collection' => $parameters['collection'],
+      ]);
     }
     catch (\Exception $exception) {
       // Do nothing, if it does not exist, carry on and insert.
     }
 
     $payload = [
-      'collectionName' => $collection,
+      'collectionName' => $parameters['collection'],
       'data' => $data,
     ];
 
@@ -148,29 +152,29 @@ class Milvus extends VectorClientPluginBase {
   /**
    * Look up and returns vectors, by Source ID, from a single collection.
    *
-   * @param array $source_ids
-   *   One or more IDs to fetch.
-   * @param string $collection
-   *   The namespace to search in, if applicable.
-   * @param array $outputFields
-   *   An array of fields to return.
+   * @param array $parameters
+   *   An array with at least keys 'source_ids' and 'collection'.
    *
    * @return \Psr\Http\Message\ResponseInterface
    *   The response object.
    *
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
-  public function fetch(array $source_ids, string $collection = '', array $outputFields = []): ResponseInterface {
+  public function fetch(array $parameters): ResponseInterface {
+    if (empty($parameters['collection'])) {
+      throw new \Exception('Collection name is required by Milvus');
+    }
+    if (empty($parameters['source_ids'])) {
+      throw new \Exception('Source IDs to retrieve are required by Milvus');
+    }
 
     // Milvus uses its own ID, we store the Drupal ID in 'source_id'.
     $payload = [
-      'filter' => 'source_id in ["' . implode('", "', $source_ids) . '"]',
+      'collectionName' => $parameters['collection'],
+      'filter' => 'source_id in ["' . implode('", "', $parameters['source_ids']) . '"]',
     ];
-    if (!empty($collection)) {
-      $payload['collectionName'] = $collection;
-    }
-    if (!empty($outputFields)) {
-      $payload['outputFields'] = $outputFields;
+    if (!empty($parameters['outputFields'])) {
+      $payload['outputFields'] = $parameters['outputFields'];
     }
 
     return $this->getClient()->query('/v1/vector/get', [
@@ -193,7 +197,11 @@ class Milvus extends VectorClientPluginBase {
    */
   public function fetchMilvusIdsFromSourceIds(array $source_ids, string $collection = '') {
     $id_list = [];
-    $response = $this->fetch($source_ids, $collection, ['id'])->getBody();
+    $response = $this->fetch([
+      'source_ids' => $source_ids,
+      'collection' => $collection,
+      'outputFields' => ['id'],
+    ])->getBody();
     if (isset($response['data']) && !empty($response['data'])) {
       foreach ($response['data'] as $result) {
         $id_list[] = $result['id'];
@@ -205,33 +213,31 @@ class Milvus extends VectorClientPluginBase {
   /**
    * Delete records in Milvus.
    *
-   * @param array $source_ids
-   *   One or more Source IDs to delete.
-   * @param string $collection
-   *   The collection to delete vectors from.
+   * @param array $parameters
+   *   An array with at least keys 'source_ids' and 'collection'.
    *
    * @return \Psr\Http\Message\ResponseInterface
    *   The response object.
    *
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
-  public function delete(array $source_ids = [], string $collection = ''): ResponseInterface {
-    if (empty($collection)) {
+  public function delete(array $parameters): ResponseInterface {
+    if (empty($parameters['collection'])) {
       throw new \Exception('Collection name is required by Milvus');
     }
+    if (empty($parameters['source_ids'])) {
+      throw new \Exception('Source IDs to delete are required by Milvus');
+    }
 
-    $ids = $this->fetchMilvusIdsFromSourceIds($source_ids, $collection);
+    $ids = $this->fetchMilvusIdsFromSourceIds($parameters['source_ids'], $parameters['collection']);
     if (!$ids) {
       throw new \Exception('No Milvus IDs found for the given Source IDs');
     }
 
-    $payload = [];
-    if (!empty($collection)) {
-      $payload['collectionName'] = $collection;
-    }
-    if (!empty($ids)) {
-      $payload['ids'] = $ids;
-    }
+    $payload = [
+      'ids' => $ids,
+      'collectionName' => $parameters['collection'],
+    ];
 
     return $this->getClient()->post('/v1/vector/delete', [
       'json' => $payload,
@@ -239,9 +245,49 @@ class Milvus extends VectorClientPluginBase {
   }
 
   /**
+   * Delete all records in Milvus.
+   *
+   * @param array $parameters
+   *   An array with at least key 'collection'.
+   *
+   * @throws \GuzzleHttp\Exception\GuzzleException
+   */
+  public function deleteAll(array $parameters): void {
+    if (empty($parameters['collection'])) {
+      throw new \Exception('Collection name is required by Milvus');
+    }
+
+    // Milvus mechanism to wipe a collection is to drop
+    // and recreate it.
+    $this->dropCollection($parameters);
+    $this->createCollection($parameters);
+  }
+
+  /**
+   * Creates a collection in Milvus.
+   *
+   * @param array $parameters
+   *   The collection to delete vectors from.
+   *
+   * @throws \GuzzleHttp\Exception\GuzzleException
+   */
+  public function createCollection(array $parameters): void {
+    if (empty($parameters['collection'])) {
+      throw new \Exception('Collection name is required by Milvus');
+    }
+
+    $this->getClient()->post('/v1/vector/collections/create', [
+      'json' => [
+        'collectionName' => $parameters['collection'],
+        'dimension' => 1536,
+      ],
+    ]);
+  }
+
+  /**
    * Drops a complete collection in Milvus.
    *
-   * @param string $collection
+   * @param array $parameters
    *   The collection to delete vectors from.
    *
    * @return \Psr\Http\Message\ResponseInterface
@@ -249,14 +295,14 @@ class Milvus extends VectorClientPluginBase {
    *
    * @throws \GuzzleHttp\Exception\GuzzleException
    */
-  public function dropCollection(string $collection = ''): ResponseInterface {
-    if (empty($collection)) {
+  public function dropCollection(array $parameters): ResponseInterface {
+    if (empty($parameters['collection'])) {
       throw new \Exception('Collection name is required by Milvus');
     }
 
     return $this->getClient()->post('/v1/vector/collections/drop', [
       'json' => [
-        'collectionName' => $collection,
+        'collectionName' => $parameters['collection'],
       ],
     ]);
   }
