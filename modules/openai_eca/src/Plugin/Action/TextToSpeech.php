@@ -5,7 +5,7 @@ namespace Drupal\openai_eca\Plugin\Action;
 use Drupal\Core\Form\FormStateInterface;
 
 /**
- * Describes the openai openai_eca_execute_tts action.
+ * Describes the OpenAI openai_eca_execute_tts action.
  *
  * @Action(
  *   id = "openai_eca_execute_tts",
@@ -32,7 +32,7 @@ class TextToSpeech extends OpenAIActionBase {
    * {@inheritdoc}
    */
   public function buildConfigurationForm(array $form, FormStateInterface $form_state): array {
-    $form = parent::buildConfigurationForm($form, $form_state);
+    //$form = parent::buildConfigurationForm($form, $form_state);
 
     $form['token_input'] = [
       '#type' => 'textfield',
@@ -89,7 +89,7 @@ class TextToSpeech extends OpenAIActionBase {
       '#description' => $this->t('The audio format of the result. See the <a href=":link">link</a> for more information.', [':link' => 'https://platform.openai.com/docs/guides/text-to-speech/supported-output-formats']),
     ];
 
-    return parent::buildConfigurationForm($form, $form_state);
+    return $form;
   }
 
   /**

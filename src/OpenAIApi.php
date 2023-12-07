@@ -377,4 +377,30 @@ class OpenAIApi implements ContainerInjectionInterface {
     }
   }
 
+  /**
+   * Determine if a piece of text violates any OpenAI usage policies.
+   *
+   * @param string $input
+   *   The input to check.
+   *
+   * @return bool
+   *   Whether this text violates OpenAI's usage policies.
+   */
+  public function moderation(string $input): bool {
+    try {
+      $response = $this->client->moderations()->create(
+        [
+          'model' => 'text-moderation-latest',
+          'input' => trim($input),
+        ],
+      );
+
+      $result = $response->toArray();
+      return (bool) $result["results"][0]["flagged"];
+    } catch (TransporterException | \Exception $e) {
+      $this->logger->error('There was an issue obtaining a response from OpenAI. The error was @error.', ['@error' => $e->getMessage()]);
+      return FALSE;
+    }
+  }
+
 }

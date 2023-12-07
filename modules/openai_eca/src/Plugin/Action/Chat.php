@@ -5,7 +5,7 @@ namespace Drupal\openai_eca\Plugin\Action;
 use Drupal\Core\Form\FormStateInterface;
 
 /**
- * Describes the openai openai_eca_execute_chat action.
+ * Describes the OpenAI openai_eca_execute_chat action.
  *
  * @Action(
  *   id = "openai_eca_execute_chat",
@@ -100,7 +100,7 @@ class Chat extends OpenAIActionBase {
       '#description' => $this->t('The maximum number of tokens to generate. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. Check the <a href="@link">models overview</a> for more details.', ['@link' => 'https://platform.openai.com/docs/models/gpt-4']),
     ];
 
-    return parent::buildConfigurationForm($form, $form_state);
+    return $form;
   }
 
   /**

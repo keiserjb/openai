@@ -5,7 +5,7 @@ namespace Drupal\openai_eca\Plugin\Action;
 use Drupal\Core\Form\FormStateInterface;
 
 /**
- * Describes the openai openai_eca_execute_speech action.
+ * Describes the OpenAI openai_eca_execute_speech action.
  *
  * @Action(
  *   id = "openai_eca_execute_speech",
@@ -72,7 +72,7 @@ class SpeechToText extends OpenAIActionBase {
       '#description' => $this->t('The task to use to process the audio file. "Transcribe": transcribes the audio to the same language as the audio. "Translate": translates and transcribes the audio into English. See the <a href=":link">speech to text guide</a> for further details.', [':link' => 'https://platform.openai.com/docs/guides/speech-to-text']),
     ];
 
-    return parent::buildConfigurationForm($form, $form_state);
+    return $form;
   }
 
   /**
