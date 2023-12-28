@@ -220,7 +220,13 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
     $model = $results['model'];
     $temperature = (float) $results['temperature'];
     $max_tokens = (int) $results['max_tokens'];
-    $node_type = array_rand($results['node_types']);
+
+    if (is_array($results['node_types'])) {
+      $node_type = array_rand($results['node_types']);
+    }
+    else {
+      $node_type = $results['node_types'];
+    }
 
     if (!isset($results['messages'])) {
       $results['messages'] = [
