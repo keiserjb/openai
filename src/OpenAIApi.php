@@ -223,11 +223,14 @@ class OpenAIApi implements ContainerInjectionInterface {
    * @param bool $stream_response
    *   If the response should be streamed. Useful for dynamic typed output over JavaScript,
    *   see the openai_ckeditor module.
+   * @param int $seed
+   *   If specified, a request with same seed and parameters should return
+   *   the same result.
    *
    * @return string|\Symfony\Component\HttpFoundation\StreamedResponse
    *   The response from OpenAI.
    */
-  public function chat(string $model, array $messages, $temperature, $max_tokens = 512, bool $stream_response = FALSE) {
+  public function chat(string $model, array $messages, $temperature, $max_tokens = 512, bool $stream_response = FALSE, int $seed = NULL) {
     try {
       if ($stream_response) {
         $stream = $this->client->chat()->createStreamed(
@@ -236,6 +239,7 @@ class OpenAIApi implements ContainerInjectionInterface {
             'messages' => $messages,
             'temperature' => floatval($temperature),
             'max_tokens' => (int) $max_tokens,
+            'seed' => $seed,
           ]
         );
 
@@ -258,6 +262,7 @@ class OpenAIApi implements ContainerInjectionInterface {
             'messages' => $messages,
             'temperature' => floatval($temperature),
             'max_tokens' => (int) $max_tokens,
+            'seed' => $seed,
           ]
         );
 
