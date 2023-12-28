@@ -8,3 +8,8 @@ services:
   openai.api:
     class: Drupal\openai\OpenAIApi
     arguments: ['@openai.client', '@cache.default', '@logger.factory']
+  openai.event_subscriber:
+    class: Drupal\openai\EventSubscriber\OpenAIEventSubscriber
+    arguments: ['@config.factory', '@router.admin_context', '@messenger']
+    tags:
+      - { name: event_subscriber }

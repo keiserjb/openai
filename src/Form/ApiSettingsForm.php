@@ -43,6 +43,10 @@ class ApiSettingsForm extends ConfigFormBase {
       '#description' => $this->t('The organization ID on your OpenAI account. This is required for some OpenAI services to work correctly.'),
     ];
 
+    $form['message'] = [
+      '#markup' => '<p>If you recently renewed or added more funds to OpenAI, please note that it can take a few hours for API access to be restored.</p>',
+    ];
+
     return parent::buildForm($form, $form_state);
   }
 
