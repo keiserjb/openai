@@ -25,8 +25,6 @@ class Chat extends OpenAIActionBase {
       'system' => 'You are an expert in content editing and an assistant to a user writing content for their website. Please return all answers without using first, second, or third person voice.',
       'temperature' => '0.4',
       'max_tokens' => 256,
-      'token_input' => '',
-      'token_result' => '',
       ] + parent::defaultConfiguration();
   }
 
@@ -35,24 +33,6 @@ class Chat extends OpenAIActionBase {
    */
   public function buildConfigurationForm(array $form, FormStateInterface $form_state): array {
     $form = parent::buildConfigurationForm($form, $form_state);
-
-    $form['token_input'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Token input'),
-      '#default_value' => $this->configuration['token_input'],
-      '#description' => $this->t('The data input for OpenAI.'),
-      '#weight' => -10,
-      '#eca_token_reference' => TRUE,
-    ];
-
-    $form['token_result'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Token result'),
-      '#default_value' => $this->configuration['token_result'],
-      '#description' => $this->t('The response from OpenAI will be stored into the token result field to be used in future steps.'),
-      '#weight' => -9,
-      '#eca_token_reference' => TRUE,
-    ];
 
     $form['model'] = [
       '#type' => 'select',
@@ -112,8 +92,6 @@ class Chat extends OpenAIActionBase {
     $this->configuration['system'] = $form_state->getValue('system');
     $this->configuration['temperature'] = $form_state->getValue('temperature');
     $this->configuration['max_tokens'] = $form_state->getValue('max_tokens');
-    $this->configuration['token_input'] = $form_state->getValue('token_input');
-    $this->configuration['token_result'] = $form_state->getValue('token_result');
     parent::submitConfigurationForm($form, $form_state);
   }
 

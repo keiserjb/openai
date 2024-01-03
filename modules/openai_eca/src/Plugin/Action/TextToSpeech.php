@@ -23,8 +23,6 @@ class TextToSpeech extends OpenAIActionBase {
       'model' => 'tts-1',
       'voice' => 'alloy',
       'response_format' => 'mp3',
-      'token_input' => '',
-      'token_result' => '',
       ] + parent::defaultConfiguration();
   }
 
@@ -32,25 +30,7 @@ class TextToSpeech extends OpenAIActionBase {
    * {@inheritdoc}
    */
   public function buildConfigurationForm(array $form, FormStateInterface $form_state): array {
-    //$form = parent::buildConfigurationForm($form, $form_state);
-
-    $form['token_input'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Token input'),
-      '#default_value' => $this->configuration['token_input'],
-      '#description' => $this->t('The text input for OpenAI will be loaded from this token. Note that a the input cannot exceed 4096 characters.'),
-      '#weight' => -10,
-      '#eca_token_reference' => TRUE,
-    ];
-
-    $form['token_result'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Token result'),
-      '#default_value' => $this->configuration['token_result'],
-      '#description' => $this->t('The response from OpenAI will be stored into the token result field to be used in future steps.'),
-      '#weight' => -9,
-      '#eca_token_reference' => TRUE,
-    ];
+    $form = parent::buildConfigurationForm($form, $form_state);
 
     $form['model'] = [
       '#type' => 'select',

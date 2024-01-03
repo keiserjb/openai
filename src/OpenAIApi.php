@@ -408,4 +408,29 @@ class OpenAIApi implements ContainerInjectionInterface {
     }
   }
 
+  /**
+   * Generate a text embedding from an input.
+   *
+   * @param string $input
+   *   The input to check.
+   *
+   * @return array
+   *   The text embedding vector value from OpenAI.
+   */
+  public function embedding(string $input): array {
+    try {
+      $response = $this->client->embeddings()->create([
+        'model' => 'text-embedding-ada-002',
+        'input' => $input,
+      ]);
+
+      $result = $response->toArray();
+
+      return $result['data'][0]['embedding'];
+    } catch (TransporterException | \Exception $e) {
+      $this->logger->error('There was an issue obtaining a response from OpenAI. The error was @error.', ['@error' => $e->getMessage()]);
+      return [];
+    }
+  }
+
 }
