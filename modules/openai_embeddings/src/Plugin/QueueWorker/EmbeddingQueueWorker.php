@@ -152,10 +152,7 @@ final class EmbeddingQueueWorker extends QueueWorkerBase implements ContainerFac
 
               $embeddings = $response->toArray();
 
-              $namespace = '';
-              if (!$this->config->get('vector_clients.' . $plugin_id . '.disable_namespace')) {
-                $namespace = $entity->getEntityTypeId();
-              }
+              $namespace = $entity->getEntityTypeId();
 
               $vectors = [
                 'id' => $this->generateUniqueId($entity, $field->getName(), $delta),

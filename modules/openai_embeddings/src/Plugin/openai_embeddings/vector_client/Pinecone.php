@@ -176,16 +176,6 @@ class Pinecone extends VectorClientPluginBase {
       ];
     }
 
-    // If filter is provided, ensure that it is not free
-    // Pinecone.
-    if (!$payload['deleteAll'] && $this->getConfiguration()['disable_namespace']) {
-      throw new \Exception('Pinecone free starter plan does not support filters on deletion.');
-    }
-    elseif ($payload['deleteAll'] && $this->getConfiguration()['disable_namespace']) {
-      $this->messenger->addWarning('Pinecone free starter plan does not support Delete All. Please visit the Pinecone website to manually clear the index.');
-      throw new \Exception('Pinecone free starter plan does not support filters on deletion.');
-    }
-
     // See description in ::query().
     if (!empty($parameters['collection'])) {
       $payload['namespace'] = $parameters['collection'];

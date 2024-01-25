@@ -91,11 +91,8 @@ function openai_embeddings_schema() {
  * Allow disabling of namespace, maintain status quo of false.
  */
 function openai_embeddings_update_10001() {
-  $config = \Drupal::configFactory()->getEditable('openai_embeddings.pinecone_client');
-  if ($config->get('disable_namespace') === NULL) {
-    $config->set('disable_namespace', FALSE);
-    $config->save();
-  }
+  // Do nothing, we no longer need the disable namespace
+  // as per openai_embeddings_update_10003().
 }
 
 /**
@@ -114,5 +111,16 @@ function openai_embeddings_update_10002() {
 
     // Delete the original pinecone config.
     $pinecone_config->delete();
+  }
+}
+
+/**
+ * Allow disabling of namespace, maintain status quo of false.
+ */
+function openai_embeddings_update_10003() {
+  $config = \Drupal::configFactory()->getEditable('openai_embeddings.settings');
+  if ($config->get('vector_clients.pinecone.disable_namespace')) {
+    $config->clear('vector_clients.pinecone.disable_namespace');
+    $config->save();
   }
 }
