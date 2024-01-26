@@ -124,3 +124,10 @@ function openai_embeddings_update_10003() {
     $config->save();
   }
 }
+
+/**
+ * Clear cache of models list given change to filters in #3417202.
+ */
+function openai_embeddings_update_10004() {
+  \Drupal::cache()->invalidate('openai_models');
+}

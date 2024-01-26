@@ -95,7 +95,7 @@ class OpenAIApi implements ContainerInjectionInterface {
       }
 
       // Skip unused. hidden, or deprecated models.
-      if (preg_match('/(search|similarity|edit|1p|instruct|embed)/i', $model['id'])) {
+      if (preg_match('/(search|similarity|edit|1p|instruct)/i', $model['id'])) {
         continue;
       }
 
@@ -134,16 +134,6 @@ class OpenAIApi implements ContainerInjectionInterface {
     }
 
     return $models;
-  }
-
-  /**
-   * Get the latest embedding model.
-   *
-   * @return string
-   *   The embedding model in OpenAI.
-   */
-  public function embeddingModel(): string {
-    return 'text-embedding-ada-002';
   }
 
   /**
