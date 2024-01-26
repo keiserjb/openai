@@ -180,12 +180,9 @@ class SettingsForm extends ConfigFormBase {
   public function validateForm(array &$form, FormStateInterface $form_state) {
     parent::validateForm($form, $form_state);
 
-    foreach ($this->pluginManager->getDefinitions() as $pid => $plugin) {
-      /** @var \Drupal\openai_embeddings\VectorClientPluginBase $plugin */
-      $plugin_instance = $this->pluginManager->createInstance($pid);
-      if (!method_exists($plugin_instance, 'validateConfigurationForm')) {
-        continue;
-      }
+    $pid = $form_state->getValue(['connections', 'vector_client_plugin']);
+    $plugin_instance = $this->pluginManager->createInstance($pid);
+    if (method_exists($plugin_instance, 'validateConfigurationForm')) {
       $subform = &$form['connections'][$pid];
       $subform_state = SubformState::createForSubform($form['connections'][$pid], $form, $form_state);
       $plugin_instance->validateConfigurationForm($subform, $subform_state);
