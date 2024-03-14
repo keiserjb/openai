@@ -313,6 +313,10 @@ class Pinecone extends VectorClientPluginBase {
    * {@inheritdoc}
    */
   public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
+    // Set the new configuration values for this instance before validating.
+    $this->setConfiguration($form_state->getValues());
+
+    // Attempt to validate the new configuration.
     try {
       $this->getClient()->post(
         '/describe_index_stats',
