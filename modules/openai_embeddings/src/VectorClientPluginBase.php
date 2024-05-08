@@ -71,10 +71,16 @@ abstract class VectorClientPluginBase extends PluginBase implements VectorClient
 
     // Get the configuration mapping within the openai_embeddings settings.
     // If none is found, set to the default configuration.
-    $this->config = $config_factory->getEditable('openai_embeddings.settings') ?? [];
+    // Get the configuration object - including any overrides- and merging it
+    // with the default configuration.
+    $this->config = $config_factory->get('openai_embeddings.settings');
     $configuration = $this->config->get('vector_clients.' . $plugin_id) ?? [];
     $configuration = NestedArray::mergeDeep($this->defaultConfiguration(), $configuration);
     $this->setConfiguration($configuration);
+
+    // Reset the configuration object to be editable to allow eventual saving
+    // of the settings.
+    $this->config = $config_factory->getEditable('openai_embeddings.settings');
   }
 
   /**
