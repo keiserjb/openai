@@ -5,6 +5,7 @@
  * Contains hook implementations for this module.
  */
 
+use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityInterface;
 
 /**
@@ -25,45 +26,52 @@ function openai_embeddings_entity_update(EntityInterface $entity) {
  * Implements hook_entity_delete().
  */
 function openai_embeddings_entity_delete(EntityInterface $entity) {
-  $plugin_id = \Drupal::configFactory()
-    ->get('openai_embeddings.settings')
-    ->get('vector_client_plugin');
-  if ($plugin_id) {
-    $vector_client = \Drupal::service('plugin.manager.vector_client')->createInstance($plugin_id);
+  if ($entity instanceof ContentEntityInterface) {
+    $plugin_id = \Drupal::configFactory()
+      ->get('openai_embeddings.settings')
+      ->get('vector_client_plugin');
+    if ($plugin_id) {
+      $vector_client = \Drupal::service('plugin.manager.vector_client')->createInstance($plugin_id);
+
+      try {
+        $records = \Drupal::database()->select('openai_embeddings', 'e')
+          ->fields('e', ['entity_id', 'entity_type', 'field_name'])
+          ->condition('entity_id', $entity->id())
+          ->condition('entity_type', $entity->getEntityTypeId())
+          ->execute();
+
+        foreach ($records as $record) {
+          $vector_client->delete([
+            'collection' => $record->entity_type . ':' . $record->field_name,
+            'filter' => [
+              'entity_id' => $entity->id(),
+              'entity_type' => $entity->getEntityTypeId(),
+              'bundle' => $entity->bundle(),
+            ],
+          ]);
+        }
+      } catch (\Exception $e) {
+        \Drupal::logger('openai_embeddings')
+          ->error('Error trying to delete record(s) in the vector database.');
+      }
+    }
 
     try {
-      $records = \Drupal::database()->select('openai_embeddings', 'e')
-        ->fields('e', ['entity_id', 'entity_type', 'field_name'])
+      \Drupal::database()->delete('openai_embeddings')
         ->condition('entity_id', $entity->id())
         ->condition('entity_type', $entity->getEntityTypeId())
         ->execute();
-
-      foreach ($records as $record) {
-        $vector_client->delete([
-          'collection' => $record->entity_type . ':' . $record->field_name,
-          'filter' => [
-            'entity_id' => $entity->id(),
-            'entity_type' => $entity->getEntityTypeId(),
-            'bundle' => $entity->bundle(),
-          ],
-        ]);
-      }
-    }
-    catch (\Exception $e) {
-      \Drupal::logger('openai_embeddings')->error('Error trying to delete record(s) in the vector database.');
+    } catch (\Exception $e) {
+      \Drupal::logger('openai_embeddings')
+        ->error('Error trying to delete record(s) in the local database.');
     }
   }
-
-  \Drupal::database()->delete('openai_embeddings')
-    ->condition('entity_id', $entity->id())
-    ->condition('entity_type', $entity->getEntityTypeId())
-    ->execute();
 }
 
 /**
  * Inserts a content entity into the job queue.
  *
- * @param \Drupal\Core\Etity\EntityInterface $entity
+ * @param \Drupal\Core\Entity\EntityInterface $entity
  *   The content entity.
  */
 function openai_embeddings_insert_queue_item($entity) {
