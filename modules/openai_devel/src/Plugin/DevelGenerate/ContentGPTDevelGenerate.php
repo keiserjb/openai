@@ -43,7 +43,7 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): static {
     $instance = parent::create($container, $configuration, $plugin_id, $plugin_definition);
     $instance->client = $container->get('openai.client');
     return $instance;
@@ -52,7 +52,7 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
   /**
    * {@inheritdoc}
    */
-  public function settingsForm(array $form, FormStateInterface $form_state) {
+  public function settingsForm(array $form, FormStateInterface $form_state): array {
     $form = parent::settingsForm($form, $form_state);
 
     $form['gpt'] = [
@@ -126,7 +126,7 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
   /**
    * {@inheritdoc}
    */
-  public function settingsFormValidate(array $form, FormStateInterface $form_state) {
+  public function settingsFormValidate(array $form, FormStateInterface $form_state): void {
     parent::settingsFormValidate($form, $form_state);
     $model = $form_state->getValue('model');
     $max_tokens = (int) $form_state->getValue('max_tokens');
@@ -160,7 +160,7 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
   /**
    * {@inheritdoc}
    */
-  public function validateDrushParams(array $args, array $options = []) {
+  public function validateDrushParams(array $args, array $options = []): array {
     $values = parent::validateDrushParams($args, $options);
 
     $values['temperature'] = (float) $options['temperature'];
@@ -200,7 +200,7 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
   /**
    * Always batch the operations.
    */
-  protected function isBatch($content_count, $comment_count) {
+  protected function isBatch($content_count, $comment_count): bool {
     return TRUE;
   }
 
@@ -210,7 +210,7 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
    * @param array $results
    *   Results information.
    */
-  protected function develGenerateContentAddNode(array &$results) {
+  protected function develGenerateContentAddNode(array &$results): void {
     if (!isset($results['time_range'])) {
       $results['time_range'] = 0;
     }
