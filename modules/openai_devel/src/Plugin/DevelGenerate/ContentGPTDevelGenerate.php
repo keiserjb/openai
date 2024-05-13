@@ -10,6 +10,7 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageInterface;
 use Drupal\devel_generate\Plugin\DevelGenerate\ContentDevelGenerate;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\openai\OpenAIApi;
 
 /**
  * Provides a ContentGPTDevelGenerate plugin.
@@ -34,18 +35,18 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class ContentGPTDevelGenerate extends ContentDevelGenerate {
 
   /**
-   * The OpenAI client.
+   * The OpenAI API service.
    *
-   * @var \OpenAI\Client
+   * @var \Drupal\openai\OpenAIApi
    */
-  protected $client;
+  protected $api;
 
   /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): static {
     $instance = parent::create($container, $configuration, $plugin_id, $plugin_definition);
-    $instance->client = $container->get('openai.client');
+    $instance->api = $container->get('openai.api');
     return $instance;
   }
 
@@ -63,19 +64,12 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
       '#weight' => -50,
     ];
 
+    $models = $this->api->filterModels(['gpt']);
+
     $form['gpt']['model'] = [
       '#type' => 'select',
       '#title' => $this->t('Model'),
-      '#options' => [
-        'gpt-4-1106-preview' => 'gpt-4-1106-preview',
-        'gpt-4-vision-preview' => 'gpt-4-vision-preview',
-        'gpt-4' => 'gpt-4',
-        'gpt-4-32k' => 'gpt-4-32k',
-        'gpt-3.5-turbo-1106' => 'gpt-3.5-turbo-1106',
-        'gpt-3.5-turbo' => 'gpt-3.5-turbo',
-        'gpt-3.5-turbo-16k' => 'gpt-3.5-turbo-16k',
-        'gpt-3.5-turbo-0301' => 'gpt-3.5-turbo-0301',
-      ],
+      '#options' => $models,
       '#default_value' => 'gpt-3.5-turbo',
       '#description' => $this->t('Select which model to use to generate text. See the <a href=":link">model overview</a> for details about each model.', [':link' => 'https://platform.openai.com/docs/models']),
     ];
@@ -253,21 +247,12 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
     // Add the content type label if required.
     $title_prefix = $results['add_type_label'] ? $this->nodeTypeStorage->load($node_type)->label() . ' - ' : '';
 
-    $response = $this->client->chat()->create(
-      [
-        'model' => $model,
-        'messages' => $results['messages'],
-        'temperature' => $temperature,
-        'max_tokens' => $max_tokens,
-      ],
-    );
-
-    $result = $response->toArray();
+    $response = $this->api->chat($model, $results['messages'], $temperature, $max_tokens);
 
     // Remove any double quoting GPT might return.
-    $title = str_replace('"', '', $result["choices"][0]["message"]["content"]);
+    $title = str_replace('"', '', $response);
 
-    $results['messages'][] = ['role' => 'assistant', 'content' => trim($result["choices"][0]["message"]["content"])];
+    $results['messages'][] = ['role' => 'assistant', 'content' => trim($response)];
 
     $values = [
       'nid' => NULL,
@@ -338,7 +323,7 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
       return;
     }
 
-    $client = \Drupal::service('openai.client');
+    $api = \Drupal::service('openai.api');
 
     $valid_gpt_field_types = [
       'string',
@@ -383,22 +368,11 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
 
         $results['messages'][] = ['role' => 'user', 'content' => $ask];
 
-        $response = $client->chat()->create(
-          [
-            'model' => $results['model'],
-            'messages' => $results['messages'],
-            'temperature' => (float) $results['temperature'],
-            'max_tokens' => (int) $results['max_tokens'],
-          ],
-              );
-
-        $result = $response->toArray();
-
-        $text = $result["choices"][0]["message"]["content"];
+        $response = $api->chat($results['model'], $results['messages'], (float) $results['temperature'], (int) $results['max_tokens']);
 
         if ($results['html']) {
           // @todo any way to get the list from the field filter?
-          $text = Xss::filter($text, [
+          $text = Xss::filter($response, [
             'p',
             'h2',
             'h3',
@@ -416,7 +390,7 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
           ]);
         }
 
-        $text = trim($text);
+        $text = trim($response);
         $results['messages'][] = ['role' => 'assistant', 'content' => $text];
         $values[] = $text;
 
