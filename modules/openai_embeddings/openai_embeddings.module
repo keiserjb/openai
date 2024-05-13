@@ -11,14 +11,14 @@ use Drupal\Core\Entity\EntityInterface;
  * Implements hook_entity_insert().
  */
 function openai_embeddings_entity_insert(EntityInterface $entity) {
-  _insert_queue_item($entity);
+  openai_embeddings_insert_queue_item($entity);
 }
 
 /**
  * Implements hook_entity_update().
  */
 function openai_embeddings_entity_update(EntityInterface $entity) {
-  _insert_queue_item($entity);
+  openai_embeddings_insert_queue_item($entity);
 }
 
 /**
@@ -63,10 +63,10 @@ function openai_embeddings_entity_delete(EntityInterface $entity) {
 /**
  * Inserts a content entity into the job queue.
  *
- * @param $entity
+ * @param \Drupal\Core\Etity\EntityInterface $entity
  *   The content entity.
  */
-function _insert_queue_item($entity) {
+function openai_embeddings_insert_queue_item($entity) {
   $config = \Drupal::config('openai_embeddings.settings');
   $entity_types = $config->get('entity_types');
 

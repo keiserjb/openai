@@ -48,12 +48,12 @@ class ChatGptForm extends FormBase {
       '#required' => TRUE,
     ];
 
-    $form['options'] = array(
+    $form['options'] = [
       '#type' => 'details',
       '#title' => t('Options'),
       '#description' => t('Set various options related to how ChatGPT generates its response.'),
       '#open' => FALSE,
-    );
+    ];
 
     $models = $this->api->filterModels(['gpt']);
 
@@ -81,7 +81,7 @@ class ChatGptForm extends FormBase {
       '#min' => 128,
       '#step' => 1,
       '#default_value' => '128',
-      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length.'),
+      '#description' => $this->t("The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length."),
     ];
 
     $form['options']['system'] = [
@@ -101,7 +101,7 @@ class ChatGptForm extends FormBase {
         ],
       '#prefix' => '<div id="openai-chatgpt-response">',
       '#suffix' => '</div>',
-      '#description' => $this->t('The response from OpenAI will appear in the textbox above.')
+      '#description' => $this->t('The response from OpenAI will appear in the textbox above.'),
     ];
 
     $form['actions'] = [
@@ -137,17 +137,20 @@ class ChatGptForm extends FormBase {
           $form_state->setError($form['options']['max_tokens'], $this->t('The model you have selected only supports a maximum of 8192 tokens. Please reduce the max token value to 8192 or lower.'));
         }
         break;
+
       case 'gpt-3.5-turbo':
       case 'gpt-3.5-turbo-0301':
         if ($max_tokens > 4096) {
           $form_state->setError($form['options']['max_tokens'], $this->t('The model you have selected only supports a maximum of 4096 tokens. Please reduce the max token value to 4096 or lower.'));
         }
         break;
+
       case 'gpt-3.5-turbo-16k':
         if ($max_tokens > 16384) {
           $form_state->setError($form['options']['max_tokens'], $this->t('The model you have selected only supports a maximum of 16384 tokens. Please reduce the max token value to 16384 or lower.'));
         }
         break;
+
       default:
         break;
     }
@@ -197,10 +200,11 @@ class ChatGptForm extends FormBase {
     if (!empty($storage['messages'])) {
       $messages = $storage['messages'];
       $messages[] = ['role' => 'user', 'content' => trim($text)];
-    } else {
+    }
+    else {
       $messages = [
         ['role' => 'system', 'content' => trim($system)],
-        ['role' => 'user', 'content' => trim($text)]
+        ['role' => 'user', 'content' => trim($text)],
       ];
     }
 

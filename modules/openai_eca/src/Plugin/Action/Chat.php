@@ -25,7 +25,7 @@ class Chat extends OpenAIActionBase {
       'system' => 'You are an expert in content editing and an assistant to a user writing content for their website. Please return all answers without using first, second, or third person voice.',
       'temperature' => '0.4',
       'max_tokens' => 256,
-      ] + parent::defaultConfiguration();
+    ] + parent::defaultConfiguration();
   }
 
   /**
@@ -104,7 +104,7 @@ class Chat extends OpenAIActionBase {
 
     $messages = [
       ['role' => 'system', 'content' => $this->configuration['system']],
-      ['role' => 'user', 'content' => trim($prompt)]
+      ['role' => 'user', 'content' => trim($prompt)],
     ];
 
     $response = $this->api->chat(

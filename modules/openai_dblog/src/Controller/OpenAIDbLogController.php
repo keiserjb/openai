@@ -66,12 +66,19 @@ class OpenAIDbLogController extends DbLogController {
       try {
         if (str_contains($model, 'gpt')) {
           $messages = [
-            ['role' => 'system', 'content' => 'You are a PHP, Drupal 9 and Drupal 10 expert programmer. Please return all answers without using first, second, or third person voice.'],
-            ['role' => 'user', 'content' => 'What does this error mean on my Drupal site and how can I fix it? The error is: "' . $message . '"']
+            [
+              'role' => 'system',
+              'content' => 'You are a PHP, Drupal 9 and Drupal 10 expert programmer. Please return all answers without using first, second, or third person voice.',
+            ],
+            [
+              'role' => 'user',
+              'content' => 'What does this error mean on my Drupal site and how can I fix it? The error is: "' . $message . '"',
+            ],
           ];
 
           $result = $this->api->chat($model, $messages, 0.4, 3900);
-        } else {
+        }
+        else {
           $prompt = 'What does this error mean on my Drupal site and how can I fix it? The error is: "' . $message . '"';
           $result = $this->api->completions($model, $prompt, 0.4, 2048);
         }

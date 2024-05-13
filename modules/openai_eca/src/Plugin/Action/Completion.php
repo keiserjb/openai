@@ -24,7 +24,7 @@ class Completion extends OpenAIActionBase {
       'prompt' => 'Enter your prompt for OpenAI / ChatGPT here.',
       'temperature' => '0.4',
       'max_tokens' => 256,
-      ] + parent::defaultConfiguration();
+    ] + parent::defaultConfiguration();
   }
 
   /**

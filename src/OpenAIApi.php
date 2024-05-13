@@ -68,8 +68,8 @@ class OpenAIApi implements ContainerInjectionInterface {
   /**
    * Obtains a list of models from OpenAI and caches the result.
    *
-   * This method does its best job to filter out deprecated or unused models. The
-   * OpenAI API endpoint does not have a way to filter those out yet.
+   * This method does its best job to filter out deprecated or unused models.
+   * The OpenAI API endpoint does not have a way to filter those out yet.
    *
    * @return array
    *   A filtered list of public models.
@@ -140,22 +140,23 @@ class OpenAIApi implements ContainerInjectionInterface {
    * Return a ready to use answer from the completion endpoint.
    *
    * Note that the stream argument will not work in cases like Drupal's Form API
-   * AJAX responses at this time. It will however work in client side applications, such as
-   * the openai_ckeditor module.
+   * AJAX responses at this time. It will however work in client side
+   * applications, such as the openai_ckeditor module.
    *
    * @param string $model
    *   The model to use.
    * @param string $prompt
    *   The prompt to use.
-   * @param $temperature
+   * @param float $temperature
    *   The temperature setting.
-   * @param $max_tokens
+   * @param int $max_tokens
    *   The max tokens for the input and response.
-   * @param bool $stream
-   *   If the response should be streamed. Useful for dynamic typed output over JavaScript,
-   *   see the openai_ckeditor module.
+   * @param bool $stream_response
+   *   If the response should be streamed. Useful for dynamic typed output over
+   *   JavaScript, see the openai_ckeditor module.
    *
    * @return string
+   *   The completion from OpenAI.
    */
   public function completions(string $model, string $prompt, $temperature, $max_tokens = 512, bool $stream_response = FALSE) {
     try {
@@ -180,7 +181,8 @@ class OpenAIApi implements ContainerInjectionInterface {
           'Content-Type' => 'text/event-stream',
           'X-Accel-Buffering' => 'no',
         ]);
-      } else {
+      }
+      else {
         $response = $this->client->completions()->create(
           [
             'model' => $model,
@@ -188,12 +190,13 @@ class OpenAIApi implements ContainerInjectionInterface {
             'temperature' => (int) $temperature,
             'max_tokens' => (int) $max_tokens,
           ],
-        );
+              );
 
         $result = $response->toArray();
         return trim($result['choices'][0]['text']);
       }
-    } catch (TransporterException | \Exception $e) {
+    }
+    catch (TransporterException | \Exception $e) {
       $this->logger->error('There was an issue obtaining a response from OpenAI. The error was @error.', ['@error' => $e->getMessage()]);
       return '';
     }
@@ -205,14 +208,15 @@ class OpenAIApi implements ContainerInjectionInterface {
    * @param string $model
    *   The model to use.
    * @param array $messages
-   *   The array of messages to send. Refer to the docs for the format of this array.
-   * @param $temperature
+   *   The array of messages to send. Refer to the docs for the format of this
+   *   array.
+   * @param float $temperature
    *   The temperature setting.
-   * @param $max_tokens
+   * @param int $max_tokens
    *   The max tokens for the input and response.
    * @param bool $stream_response
-   *   If the response should be streamed. Useful for dynamic typed output over JavaScript,
-   *   see the openai_ckeditor module.
+   *   If the response should be streamed. Useful for dynamic typed output over
+   *   JavaScript, see the openai_ckeditor module.
    * @param int $seed
    *   If specified, a request with same seed and parameters should return
    *   the same result.
@@ -259,7 +263,8 @@ class OpenAIApi implements ContainerInjectionInterface {
         $result = $response->toArray();
         return trim($result['choices'][0]['message']['content']);
       }
-    } catch (TransporterException | \Exception $e) {
+    }
+    catch (TransporterException | \Exception $e) {
       $this->logger->error('There was an issue obtaining a response from OpenAI. The error was @error.', ['@error' => $e->getMessage()]);
       return '';
     }
@@ -301,7 +306,8 @@ class OpenAIApi implements ContainerInjectionInterface {
       $response = $this->client->images()->create($parameters);
       $response = $response->toArray();
       return $response['data'][0][$response_format];
-    } catch (TransporterException | \Exception $e) {
+    }
+    catch (TransporterException | \Exception $e) {
       $this->logger->error('There was an issue obtaining a response from OpenAI. The error was @error.', ['@error' => $e->getMessage()]);
       return '';
     }
@@ -330,7 +336,8 @@ class OpenAIApi implements ContainerInjectionInterface {
         'input' => $input,
         'response_format' => $response_format,
       ]);
-    } catch (TransporterException | \Exception $e) {
+    }
+    catch (TransporterException | \Exception $e) {
       $this->logger->error('There was an issue obtaining a response from OpenAI. The error was @error.', ['@error' => $e->getMessage()]);
       return '';
     }
@@ -345,8 +352,11 @@ class OpenAIApi implements ContainerInjectionInterface {
    *   The absolute path to the audio file to convert.
    * @param string $task
    *   The type of conversion to perform, either transcript or translate.
+   * @param float $temperature
+   *   The temperature setting.
    * @param string $response_format
-   *   The format of the transcript output, in one of these options: json, text, srt, verbose_json, or vtt.
+   *   The format of the transcript output, in one of these options: json, text,
+   *   srt, verbose_json, or vtt.
    *
    * @return string
    *   The response from OpenAI.
@@ -366,7 +376,8 @@ class OpenAIApi implements ContainerInjectionInterface {
 
       $result = $response->toArray();
       return $result['text'];
-    } catch (TransporterException | \Exception $e) {
+    }
+    catch (TransporterException | \Exception $e) {
       $this->logger->error('There was an issue obtaining a response from OpenAI. The error was @error.', ['@error' => $e->getMessage()]);
       return '';
     }
@@ -392,7 +403,8 @@ class OpenAIApi implements ContainerInjectionInterface {
 
       $result = $response->toArray();
       return (bool) $result["results"][0]["flagged"];
-    } catch (TransporterException | \Exception $e) {
+    }
+    catch (TransporterException | \Exception $e) {
       $this->logger->error('There was an issue obtaining a response from OpenAI. The error was @error.', ['@error' => $e->getMessage()]);
       return FALSE;
     }
@@ -417,7 +429,8 @@ class OpenAIApi implements ContainerInjectionInterface {
       $result = $response->toArray();
 
       return $result['data'][0]['embedding'];
-    } catch (TransporterException | \Exception $e) {
+    }
+    catch (TransporterException | \Exception $e) {
       $this->logger->error('There was an issue obtaining a response from OpenAI. The error was @error.', ['@error' => $e->getMessage()]);
       return [];
     }

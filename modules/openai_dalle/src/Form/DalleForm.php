@@ -13,8 +13,7 @@ use Drupal\file\Entity\File;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Provides a form to interact with the OpenAI API's DALL·E (image generation)
- * endpoint.
+ * A form to interact with the OpenAI API's DALL·E (image generation) endpoint.
  */
 class DalleForm extends FormBase {
 
@@ -97,9 +96,9 @@ class DalleForm extends FormBase {
       '#states' => [
         'visible' => [
           [
-            ':input[name="model"]' => ['value' => 'dall-e-3']
-          ]
-        ]
+            ':input[name="model"]' => ['value' => 'dall-e-3'],
+          ],
+        ],
       ],
       '#description' => $this->t('The quality of the image that will be generated. hd creates images with finer details and greater consistency across the image. This parameter only supported for dall-e-3.'),
     ];
@@ -129,9 +128,9 @@ class DalleForm extends FormBase {
       '#states' => [
         'visible' => [
           [
-            ':input[name="model"]' => ['value' => 'dall-e-3']
-          ]
-        ]
+            ':input[name="model"]' => ['value' => 'dall-e-3'],
+          ],
+        ],
       ],
       '#description' => $this->t('The style of the generated images. Must be one of vivid or natural. Vivid causes the model to lean towards generating hyper-real and dramatic images. Natural causes the model to produce more natural, less hyper-real looking images. This parameter only supported for dall-e-3.'),
     ];
@@ -154,9 +153,9 @@ class DalleForm extends FormBase {
       '#states' => [
         'visible' => [
           [
-            ':input[name="response_format"]' => ['value' => 'b64_json']
-          ]
-        ]
+            ':input[name="response_format"]' => ['value' => 'b64_json'],
+          ],
+        ],
       ],
       '#required' => TRUE,
       '#description' => $this->t('The filename to save the result as.'),
@@ -298,10 +297,12 @@ class DalleForm extends FormBase {
           'format' => $format,
         ],
       );
-    } catch (\Exception $e) {
+    }
+    catch (\Exception $e) {
 
     }
 
     $form_state->setRebuild();
   }
+
 }

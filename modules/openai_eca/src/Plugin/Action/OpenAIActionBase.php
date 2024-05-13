@@ -8,7 +8,7 @@ use Drupal\eca\Plugin\Action\ConfigurableActionBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- *  Base class for OpenAI / ChatGPT related actions.
+ * Base class for OpenAI / ChatGPT related actions.
  */
 abstract class OpenAIActionBase extends ConfigurableActionBase {
 
@@ -33,9 +33,9 @@ abstract class OpenAIActionBase extends ConfigurableActionBase {
    */
   public function defaultConfiguration(): array {
     return [
-        'token_input' => '',
-        'token_result' => '',
-      ] + parent::defaultConfiguration();
+      'token_input' => '',
+      'token_result' => '',
+    ] + parent::defaultConfiguration();
   }
 
   /**

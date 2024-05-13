@@ -46,7 +46,7 @@ class StringHelper {
     $dom->formatOutput = FALSE;
     $dom->preserveWhiteSpace = TRUE;
     $previous = libxml_use_internal_errors(TRUE);
-    $dom->loadHTML(mb_convert_encoding($text, 'HTML-ENTITIES', 'UTF-8'), LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NOBLANKS);
+    $dom->loadHTML(htmlspecialchars_decode(iconv('UTF-8', 'ISO-8859-1', htmlentities($text, ENT_COMPAT, 'UTF-8')), ENT_QUOTES));
     $dom->encoding = 'utf-8';
     libxml_clear_errors();
     libxml_use_internal_errors($previous);

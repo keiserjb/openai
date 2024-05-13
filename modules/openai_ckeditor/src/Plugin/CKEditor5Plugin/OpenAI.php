@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Drupal\openai_ckeditor\Plugin\CKEditor5Plugin;
 
+use Drupal\ckeditor5\Plugin\CKEditor5PluginConfigurableInterface;
 use Drupal\ckeditor5\Plugin\CKEditor5PluginConfigurableTrait;
 use Drupal\ckeditor5\Plugin\CKEditor5PluginDefault;
-use Drupal\ckeditor5\Plugin\CKEditor5PluginConfigurableInterface;
 use Drupal\ckeditor5\Plugin\CKEditor5PluginDefinition;
-use Drupal\Core\Entity\EntityDisplayRepositoryInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\editor\EditorInterface;
@@ -40,7 +39,7 @@ class OpenAI extends CKEditor5PluginDefault implements ContainerFactoryPluginInt
       'model' => 'gpt-3.5-turbo',
       'temperature' => 0.2,
       'max_tokens' => 512,
-    ]
+    ],
   ];
 
   /**
@@ -60,7 +59,7 @@ class OpenAI extends CKEditor5PluginDefault implements ContainerFactoryPluginInt
    * @param \Drupal\ckeditor5\Plugin\CKEditor5PluginDefinition $plugin_definition
    *   The plugin implementation definition.
    * @param \Drupal\openai\OpenAIApi $api
-   *    The OpenAI API wrapper.
+   *   The OpenAI API wrapper.
    */
   public function __construct(array $configuration, string $plugin_id, CKEditor5PluginDefinition $plugin_definition, OpenAIApi $api) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
@@ -144,22 +143,26 @@ class OpenAI extends CKEditor5PluginDefault implements ContainerFactoryPluginInt
           $form_state->setError($form['completion']['max_tokens'], $this->t('The model you have selected only supports a maximum of 8192 tokens. Please reduce the max token value to 8192 or lower.'));
         }
         break;
+
       case 'gpt-3.5-turbo':
       case 'gpt-3.5-turbo-0301':
         if ($max_tokens > 4096) {
           $form_state->setError($form['completion']['max_tokens'], $this->t('The model you have selected only supports a maximum of 4096 tokens. Please reduce the max token value to 4096 or lower.'));
         }
         break;
+
       case 'gpt-3.5-turbo-16k':
         if ($max_tokens > 16384) {
           $form_state->setError($form['completion']['max_tokens'], $this->t('The model you have selected only supports a maximum of 16384 tokens. Please reduce the max token value to 16384 or lower.'));
         }
         break;
+
       case 'text-davinci-003':
         if ($max_tokens > 4097) {
           $form_state->setError($form['completion']['max_tokens'], $this->t('The model you have selected only supports a maximum of 4097 tokens. Please reduce the max token value to 4097 or lower.'));
         }
         break;
+
       case 'text-curie-001':
       case 'text-babage-001':
       case 'text-ada-001':
@@ -167,6 +170,7 @@ class OpenAI extends CKEditor5PluginDefault implements ContainerFactoryPluginInt
           $form_state->setError($form['completion']['max_tokens'], $this->t('The model you have selected only supports a maximum of 2049 tokens. Please reduce the max token value to 2049 or lower.'));
         }
         break;
+
       default:
         break;
     }
@@ -198,8 +202,9 @@ class OpenAI extends CKEditor5PluginDefault implements ContainerFactoryPluginInt
           'model' => $config['completion']['model'] ?? $options['completion']['model'],
           'temperature' => $config['completion']['temperature'] ?? $options['completion']['temperature'],
           'max_tokens' => $config['completion']['max_tokens'] ?? $options['completion']['max_tokens'],
-        ]
-      ]
+        ],
+      ],
     ];
   }
+
 }

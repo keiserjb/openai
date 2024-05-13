@@ -4,10 +4,8 @@ namespace Drupal\openai_ckeditor\Controller;
 
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\openai\OpenAIApi;
-use OpenAI\Client;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Returns responses for CKEditor integration routes.
@@ -49,10 +47,17 @@ class Completion implements ContainerInjectionInterface {
 
     if (!$use_chat_endpoint) {
       return $this->api->completions($data->options->model, trim($data->prompt), floatval($data->options->temperature), (int) $data->options->max_tokens, TRUE);
-    } else {
+    }
+    else {
       $messages = [
-        ['role' => 'system', 'content' => 'You are an expert in content editing and an assistant to a user writing content for their website. Please return all answers without using first, second, or third person voice.'],
-        ['role' => 'user', 'content' => trim($data->prompt)]
+        [
+          'role' => 'system',
+          'content' => 'You are an expert in content editing and an assistant to a user writing content for their website. Please return all answers without using first, second, or third person voice.',
+        ],
+        [
+          'role' => 'user',
+          'content' => trim($data->prompt),
+        ],
       ];
 
       return $this->api->chat($data->options->model, $messages, floatval($data->options->temperature), (int) $data->options->max_tokens, TRUE);

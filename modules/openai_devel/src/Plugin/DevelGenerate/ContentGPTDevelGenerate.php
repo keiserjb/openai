@@ -8,10 +8,8 @@ use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageInterface;
-use Drush\Utils\StringUtils;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\devel_generate\Plugin\DevelGenerate\ContentDevelGenerate;
-use OpenAI\Client;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Provides a ContentGPTDevelGenerate plugin.
@@ -106,7 +104,7 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
       '#min' => 128,
       '#step' => 1,
       '#default_value' => '512',
-      '#description' => $this->t('The maximum number of tokens to generate in the response. The token count of your prompt plus max_tokens cannot exceed the model\'s context length.'),
+      '#description' => $this->t("The maximum number of tokens to generate in the response. The token count of your prompt plus max_tokens cannot exceed the model's context length."),
     ];
 
     $form['gpt']['html'] = [
@@ -119,7 +117,7 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
     $form['base_fields']['#required'] = TRUE;
     $form['base_fields']['#description'] = $this->t('Enter the field names as a comma-separated list. These will be populated. Please note generating text with GPT will only work on string/text type fields!');
 
-    // with GPT, this isn't really needed
+    // With GPT, this isn't really needed.
     unset($form['title_length']);
 
     return $form;
@@ -140,17 +138,20 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
           $form_state->setError($form['gpt']['max_tokens'], $this->t('The model you have selected only supports a maximum of 8192 tokens. Please reduce the max token value to 8192 or lower.'));
         }
         break;
+
       case 'gpt-3.5-turbo':
       case 'gpt-3.5-turbo-0301':
         if ($max_tokens > 4096) {
           $form_state->setError($form['gpt']['max_tokens'], $this->t('The model you have selected only supports a maximum of 4096 tokens. Please reduce the max token value to 4096 or lower.'));
         }
         break;
+
       case 'gpt-3.5-turbo-16k':
         if ($max_tokens > 16384) {
           $form_state->setError($form['gpt']['max_tokens'], $this->t('The model you have selected only supports a maximum of 16384 tokens. Please reduce the max token value to 16384 or lower.'));
         }
         break;
+
       default:
         break;
     }
@@ -230,11 +231,21 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
 
     if (!isset($results['messages'])) {
       $results['messages'] = [
-        ['role' => 'system', 'content' => trim($system)],
-        ['role' => 'user', 'content' => "Give me an example title for a/an $node_type page of content in less than 200 characters."]
+        [
+          'role' => 'system',
+          'content' => trim($system),
+        ],
+        [
+          'role' => 'user',
+          'content' => "Give me an example title for a/an $node_type page of content in less than 200 characters.",
+        ],
       ];
-    } else {
-      $results['messages'][] = ['role' => 'user', 'content' => "Give me completely different title for a/an $node_type page of content in less than 200 characters."];
+    }
+    else {
+      $results['messages'][] = [
+        'role' => 'user',
+        'content' => "Give me completely different title for a/an $node_type page of content in less than 200 characters.",
+      ];
     }
 
     $uid = $users[array_rand($users)];
@@ -311,8 +322,8 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
   /**
    * Populate the fields on a given entity with sample values.
    *
-   * This is not the same as the parent method populateFields because we need to communicate
-   * options across to the client from user defined parameters.
+   * This is not the same as the parent method populateFields because we need to
+   * communicate options across to the client from user defined parameters.
    *
    * @param \Drupal\Core\Entity\EntityInterface $entity
    *   The entity to be enriched with sample field values.
@@ -357,12 +368,14 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
 
       if (!in_array($field_type, $valid_gpt_field_types) || !in_array($field_name, $results['base_fields'])) {
         $entity->$field_name->generateSampleItems($max);
-      } else {
+      }
+      else {
         $values = [];
 
         if (in_array($field_type, ['text_long', 'text_with_summary']) && $results['html']) {
           $ask = "Provide content for a page of titled \"$title\" in basic HTML markup.";
-        } else {
+        }
+        else {
           $ask = "Provide content for a page of titled \"$title\".";
         }
 
@@ -377,15 +390,30 @@ class ContentGPTDevelGenerate extends ContentDevelGenerate {
             'temperature' => (float) $results['temperature'],
             'max_tokens' => (int) $results['max_tokens'],
           ],
-        );
+              );
 
         $result = $response->toArray();
 
         $text = $result["choices"][0]["message"]["content"];
 
         if ($results['html']) {
-          // @todo: any way of getting the list from the filter assigned to this entity/field?
-          $text = Xss::filter($text, ['p', 'h2', 'h3', 'h4', 'h5', 'h6', 'em', 'strong', 'cite', 'blockquote', 'code', 'ul', 'ol', 'li']);
+          // @todo any way to get the list from the field filter?
+          $text = Xss::filter($text, [
+            'p',
+            'h2',
+            'h3',
+            'h4',
+            'h5',
+            'h6',
+            'em',
+            'strong',
+            'cite',
+            'blockquote',
+            'code',
+            'ul',
+            'ol',
+            'li',
+          ]);
         }
 
         $text = trim($text);

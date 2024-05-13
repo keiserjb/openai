@@ -23,7 +23,7 @@ class SpeechToText extends OpenAIActionBase {
       'model' => 'tts-1',
       'voice' => 'alloy',
       'response_format' => 'mp3',
-      ] + parent::defaultConfiguration();
+    ] + parent::defaultConfiguration();
   }
 
   /**

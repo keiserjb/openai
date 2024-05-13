@@ -3,9 +3,9 @@
 namespace Drupal\Tests\openai\Unit\Http;
 
 use Drupal\Core\Config\Config;
+use Drupal\openai\Http\ClientFactory;
 use Drupal\Tests\UnitTestCase;
 use OpenAI\Client as OpenAIAPIClient;
-use Drupal\openai\Http\ClientFactory;
 
 /**
  * @coversDefaultClass \Drupal\openai\Http\ClientFactory

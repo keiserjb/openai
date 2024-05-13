@@ -2,7 +2,7 @@ name: OpenAI Devel Generate
 type: module
 description: Adds GPT generational capability to Devel generate commands.
 package: OpenAI
-core_version_requirement: ^10
+core_version_requirement: ^10 || ^11
 dependencies:
   - openai:openai
   - devel:devel_generate

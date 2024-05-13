@@ -3,7 +3,6 @@
 namespace Drupal\openai_devel\Commands;
 
 use Consolidation\AnnotatedCommand\CommandData;
-use Drupal\devel_generate\DevelGenerateBaseInterface;
 use Drupal\devel_generate\DevelGeneratePluginManager;
 use Drush\Commands\DrushCommands;
 
@@ -115,15 +114,15 @@ class OpenAIDevelCommands extends DrushCommands {
   /**
    * Generate content using OpenAI's GPT services.
    *
-   * @command devel-generate:content-gpt
-   * @aliases gencgpt
-   * @pluginId content_gpt
-   * @validate-module-enabled node
-   *
    * @param int $num
    *   Number of nodes to generate.
    * @param array $options
    *   Array of options as described below.
+   *
+   * @command devel-generate:content-gpt
+   * @aliases gencgpt
+   * @pluginId content_gpt
+   * @validate-module-enabled node
    *
    * @option kill Delete all content before generating new content.
    * @option bundles A comma-delimited list of content types to create.
@@ -162,17 +161,17 @@ class OpenAIDevelCommands extends DrushCommands {
   /**
    * The standard drush validate hook.
    *
-   * @hook validate
-   *
    * @param \Consolidation\AnnotatedCommand\CommandData $commandData
    *   The data sent from the drush command.
+   *
+   * @hook validate
    */
   public function validate(CommandData $commandData) {
     $manager = $this->getManager();
     $args = $commandData->input()->getArguments();
     // The command name is the first argument but we do not need this.
     array_shift($args);
-    /** @var DevelGenerateBaseInterface $instance */
+    /** @var \Drupal\devel_generate\DevelGenerateBaseInterface $instance */
     $instance = $manager->createInstance($commandData->annotationData()->get('pluginId'), []);
     $this->setPluginInstance($instance);
     $parameters = $instance->validateDrushParams($args, $commandData->input()->getOptions());

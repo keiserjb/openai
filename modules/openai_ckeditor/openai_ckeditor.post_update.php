@@ -1,7 +1,12 @@
 <?php
 
-use Drupal\editor\Entity\Editor;
+/**
+ * @file
+ * Contains hook implementations for this module.
+ */
+
 use Drupal\Core\Config\Entity\ConfigEntityUpdater;
+use Drupal\editor\Entity\Editor;
 
 /**
  * Switch the deprecated Completion plugin for the new OpenAI plugin.

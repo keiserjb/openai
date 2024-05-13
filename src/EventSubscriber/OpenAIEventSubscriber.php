@@ -1,6 +1,6 @@
 <?php
 
-declare(strict_types = 1);
+declare(strict_types=1);
 
 namespace Drupal\openai\EventSubscriber;
 
@@ -38,7 +38,7 @@ final class OpenAIEventSubscriber implements EventSubscriberInterface {
       $message = $this->t('You have not provided an OpenAI API key yet. This is required for its functionality to work. Please obtain an API key from <a href=":account">your OpenAI account</a> and add it to the <a href=":settings">OpenAI settings configuration here</a>.',
         [
           ':account' => 'https://platform.openai.com/',
-          ':settings' => '/admin/config/openai/settings'
+          ':settings' => '/admin/config/openai/settings',
         ],
       );
 

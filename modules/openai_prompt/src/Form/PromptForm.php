@@ -6,7 +6,6 @@ namespace Drupal\openai_prompt\Form;
 
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\openai\OpenAIApi;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -50,12 +49,12 @@ class PromptForm extends FormBase {
 
     $models = $this->api->filterModels(['text']);
 
-    $form['options'] = array(
+    $form['options'] = [
       '#type' => 'details',
       '#title' => t('Options'),
       '#description' => t('Set various options related to how ChatGPT generates its response.'),
       '#open' => FALSE,
-    );
+    ];
 
     $form['options']['model'] = [
       '#type' => 'select',
@@ -82,7 +81,7 @@ class PromptForm extends FormBase {
       '#max' => 4097,
       '#step' => 1,
       '#default_value' => '128',
-      '#description' => $this->t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length.'),
+      '#description' => $this->t("The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length."),
     ];
 
     $form['response'] = [
@@ -94,7 +93,7 @@ class PromptForm extends FormBase {
         ],
       '#prefix' => '<div id="openai-prompt-response">',
       '#suffix' => '</div>',
-      '#description' => $this->t('The response from OpenAI will appear in the textbox above.')
+      '#description' => $this->t('The response from OpenAI will appear in the textbox above.'),
     ];
 
     $form['actions'] = [
@@ -126,6 +125,7 @@ class PromptForm extends FormBase {
           $form_state->setError($form['max_tokens'], $this->t('The model you have selected only supports a maximum of 4097 tokens. Please reduce the max token value to 4097 or lower.'));
         }
         break;
+
       case 'text-curie-001':
       case 'text-babage-001':
       case 'text-ada-001':
@@ -133,6 +133,7 @@ class PromptForm extends FormBase {
           $form_state->setError($form['max_tokens'], $this->t('The model you have selected only supports a maximum of 2049 tokens. Please reduce the max token value to 2049 or lower.'));
         }
         break;
+
       default:
         break;
     }

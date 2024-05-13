@@ -9,8 +9,7 @@ use Drupal\Core\Form\FormStateInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Provides a form to interact with the OpenAI API's audio (speech to text)
- * endpoints.
+ * A form to interact with the OpenAI API's audio (speech to text) endpoints.
  */
 class AudioForm extends FormBase {
 
@@ -69,7 +68,7 @@ class AudioForm extends FormBase {
         ],
       '#prefix' => '<div id="openai-audio-response">',
       '#suffix' => '</div>',
-      '#description' => $this->t('The response from OpenAI will appear in the textarea above.')
+      '#description' => $this->t('The response from OpenAI will appear in the textarea above.'),
     ];
 
     $form['actions'] = [
@@ -134,4 +133,5 @@ class AudioForm extends FormBase {
     $form_state->setStorage(['text' => $result]);
     $form_state->setRebuild();
   }
+
 }

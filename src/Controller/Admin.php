@@ -52,7 +52,7 @@ class Admin extends ControllerBase {
 
       $build[] = [
         '#theme' => 'item_list',
-        '#items' => $models
+        '#items' => $models,
       ];
     }
     catch (TransporterException | \Exception $e) {

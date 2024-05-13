@@ -12,8 +12,7 @@ use Drupal\file\Entity\File;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Provides a form to interact with the OpenAI API's tts (text to speech)
- * endpoints.
+ * A form to interact with the OpenAI API's tts (text to speech) endpoints.
  */
 class TextToSpeechForm extends FormBase {
 
@@ -201,10 +200,12 @@ class TextToSpeechForm extends FormBase {
           'filename' => $file->getFilename(),
         ],
       );
-    } catch (\Exception $e) {
+    }
+    catch (\Exception $e) {
 
     }
 
     $form_state->setRebuild();
   }
+
 }

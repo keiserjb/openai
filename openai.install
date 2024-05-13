@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * @file
+ * Install, update, and uninstall functions for the OpenAI module.
+ */
+
+/**
  * Implements hook_requirements().
  */
 function openai_requirements($phase) {
@@ -20,7 +25,7 @@ function openai_requirements($phase) {
       $message = t('You have not provided an OpenAI API key yet. This is required for its functionality to work. Please obtain an API key from <a href=":account">your OpenAI account</a> and add it to the <a href=":settings">OpenAI settings configuration here</a>.',
         [
           ':account' => 'https://platform.openai.com/',
-          ':settings' => '/admin/config/openai/settings'
+          ':settings' => '/admin/config/openai/settings',
         ],
       );
 
