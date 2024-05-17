@@ -1,0 +1,294 @@
+<?php
+
+/**
+* @file
+* Permissions for the OpenAI DALL·E module.
+*/
+
+function openai_dalle_permission() {
+  return [
+    'access openai dalle' => [
+      'title' => t('Use OpenAI DALL·E'),
+    ],
+  ];
+}
+
+/**
+ * Implements hook_menu().
+ */
+function openai_dalle_menu() {
+  $items = array();
+
+  $items['admin/config/openai/dalle'] = array(
+    'title' => 'DALL·E Image Generation',
+    'description' => 'Contains a form where you can test the OpenAI API\'s DALL·E (image generation) endpoint.',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => array('openai_dalle_form'),
+    'access arguments' => array('access openai dalle'),
+    'parent' => 'admin/config/openai',
+  );
+
+  return $items;
+}
+
+/**
+ * Provides a form to interact with the OpenAI API's DALL·E (image generation) endpoint.
+ */
+function openai_dalle_form($form, &$form_state) {
+  $config = config_get('openai.settings');
+  $apiKey = $config['api_key'];
+
+  if (empty($apiKey)) {
+    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
+    return $form;
+  }
+
+  $api = new OpenAIApi($apiKey);
+
+  $form['prompt'] = [
+    '#type' => 'textarea',
+    '#title' => t('Prompt'),
+    '#description' => t('A text description of the desired image(s). The maximum length is 1000 characters for dall-e-2 and 4000 characters for dall-e-3. Please note that OpenAI may reject prompts it deems in violation of their content standards.'),
+    '#required' => TRUE,
+  ];
+
+  $models = $api->filterModels(['dall']);
+
+  $form['model'] = [
+    '#type' => 'select',
+    '#title' => t('Model'),
+    '#options' => $models,
+    '#default_value' => 'dall-e-3',
+    '#description' => t('The model to use to generate an image. See the <a href=":link">link</a> for more information.', ['@link' => 'https://platform.openai.com/docs/models/dall-e']),
+  ];
+
+  $form['quality'] = [
+    '#type' => 'select',
+    '#title' => t('Quality'),
+    '#options' => [
+      'hd' => 'HD',
+      'standard' => 'Standard',
+    ],
+    '#default_value' => 'hd',
+    '#states' => [
+      'visible' => [
+        ':input[name="model"]' => ['value' => 'dall-e-3']
+      ]
+    ],
+    '#description' => t('The quality of the image that will be generated. hd creates images with finer details and greater consistency across the image. This parameter only supported for dall-e-3.'),
+  ];
+
+  $form['size'] = [
+    '#type' => 'select',
+    '#title' => t('Size'),
+    '#options' => [
+      '256x256' => '256x256',
+      '512x512' => '512x512',
+      '1024x1024' => '1024x1024',
+      '1792x1024' => '1792x1024',
+      '1024x1792' => '1024x1792',
+    ],
+    '#default_value' => '',
+    '#description' => t('The size of the generated images.'),
+  ];
+
+  $form['style'] = [
+    '#type' => 'select',
+    '#title' => t('Style'),
+    '#options' => [
+      'vivid' => 'Vivid - Generate hyper-real and dramatic images',
+      'natural' => 'Natural - Generate more natural, less hyper-real looking images',
+    ],
+    '#default_value' => 'vivid',
+    '#states' => [
+      'visible' => [
+        ':input[name="model"]' => ['value' => 'dall-e-3']
+      ]
+    ],
+    '#description' => t('The style of the generated images. Must be one of vivid or natural. Vivid causes the model to lean towards generating hyper-real and dramatic images. Natural causes the model to produce more natural, less hyper-real looking images. This parameter only supported for dall-e-3.'),
+  ];
+
+  $form['response_format'] = [
+    '#type' => 'select',
+    '#title' => t('Response Format'),
+    '#options' => [
+      'url' => 'URL',
+      'b64_json' => 'b64_json',
+    ],
+    '#default_value' => 'url',
+    '#description' => t('The image format of the result. See the <a href=":link">link</a> for more information.', ['@link' => 'https://platform.openai.com/docs/api-reference/images/create#images-create-response_format']),
+  ];
+
+  $form['filename'] = [
+    '#type' => 'textfield',
+    '#title' => t('Filename'),
+    '#default_value' => 'dalle_image',
+    '#states' => [
+      'visible' => [
+        ':input[name="response_format"]' => ['value' => 'b64_json']
+      ]
+    ],
+    '#required' => TRUE,
+    '#description' => t('The filename to save the result as.'),
+  ];
+
+  $form['response'] = [
+    '#markup' => 'The response will create a link to the image below.',
+  ];
+
+  $form['file'] = [
+    '#prefix' => '<div id="openai-dalle-response">',
+    '#suffix' => '</div>',
+  ];
+
+  $form['actions'] = [
+    '#type' => 'actions',
+  ];
+
+  $form['actions']['submit'] = [
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+    '#ajax' => [
+      'callback' => 'openai_dalle_get_response',
+      'wrapper' => 'openai-dalle-response',
+      'progress' => [
+        'type' => 'throbber',
+      ],
+    ],
+  ];
+
+  return $form;
+}
+
+/**
+ * Form validation handler for the DALL-E form.
+ */
+function openai_dalle_form_validate($form, &$form_state) {
+  $prompt = $form_state['values']['prompt'];
+  $model = $form_state['values']['model'];
+  $size = $form_state['values']['size'];
+
+  $dalle_2_sizes = [
+    '256x256' => '256x256',
+    '512x512' => '512x512',
+    '1024x1024' => '1024x1024',
+  ];
+
+  $dalle_3_sizes = [
+    '1024x1024' => '1024x1024',
+    '1792x1024' => '1792x1024',
+    '1024x1792' => '1024x1792',
+  ];
+
+  if ($model === 'dall-e-2' && mb_strlen($prompt) > 1000) {
+    form_set_error('prompt', 'The input cannot exceed 1000 characters for the dall-e-2 model.');
+  }
+
+  if ($model === 'dall-e-2' && !in_array($size, $dalle_2_sizes)) {
+    form_set_error('size', 'This size is not supported by the dall-e-2 model.');
+  }
+
+  if ($model === 'dall-e-3' && !in_array($size, $dalle_3_sizes)) {
+    form_set_error('size', 'This size is not supported by the dall-e-3 model.');
+  }
+
+  if ($model === 'dall-e-3' && mb_strlen($prompt) > 4000) {
+    form_set_error('prompt', 'The input cannot exceed 4000 characters for the dall-e-3 model.');
+  }
+}
+
+/**
+ * Renders the response.
+ *
+ * @param array $form
+ *   The form array.
+ * @param array $form_state
+ *   The form state.
+ *
+ * @return array
+ *   The modified form element.
+ */
+function openai_dalle_get_response($form, &$form_state) {
+  $storage = $form_state['storage'];
+
+  if (empty($form_state['errors']) && !empty($storage['filepath'])) {
+    if ($storage['format'] === 'b64_json') {
+      $file_url = file_create_url($storage['filepath']);
+      $link = l($storage['filename'], $file_url);
+    } else {
+      $url = $storage['filepath'];
+      $link = l('DALL·E result', $url);
+    }
+
+    $form['file']['#markup'] = 'Download/view the image: ' . $link;
+  }
+
+  return $form['file'];
+}
+
+/**
+ * Form submit handler for the DALL-E form.
+ */
+function openai_dalle_form_submit($form, &$form_state) {
+  $config = config_get('openai.settings');
+  $apiKey = $config['api_key'];
+
+  if (empty($apiKey)) {
+    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
+    return;
+  }
+
+  $api = new OpenAIApi($apiKey);
+
+  $prompt = $form_state['values']['prompt'];
+  $model = $form_state['values']['model'];
+  $quality = $form_state['values']['quality'];
+  $size = $form_state['values']['size'];
+  $style = $form_state['values']['style'];
+  $format = $form_state['values']['response_format'];
+  $filename = $form_state['values']['filename'];
+
+  try {
+    $result = $api->images($model, $prompt, $size, $format, $quality, $style);
+
+    if ($format === 'b64_json') {
+      $filename = $filename . '.png';
+      $data = base64_decode($result);
+
+      // Save the data and create the file.
+      $file_uri = 'public://' . $filename;
+      $file_save_result = file_unmanaged_save_data($data, $file_uri, FILE_EXISTS_REPLACE);
+
+      if ($file_save_result) {
+        $file = file_save_data($data, $file_uri, FILE_EXISTS_REPLACE);
+        if ($file) {
+          $file->status = FILE_STATUS_PERMANENT;
+          file_save($file);
+          $filepath = file_create_url($file->uri);
+          $form_state['storage'] = [
+            'filename' => $file->filename,
+            'filepath' => $filepath,
+            'format' => $format,
+          ];
+        } else {
+          form_set_error('', t('File could not be saved.'));
+        }
+      } else {
+        form_set_error('', t('File could not be saved.'));
+      }
+    } else {
+      $form_state['storage'] = [
+        'filename' => 'DALL-E result',
+        'filepath' => $result,
+        'format' => $format,
+      ];
+    }
+  } catch (Exception $e) {
+    form_set_error('', t('Error generating image: @message', ['@message' => $e->getMessage()]));
+  }
+
+  $form_state['rebuild'] = TRUE;
+}
+
+
+

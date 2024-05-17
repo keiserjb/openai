@@ -1,0 +1,7 @@
+name = OpenAI Prompt Completion Explorer
+description = Adds a form in the admin to enter a prompt and get a response back from OpenAI, similar to ChatGPT.
+package = OpenAI
+type = module
+backdrop = 1.x
+configure = /admin/config/openai/openai-prompt
+dependencies[] = openai

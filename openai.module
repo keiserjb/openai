@@ -1,0 +1,197 @@
+<?php
+
+/**
+ * Implements hook_autoload_info().
+ */
+function openai_autoload_info() {
+  return array(
+    'OpenAIApi'     => 'includes/OpenAIApi.php',
+    'StringHelper'  => 'includes/StringHelper.php',
+  );
+}
+
+/**
+ * Implements hook_init().
+ */
+function openai_init() {
+  // Use path_is_admin to check if the current path is an admin path
+  if (path_is_admin(current_path())) {
+    $config = config('openai.settings');
+    $api_key = $config->get('api_key');
+
+    if (empty($api_key)) {
+      $message = t('You have not provided an OpenAI API key yet. This is required for its functionality to work. Please obtain an API key from <a href="@account" target="_blank">your OpenAI account</a> and add it to the <a href="@settings">OpenAI settings configuration here</a>.',
+        [
+          '@account' => 'https://platform.openai.com/',
+          '@settings' => url('admin/config/services/openai')
+        ]
+      );
+      backdrop_set_message($message, 'error');
+    }
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function openai_menu() {
+  $items = array();
+
+  // Parent item for all OpenAI related configuration pages.
+  $items['admin/config/openai'] = array(
+    'title' => 'OpenAI',
+    'description' => 'Configure OpenAI integration.',
+    'page callback' => 'openai_admin_overview',
+    'access arguments' => array('administer site configuration'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  // Submenu for specific OpenAI settings.
+  $items['admin/config/openai/settings'] = array(
+    'title' => 'Settings',
+    'description' => 'Manage OpenAI settings, API keys, and organization ID.',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => array('openai_settings_form'),
+    'access arguments' => array('administer site configuration'),
+    'type' => MENU_NORMAL_ITEM,
+    'parent' => 'admin/config/openai', // Pointing to the parent item.
+  );
+
+  return $items;
+}
+
+/**
+ * Page callback for the OpenAI admin overview page.
+ */
+function openai_admin_overview() {
+  // You can redirect or create a summary page here
+  backdrop_goto('admin/config/openai/settings');
+}
+
+function openai_settings_form($form, &$form_state) {
+  $config = config('openai.settings');
+
+  // Collapsible fieldset for API settings
+  $form['api_settings'] = [
+    '#type'        => 'fieldset',
+    '#title'       => t('API Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed'   => TRUE,
+  ];
+
+  // API Key field inside the collapsible fieldset
+  $form['api_settings']['api_key'] = [
+    '#type'          => 'textfield',
+    '#title'         => t('API Key'),
+    '#default_value' => $config->get('api_key'),
+    '#required'      => TRUE,
+    '#description'   => t(
+      'The API key is required to interface with OpenAI services. Get your API key by signing up on the <a href="@link" target="_blank">OpenAI website</a>.',
+      ['@link' => 'https://openai.com/api']
+    ),
+  ];
+
+  // Organization ID field inside the collapsible fieldset
+  $form['api_settings']['api_org'] = [
+    '#type'          => 'textfield',
+    '#title'         => t('Organization ID'),
+    '#default_value' => $config->get('api_org'),
+    '#description'   => t(
+      'The organization ID on your OpenAI account. This is required for some OpenAI services to work correctly.'
+    ),
+  ];
+
+  $form['actions']['submit'] = [
+    '#type'   => 'submit',
+    '#value'  => t('Save configuration'),
+    '#submit' => ['openai_settings_form_submit'], // Specify the submit handler
+  ];
+
+  // Simulate fetching available models
+  $models = openai_fetch_available_models();  // Fetch the models
+
+  if (!empty($models)) {
+    $model_list = '<ul>';
+    foreach ($models as $model) {
+      $model_list .= '<li>' . check_plain($model) . '</li>';
+    }
+    $model_list .= '</ul>';
+    $form['models'] = [
+      '#type'   => 'markup',
+      '#markup' => t('<h3>Available Models</h3>' . $model_list),
+    ];
+  }
+  else {
+    $form['models'] = [
+      '#type'   => 'markup',
+      '#markup' => t('Failed to fetch models or no models available.'),
+    ];
+  }
+
+  $form['docs_link'] = [
+    '#type'   => 'markup',
+    '#markup' => t(
+      'For more detailed information, please visit the <a href="@link" target="_blank">OpenAI documentation</a>.',
+      ['@link' => 'https://platform.openai.com/docs']
+    ),
+  ];
+
+  return $form;
+}
+
+/**
+ * Implements hook_form_submit().
+ */
+function openai_settings_form_submit($form, &$form_state) {
+  $config = config('openai.settings');
+  $config->set('api_key', $form_state['values']['api_key']);
+  $config->set('api_org', $form_state['values']['api_org']);
+  $config->save();
+}
+
+/**
+ * Fetches available models from OpenAI.
+ *
+ * @return array
+ *   A list of models.
+ */
+function openai_fetch_available_models() {
+  try {
+    // Retrieve the API key from configuration
+    $apiKey = config_get('openai.settings', 'api_key');
+
+    // Check if API key is set
+    if (empty($apiKey)) {
+      watchdog(
+        'openai',
+        'API key is not set. Please configure the API key.',
+        [],
+        WATCHDOG_WARNING
+      );
+      return [];  // Return an empty array if the API key is not set.
+    }
+
+    // Initialize the API client with the API key
+    $api = new OpenAIApi($apiKey);
+    $models = $api->getModels();
+    return $models;
+  }
+  catch (Exception $e) {
+    watchdog(
+      'openai',
+      'Failed to fetch models: @message',
+      ['@message' => $e->getMessage()],
+      WATCHDOG_ERROR
+    );
+    return [];  // Return an empty array if there is an error.
+  }
+}
+
+
+
+
+
+
+
+
+
