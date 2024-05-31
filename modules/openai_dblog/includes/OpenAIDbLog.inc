@@ -17,14 +17,6 @@ class OpenAIDbLog {
     $config = config_get('openai_dblog.settings');
     $model = $config['model'];
 
-    // Generate hash for the message
-    $hash = $this->generateHash($message);
-    $exists = $this->hashSearch($hash);
-
-    if ($exists) {
-      return nl2br($exists['explanation']);
-    }
-
     // Call OpenAI API
     try {
       if (str_contains($model, 'gpt')) {
@@ -43,8 +35,7 @@ class OpenAIDbLog {
         $prompt = 'What does this error mean on my Backdrop site and how can I fix it? The error is: "' . $message . '"';
         $result = $this->api->completions($model, $prompt, 0.4, 2048);
       }
-
-      $this->insertExplanation($hash, $message, $result);
+      watchdog('openai_dblog', 'OpenAI API response: ' . print_r($result, TRUE));
       return nl2br($result);
     } catch (Exception $e) {
       watchdog('openai_dblog', 'Error when trying to obtain a response from OpenAI: ' . $e->getMessage());
@@ -57,15 +48,10 @@ class OpenAIDbLog {
   }
 
   protected function hashSearch($hash) {
-    $result = db_query('SELECT explanation FROM {openai_dblog} WHERE hash = :hash', [':hash' => $hash])->fetchAssoc();
-    watchdog('openai_dblog', 'hashSearch result: ' . print_r($result, TRUE));
-    return $result;
+    return db_query('SELECT explanation FROM {openai_dblog} WHERE hash = :hash', [':hash' => $hash])->fetchAssoc();
   }
 
   protected function insertExplanation($hash, $message, $explanation) {
-    watchdog('openai_dblog', 'Inserting explanation with hash: ' . $hash);
-    watchdog('openai_dblog', 'Message: ' . $message);
-    watchdog('openai_dblog', 'Explanation: ' . $explanation);
     db_insert('openai_dblog')
       ->fields([
         'hash' => $hash,
@@ -74,4 +60,20 @@ class OpenAIDbLog {
       ])
       ->execute();
   }
+
+  public function processExplanation($dblog) {
+    $message = dblog_format_message($dblog);
+    $hash = $this->generateHash($message);
+
+    $existing_explanation = $this->hashSearch($hash);
+    if ($existing_explanation) {
+      return $existing_explanation['explanation'];
+    }
+
+    $explanation = $this->getOpenAIExplanation($dblog);
+    $this->insertExplanation($hash, $message, $explanation);
+
+    return $explanation;
+  }
 }
+

@@ -95,20 +95,9 @@ function openai_dblog_menu_alter(&$items) {
     $items['admin/reports/event/%']['page callback'] = 'openai_dblog_event_details';
   }
 }
-
-/**
- * Page callback: Displays details about a specific database log message with an additional row for OpenAI explanation.
- *
- * @param int $id
- *   Unique ID of the database log message.
- *
- * @return array|string
- *   If the ID is located in the Database Logging table, a build array in the
- *   format expected by backdrop_render(); otherwise, an empty string.
- */
 function openai_dblog_event_details($id) {
-  // Manually include the class file for debugging
-  require_once BACKDROP_ROOT . '/' . backdrop_get_path('module', 'openai_dblog') . '/includes/OpenAIDbLog.inc';
+  // No need for require_once if autoload is set up correctly
+  // require_once BACKDROP_ROOT . '/' . drupal_get_path('module', 'openai_dblog') . '/includes/OpenAIDbLog.inc';
 
   $severity = watchdog_severity_levels();
   $result = db_query('SELECT w.*, u.name, w.uid FROM {watchdog} w LEFT JOIN {users} u ON w.uid = u.uid WHERE w.wid = :id', array(':id' => $id))->fetchObject();
@@ -163,7 +152,7 @@ function openai_dblog_event_details($id) {
 
     // Instantiate the OpenAIDbLog class
     $openai_dblog = new OpenAIDbLog();
-    $explanation = $openai_dblog->getOpenAIExplanation($dblog);
+    $explanation = $openai_dblog->processExplanation($dblog);
 
     // Add the OpenAI explanation row
     $rows[] = array(
@@ -186,3 +175,6 @@ function openai_dblog_event_details($id) {
     return '';
   }
 }
+
+
+
