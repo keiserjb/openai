@@ -1,0 +1,10 @@
+{
+    "_config_name": "openai_dblog.settings",
+    "levels": [
+        "Emergency",
+        "Alert",
+        "Critical",
+        "Error"
+    ],
+    "model": "gpt-3.5-turbo"
+}
