@@ -64,7 +64,7 @@ abstract class VectorClientPluginBase extends PluginBase implements VectorClient
     protected ClientFactory $http_client_factory,
     protected ConfigFactoryInterface $config_factory,
     protected LoggerInterface $logger,
-    MessengerInterface $messenger
+    MessengerInterface $messenger,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
     $this->messenger = $messenger;
