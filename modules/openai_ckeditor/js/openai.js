@@ -4,7 +4,7 @@
   // Utility to get and set active format in Backdrop
   $(document).ready(function () {
     const $formatSelector = $('.filter-list:input');
-    
+
     if ($formatSelector.length) {
       const setActiveFormat = () => {
         const activeFormat = $formatSelector.val();
@@ -21,7 +21,36 @@
     }
   });
 
-  
+  function cleanResponse(response) {
+    return response.replace(/```html|```/g, '').trim();
+  }
+
+  // Function to create and update the status display
+function updateStatus(statusText) {
+  // Check if the status element already exists
+  let statusElement = document.querySelector('.ck-openai-status');
+
+  // If it doesn't exist, create it
+  if (!statusElement) {
+      statusElement = document.createElement('div');
+      statusElement.classList.add('ck-openai-status');
+      document.body.appendChild(statusElement);
+  }
+
+  // Update the text content of the status element
+  statusElement.textContent = `OpenAI status: ${statusText}`;
+
+  // Optionally, style the status element
+  statusElement.style.position = 'fixed';
+  statusElement.style.bottom = '10px';
+  statusElement.style.right = '10px';
+  statusElement.style.backgroundColor = '#f8f9fa';
+  statusElement.style.border = '1px solid #ccc';
+  statusElement.style.padding = '5px 10px';
+  statusElement.style.borderRadius = '5px';
+  statusElement.style.zIndex = '10000';
+}
+
   class OpenAI extends CKEditor5.core.Plugin {
     static get pluginName() {
       return 'OpenAI';
@@ -29,7 +58,7 @@
 
     init() {
       const editor = this.editor;
-      
+
       editor.ui.componentFactory.add('OpenAI', locale => {
         const dropdownView = CKEditor5.ui.createDropdown(locale);
         const buttonView = dropdownView.buttonView;
@@ -349,6 +378,7 @@
           { label: 'Adjust tone/voice', commandName: 'openaiAdjustTone' },
           { label: 'Summarize', commandName: 'openaiSummarize' },
           { label: 'Translate', commandName: 'openaiTranslate' },
+          { label: 'Reformat/correct HTML', commandName: 'openaiReformat'},
           { label: 'Help & Support', href: 'https://github.com/backdrop-contrib/openai/issues', isLink: true },
         ];
 
@@ -413,22 +443,24 @@
           this._showTextCompletionForm();
           break;
         case 'openaiAdjustTone':
-          // Implement tone adjustment logic here
+          this._showAdjustToneForm();
           break;
         case 'openaiSummarize':
-          // Implement summarization logic here
+          this._summarizeSelectedText();
           break;
         case 'openaiTranslate':
-          // Implement translation logic here
+          this._showTranslateForm();
           break;
+        case 'openaiReformat':
+          this._reformatSelectedText();
         default:
           console.warn(`No handler for command: ${commandName}`);
       }
-    }    
+    }
 
     _showTextCompletionForm() {
       const editor = this.editor;
-  
+
       // Create the form element
       const formElement = document.createElement('form');
       formElement.classList.add('ck-openai-form');
@@ -441,13 +473,13 @@
           </div>
 
       `;
-  
+
       // Append form to the document body or editor container
       document.body.appendChild(formElement);
 
       formElement.classList.add('ck-openai-form-modal');
 
-  
+
       // Bind submit event to send the input value to OpenAI
       formElement.querySelector('.ck-button-save').addEventListener('click', (event) => {
           event.preventDefault();
@@ -457,21 +489,182 @@
           }
           this._closeForm(formElement);
       });
-  
+
       // Bind cancel event to remove the form
       formElement.querySelector('.ck-button-cancel').addEventListener('click', (event) => {
           event.preventDefault();
           this._closeForm(formElement);
       });
   }
-  
+
   // Close and clean up the form
   _closeForm(formElement) {
       if (formElement && formElement.parentNode) {
           formElement.parentNode.removeChild(formElement);
       }
   }
-  
+
+  _showAdjustToneForm() {
+    const editor = this.editor;
+
+    // Create the form element for tone adjustment
+    const formElement = document.createElement('form');
+    formElement.classList.add('ck-openai-form');
+    formElement.innerHTML = `
+        <label for="toneInput">Enter an adjective / descriptive phrase:</label>
+        <input type="text" id="toneInput" name="toneInput" class="ck-tone-input" />
+        <div class="ck-form-buttons">
+            <button type="submit" class="ck-button-save">✔</button>
+            <button type="button" class="ck-button-cancel">✘</button>
+        </div>
+    `;
+
+    // Apply modal styling
+    formElement.classList.add('ck-openai-form-modal');
+
+    // Append the form to the document body or editor container
+    document.body.appendChild(formElement);
+
+    // Bind the submit event to handle tone change
+    formElement.querySelector('.ck-button-save').addEventListener('click', (event) => {
+        event.preventDefault();
+        const toneValue = formElement.querySelector('#toneInput').value.trim();
+        if (toneValue) {
+            // Construct the prompt for the tone change
+            const selection = editor.model.document.selection;
+            const range = selection.getFirstRange();
+            let selectedText = '';
+            for (const item of range.getItems()) {
+                if (item.data !== undefined) {
+                    selectedText += item.data + ' ';
+                }
+            }
+
+            if (selectedText) {
+                const prompt = `Change the tone of the following text to be ${toneValue} using the same language as the following text:\n${selectedText}`;
+                this._sendPromptToOpenAI(prompt);
+            }
+        }
+        this._closeForm(formElement);
+    });
+
+    // Bind the cancel event to remove the form
+    formElement.querySelector('.ck-button-cancel').addEventListener('click', (event) => {
+        event.preventDefault();
+        this._closeForm(formElement);
+    });
+  }
+
+  _summarizeSelectedText() {
+    const editor = this.editor;
+    const selection = editor.model.document.selection;
+    const range = selection.getFirstRange();
+    let selectedText = '';
+
+    // Extract selected text from the editor
+    for (const item of range.getItems()) {
+      if (item.is('textProxy')) {
+        selectedText += item.data;
+      }
+    }
+
+    if (!selectedText.trim()) {
+      console.warn('No text selected for summarization.');
+      return;
+    }
+
+    // Construct the prompt for summarization
+    const prompt = 'Summarize the following text into something more compact using the same language as the following text: ' + selectedText;
+
+    // Send the request to OpenAI
+    this._sendPromptToOpenAI(prompt);
+  }
+
+  _showTranslateForm() {
+    const editor = this.editor;
+
+    // Create the form element for translation
+    const formElement = document.createElement('form');
+    formElement.classList.add('ck-openai-form');
+    formElement.innerHTML = `
+        <label for="languageInput">Translate selection into (enter a language):</label>
+        <input type="text" id="languageInput" name="languageInput" class="ck-language-input" />
+        <div class="ck-form-buttons">
+            <button type="submit" class="ck-button-save">✔</button>
+            <button type="button" class="ck-button-cancel">✘</button>
+        </div>
+    `;
+
+    // Apply modal styling
+    formElement.classList.add('ck-openai-form-modal');
+
+    // Append the form to the document body or editor container
+    document.body.appendChild(formElement);
+
+    // Bind the submit event to handle translation
+    formElement.querySelector('.ck-button-save').addEventListener('click', (event) => {
+        event.preventDefault();
+        const languageValue = formElement.querySelector('#languageInput').value.trim();
+        if (languageValue) {
+            // Construct the prompt for the tone change
+            const selection = editor.model.document.selection;
+            const range = selection.getFirstRange();
+            let selectedText = '';
+            for (const item of range.getItems()) {
+                if (item.data !== undefined) {
+                    selectedText += item.data + ' ';
+                }
+            }
+
+            if (selectedText) {
+                const prompt = `Translate the selected text into ' ${languageValue} using the same language as the following text:\n${selectedText}`;
+                this._sendPromptToOpenAI(prompt);
+            }
+        }
+        this._closeForm(formElement);
+    });
+
+    // Bind the cancel event to remove the form
+    formElement.querySelector('.ck-button-cancel').addEventListener('click', (event) => {
+        event.preventDefault();
+        this._closeForm(formElement);
+    });
+  }
+
+  _reformatSelectedText() {
+    const editor = this.editor;
+    const selection = editor.model.document.selection;
+    const range = selection.getFirstRange();
+    let selectedText = '';
+
+    // Extract selected text from the editor
+    for (const item of range.getItems()) {
+      if (item.is('textProxy')) {
+        selectedText += item.data;
+      }
+    }
+
+    if (!selectedText.trim()) {
+      console.warn('No text selected for reformatting.');
+      return;
+    }
+
+    // Construct the prompt for summarization
+    const prompt = 'Please fix this text to be marked up with semantic HTML using only lists, headers, or paragraph tags: ' + selectedText;
+
+    // Send the request to OpenAI
+    this._sendPromptToOpenAI(prompt);
+  }
+
+
+
+  _writeHTML(html, range) {
+    const viewFragment = this.editor.data.processor.toView(html);
+    const modelFragment = this.editor.data.toModel(viewFragment);
+    this.editor.model.insertContent(modelFragment, range);
+  }
+
+
   // Send prompt to OpenAI
   _sendPromptToOpenAI(prompt) {
     // Get the most up-to-date OpenAI settings for the current format
@@ -479,11 +672,14 @@
 
     if (!currentSettings || Object.keys(currentSettings).length === 0) {
         console.error('OpenAI settings are not available or are empty.');
+        updateStatus('Error: OpenAI settings not available');
         return;
     }
 
-    console.log('Asking', prompt);
-    console.log('Sending prompt to OpenAI with settings:', currentSettings);
+    console.log('Sending prompt to OpenAI:', prompt);
+    console.log('With settings:', currentSettings);
+
+    updateStatus('Sending request to OpenAI...');
 
     fetch('/api/openai-ckeditor/completion', {
         method: 'POST',
@@ -500,28 +696,29 @@
     })
     .then(response => {
         if (!response.ok) {
+            updateStatus('Error: Failed to get response from OpenAI');
             throw new Error(`Server error: ${response.statusText}`);
         }
+        updateStatus('Receiving response...');
         return response.json();
     })
     .then(data => {
         console.log('Server response:', data);
         if (data.responseText) {
-            // Insert the response into the editor content
-            this.editor.model.change(writer => {
-                const insertPosition = this.editor.model.document.selection.getFirstPosition();
-                writer.insertText(data.responseText, insertPosition);
-            });
+            updateStatus('Inserting response into editor...');
+            const range = this.editor.model.document.selection.getFirstRange();
+            this._writeHTML(cleanResponse(data.responseText), range);
+            updateStatus('Idle');
         } else {
             console.error('No responseText found in OpenAI response:', data);
+            updateStatus('Error: No response text found');
         }
     })
     .catch(error => {
         console.error('Error during OpenAI fetch:', error);
+        updateStatus('Error during fetch');
     });
-}
-
-
+  }
 }
 
   CKEditor5.openai = { OpenAI: OpenAI };

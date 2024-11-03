@@ -3,12 +3,13 @@
 /**
  * Implements hook_permission().
  */
-function openai_ckeditor_permission() {
+function openai_ckeditor_permission()
+{
   return [
-      'use openai ckeditor' => [
-          'title' => t('Use OpenAI CKEditor'),
-          'description' => t('Allows users to access and use the OpenAI CKEditor integration.'),
-      ],
+    'use openai ckeditor' => [
+      'title' => t('Use OpenAI CKEditor'),
+      'description' => t('Allows users to access and use the OpenAI CKEditor integration.'),
+    ],
   ];
 }
 
@@ -17,7 +18,8 @@ function openai_ckeditor_permission() {
 /**
  * Implements hook_menu().
  */
-function openai_ckeditor_menu() {
+function openai_ckeditor_menu()
+{
   $items = [];
 
   $items['api/openai-ckeditor/completion'] = [
@@ -27,8 +29,8 @@ function openai_ckeditor_menu() {
     'access arguments' => ['use openai ckeditor'], // Ensure this matches a defined permission
     'type' => MENU_CALLBACK,
     'delivery callback' => 'backdrop_json_output',
-];
- 
+  ];
+
 
   $items['openai-ckeditor/text-completion-form/%filter_format'] = [
     'title' => 'OpenAI Text Completion Form',
@@ -45,7 +47,8 @@ function openai_ckeditor_menu() {
 /**
  * Implements hook_library_info().
  */
-function openai_ckeditor_library_info() {
+function openai_ckeditor_library_info()
+{
   $module_path = backdrop_get_path('module', 'openai_ckeditor');
   $info = system_get_info('module', 'openai_ckeditor');
 
@@ -63,7 +66,8 @@ function openai_ckeditor_library_info() {
 /**
  * Implements hook_ckeditor5_plugins().
  */
-function openai_ckeditor_ckeditor5_plugins() {
+function openai_ckeditor_ckeditor5_plugins()
+{
   $plugins['openai.OpenAI'] = array(
     'library' => array('openai_ckeditor', 'openai_ckeditor.openai-plugin'),
     'buttons' => array(
@@ -81,14 +85,16 @@ function openai_ckeditor_ckeditor5_plugins() {
 /**
  * Callback to enable the plugin based on filter format.
  */
-function openai_ckeditor_plugin_enabled_callback($format, $plugin_name) {
+function openai_ckeditor_plugin_enabled_callback($format, $plugin_name)
+{
   return !empty($format->filters['openai']->status);
 }
 
 /**
  * Implements hook_form_alter().
  */
-function openai_ckeditor_form_alter(&$form, &$form_state, $form_id) {
+function openai_ckeditor_form_alter(&$form, &$form_state, $form_id)
+{
   if ($form_id === 'ckeditor5_settings_form' || $form_id === 'filter_admin_format_form') {
 
     $config = config('openai.settings');
@@ -126,7 +132,13 @@ function openai_ckeditor_form_alter(&$form, &$form_state, $form_id) {
       '#title' => t('Default model'),
       '#options' => $models,
       '#default_value' => $openai_settings['model'] ?? 'gpt-3.5-turbo',
+      '#description' => t(
+        'Select which model to use to analyze text. See the <a href="@url" target="_blank">model overview</a>
+        for details about each model. Note that newer GPT models may be invite only.',
+        ['@url' => 'https://platform.openai.com/docs/models']
+      ),
     ];
+
 
     $form['editor_settings']['plugins']['openai']['temperature'] = [
       '#type' => 'number',
@@ -135,6 +147,8 @@ function openai_ckeditor_form_alter(&$form, &$form_state, $form_id) {
       '#max' => 2,
       '#step' => 0.1,
       '#default_value' => $openai_settings['temperature'] ?? '0.2',
+      '#description' => t('What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output
+        more random, while lower values like 0.2 will make it more focused and deterministic.')
     ];
 
     $form['editor_settings']['plugins']['openai']['max_tokens'] = [
@@ -143,6 +157,9 @@ function openai_ckeditor_form_alter(&$form, &$form_state, $form_id) {
       '#min' => 128,
       '#step' => 1,
       '#default_value' => $openai_settings['max_tokens'] ?? '128',
+      '#description' => t('The maximum number of tokens to generate in the completion.
+        The token count of your prompt plus max_tokens cannot exceed the model\'s context length.
+        Check the <a href="@url" target="_blank">models overview</a> for more details.', ['@url' => 'https://platform.openai.com/docs/models'])
     ];
   }
 }
@@ -150,7 +167,8 @@ function openai_ckeditor_form_alter(&$form, &$form_state, $form_id) {
 /**
  * Implements hook_ckeditor5_config_alter().
  */
-function openai_ckeditor_ckeditor5_config_alter(array &$config, $format) {
+function openai_ckeditor_ckeditor5_config_alter(array &$config, $format)
+{
   if (in_array('openai.OpenAI', $config['pluginList'])) {
     $format_config = config('filter.format.' . $format->format);
     $openai_settings = $format_config->get('editor_settings.openai') ?? [];
@@ -165,7 +183,8 @@ function openai_ckeditor_ckeditor5_config_alter(array &$config, $format) {
 }
 
 
-function openai_ckeditor_text_completion_form_wrapper($format_id) {
+function openai_ckeditor_text_completion_form_wrapper($format_id)
+{
   return backdrop_get_form('openai_ckeditor_text_completion_form', $format_id);
 }
 
@@ -173,7 +192,8 @@ function openai_ckeditor_text_completion_form_wrapper($format_id) {
 /**
  * Form callback for the OpenAI Text Completion form.
  */
-function openai_ckeditor_text_completion_form($form, &$form_state, $format) {
+function openai_ckeditor_text_completion_form($form, &$form_state, $format)
+{
   // Store the format ID in a hidden field.
   $form['format_id'] = [
     '#type' => 'hidden',
@@ -202,7 +222,8 @@ function openai_ckeditor_text_completion_form($form, &$form_state, $format) {
 /**
  * Form submission callback for OpenAI Text Completion.
  */
-function openai_ckeditor_text_completion_form_submit($form, &$form_state) {
+function openai_ckeditor_text_completion_form_submit($form, &$form_state)
+{
   dpm($form);
   dpm($form_state);
   $prompt = $form_state['values']['prompt'];
@@ -242,7 +263,8 @@ function openai_ckeditor_text_completion_form_submit($form, &$form_state) {
 /**
  * Helper function to communicate with OpenAI.
  */
-function openai_ckeditor_generate_text($prompt, $settings) {
+function openai_ckeditor_generate_text($prompt, $settings)
+{
   $api_key = config_get('openai.settings', 'api_key');
 
   // Ensure that the OpenAIApi class is loaded and instantiate it.
@@ -278,14 +300,15 @@ function openai_ckeditor_generate_text($prompt, $settings) {
 }
 
 
-function openai_ckeditor_generate_completion() {
+function openai_ckeditor_generate_completion()
+{
   $rawInput = file_get_contents('php://input');
   watchdog('openai_ckeditor', 'Raw input: @input', ['@input' => $rawInput], WATCHDOG_NOTICE);
 
   $input = json_decode($rawInput, TRUE);
   if (json_last_error() !== JSON_ERROR_NONE) {
-      watchdog('openai_ckeditor', 'JSON decode error: @error', ['@error' => json_last_error_msg()], WATCHDOG_ERROR);
-      return ['error' => 'Invalid JSON input'];
+    watchdog('openai_ckeditor', 'JSON decode error: @error', ['@error' => json_last_error_msg()], WATCHDOG_ERROR);
+    return ['error' => 'Invalid JSON input'];
   }
 
   if (isset($input['prompt']) && !empty($input['prompt'])) {
@@ -316,8 +339,3 @@ function openai_ckeditor_generate_completion() {
     return ['error' => 'No prompt received or prompt is empty'];
   }
 }
-
-
-
-
-
