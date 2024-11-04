@@ -1,0 +1,341 @@
+<?php
+
+/**
+ * Implements hook_permission().
+ */
+function openai_ckeditor_permission()
+{
+  return [
+    'use openai ckeditor' => [
+      'title' => t('Use OpenAI CKEditor'),
+      'description' => t('Allows users to access and use the OpenAI CKEditor integration.'),
+    ],
+  ];
+}
+
+
+
+/**
+ * Implements hook_menu().
+ */
+function openai_ckeditor_menu()
+{
+  $items = [];
+
+  $items['api/openai-ckeditor/completion'] = [
+    'title' => 'OpenAI CKEditor Generate Completion',
+    'page callback' => 'openai_ckeditor_generate_completion',
+    'access callback' => 'user_access',
+    'access arguments' => ['use openai ckeditor'], // Ensure this matches a defined permission
+    'type' => MENU_CALLBACK,
+    'delivery callback' => 'backdrop_json_output',
+  ];
+
+
+  $items['openai-ckeditor/text-completion-form/%filter_format'] = [
+    'title' => 'OpenAI Text Completion Form',
+    'page callback' => 'openai_ckeditor_text_completion_form_wrapper',
+    'page arguments' => [2],
+    'access callback' => 'user_access',
+    'access arguments' => ['use openai ckeditor'],
+    'type' => MENU_CALLBACK,
+  ];
+
+  return $items;
+}
+
+/**
+ * Implements hook_library_info().
+ */
+function openai_ckeditor_library_info()
+{
+  $module_path = backdrop_get_path('module', 'openai_ckeditor');
+  $info = system_get_info('module', 'openai_ckeditor');
+
+  $libraries['openai_ckeditor.openai-plugin'] = array(
+    'title' => 'OpenAI CKEditor Plugin',
+    'version' => $info['version'],
+    'js' => [$module_path . '/js/openai.js' => []],
+    'css' => [$module_path . '/css/openai.css' => []],
+    'dependencies' => [['ckeditor5', 'ckeditor5']],
+  );
+
+  return $libraries;
+}
+
+/**
+ * Implements hook_ckeditor5_plugins().
+ */
+function openai_ckeditor_ckeditor5_plugins()
+{
+  $plugins['openai.OpenAI'] = array(
+    'library' => array('openai_ckeditor', 'openai_ckeditor.openai-plugin'),
+    'buttons' => array(
+      'OpenAI' => array(
+        'label' => t('OpenAI'),
+        'image' => backdrop_get_path('module', 'openai_ckeditor') . '/icons/openai.svg',
+      ),
+    ),
+    'enabled_callback' => 'openai_ckeditor_plugin_enabled_callback',
+  );
+
+  return $plugins;
+}
+
+/**
+ * Callback to enable the plugin based on filter format.
+ */
+function openai_ckeditor_plugin_enabled_callback($format, $plugin_name)
+{
+  return !empty($format->filters['openai']->status);
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function openai_ckeditor_form_alter(&$form, &$form_state, $form_id)
+{
+  if ($form_id === 'ckeditor5_settings_form' || $form_id === 'filter_admin_format_form') {
+
+    $config = config('openai.settings');
+    $apiKey = $config->get('api_key');
+
+    if (empty($apiKey)) {
+      form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
+      return $form;
+    }
+
+    $api = new OpenAIApi($apiKey);
+    $format_name = !empty($form['format']['#default_value']) ? $form['format']['#default_value'] : 'filtered_html';
+    $format_config = config('filter.format.' . $format_name);
+    $openai_settings = $format_config->get('editor_settings.openai') ?? [];
+
+    $form['editor_settings']['plugins']['openai'] = [
+      '#type' => 'fieldset',
+      '#title' => t('OpenAI Integration'),
+      '#description' => t('Settings for OpenAI integration in CKEditor.'),
+      '#group' => 'plugins',
+      '#open' => TRUE,
+      '#parents' => ['editor_settings', 'openai'],
+      '#attributes' => ['class' => ['ckeditor5-plugin-openai']],
+    ];
+
+    $form['editor_settings']['plugins']['openai']['enabled'] = [
+      '#type' => 'checkbox',
+      '#title' => t('Enable OpenAI Integration'),
+      '#default_value' => !empty($openai_settings['enabled']),
+    ];
+
+    $models = $api->filterModels(['gpt']);
+    $form['editor_settings']['plugins']['openai']['model'] = [
+      '#type' => 'select',
+      '#title' => t('Default model'),
+      '#options' => $models,
+      '#default_value' => $openai_settings['model'] ?? 'gpt-3.5-turbo',
+      '#description' => t(
+        'Select which model to use to analyze text. See the <a href="@url" target="_blank">model overview</a>
+        for details about each model. Note that newer GPT models may be invite only.',
+        ['@url' => 'https://platform.openai.com/docs/models']
+      ),
+    ];
+
+
+    $form['editor_settings']['plugins']['openai']['temperature'] = [
+      '#type' => 'number',
+      '#title' => t('Temperature'),
+      '#min' => 0,
+      '#max' => 2,
+      '#step' => 0.1,
+      '#default_value' => $openai_settings['temperature'] ?? '0.2',
+      '#description' => t('What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output
+        more random, while lower values like 0.2 will make it more focused and deterministic.')
+    ];
+
+    $form['editor_settings']['plugins']['openai']['max_tokens'] = [
+      '#type' => 'number',
+      '#title' => t('Max tokens'),
+      '#min' => 128,
+      '#step' => 1,
+      '#default_value' => $openai_settings['max_tokens'] ?? '128',
+      '#description' => t('The maximum number of tokens to generate in the completion.
+        The token count of your prompt plus max_tokens cannot exceed the model\'s context length.
+        Check the <a href="@url" target="_blank">models overview</a> for more details.', ['@url' => 'https://platform.openai.com/docs/models'])
+    ];
+  }
+}
+
+/**
+ * Implements hook_ckeditor5_config_alter().
+ */
+function openai_ckeditor_ckeditor5_config_alter(array &$config, $format)
+{
+  if (in_array('openai.OpenAI', $config['pluginList'])) {
+    $format_config = config('filter.format.' . $format->format);
+    $openai_settings = $format_config->get('editor_settings.openai') ?? [];
+
+    $config['openai'] = [
+      'enabled' => $openai_settings['enabled'] ?? FALSE,
+      'model' => $openai_settings['model'] ?? 'gpt-3.5-turbo',
+      'temperature' => $openai_settings['temperature'] ?? 0.2,
+      'max_tokens' => $openai_settings['max_tokens'] ?? 128,
+    ];
+  }
+}
+
+
+function openai_ckeditor_text_completion_form_wrapper($format_id)
+{
+  return backdrop_get_form('openai_ckeditor_text_completion_form', $format_id);
+}
+
+
+/**
+ * Form callback for the OpenAI Text Completion form.
+ */
+function openai_ckeditor_text_completion_form($form, &$form_state, $format)
+{
+  // Store the format ID in a hidden field.
+  $form['format_id'] = [
+    '#type' => 'hidden',
+    '#value' => $format->format,
+  ];
+
+  $form['prompt'] = [
+    '#type' => 'textarea',
+    '#title' => t('Enter your prompt'),
+    '#required' => TRUE,
+  ];
+
+  $form['actions'] = ['#type' => 'actions'];
+  $form['actions']['submit'] = [
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+    '#ajax' => [
+      'callback' => 'openai_ckeditor_text_completion_form_submit',
+      'event' => 'click',
+    ],
+  ];
+
+  return $form;
+}
+
+/**
+ * Form submission callback for OpenAI Text Completion.
+ */
+function openai_ckeditor_text_completion_form_submit($form, &$form_state)
+{
+  dpm($form);
+  dpm($form_state);
+  $prompt = $form_state['values']['prompt'];
+  $format_id = $form_state['values']['format_id']; // Retrieve format ID from the hidden field
+
+  // Load the format object using the format ID.
+  $format = filter_format_load($format_id);
+
+  if (!$format) {
+    watchdog('openai_ckeditor', 'Invalid format ID: @format_id', ['@format_id' => $format_id], WATCHDOG_ERROR);
+    return;
+  }
+
+  // Retrieve OpenAI settings for the format.
+  $openai_settings = config('filter.format.' . $format->format)->get('editor_settings.openai');
+  if (empty($openai_settings)) {
+    watchdog('openai_ckeditor', 'No OpenAI settings found for format @format_id', ['@format_id' => $format_id], WATCHDOG_WARNING);
+    return;
+  }
+
+  // Send the request to OpenAI.
+  $response_text = openai_ckeditor_generate_text($prompt, $openai_settings);
+
+  // Prepare the AJAX response.
+  $commands = [];
+  if (!empty($response_text)) {
+    $commands[] = ajax_command_invoke(NULL, 'insertOpenAIText', ['text' => $response_text]);
+  } else {
+    $commands[] = ajax_command_alert(t('No response received from OpenAI.'));
+  }
+
+  $commands[] = ajax_command_close_dialog();
+
+  return ['#type' => 'ajax', '#commands' => $commands];
+}
+
+/**
+ * Helper function to communicate with OpenAI.
+ */
+function openai_ckeditor_generate_text($prompt, $settings)
+{
+  $api_key = config_get('openai.settings', 'api_key');
+
+  // Ensure that the OpenAIApi class is loaded and instantiate it.
+  module_load_include('php', 'openai_ckeditor', 'includes/OpenAI');
+  $openai_api = new OpenAIApi($api_key);
+
+  // Choose endpoint based on model type.
+  $use_chat_endpoint = strpos($settings['model'], 'gpt') !== FALSE;
+
+  if ($use_chat_endpoint) {
+    $messages = [
+      ['role' => 'system', 'content' => 'You are an assistant for content editing.'],
+      ['role' => 'user', 'content' => $prompt],
+    ];
+    $response = $openai_api->chat(
+      $settings['model'],
+      $messages,
+      floatval($settings['temperature']),
+      (int) $settings['max_tokens'],
+      TRUE
+    );
+  } else {
+    $response = $openai_api->completions(
+      $settings['model'],
+      $prompt,
+      floatval($settings['temperature']),
+      (int) $settings['max_tokens'],
+      TRUE
+    );
+  }
+
+  return $response['choices'][0]['text'] ?? t('No response received.');
+}
+
+
+function openai_ckeditor_generate_completion()
+{
+  $rawInput = file_get_contents('php://input');
+  watchdog('openai_ckeditor', 'Raw input: @input', ['@input' => $rawInput], WATCHDOG_NOTICE);
+
+  $input = json_decode($rawInput, TRUE);
+  if (json_last_error() !== JSON_ERROR_NONE) {
+    watchdog('openai_ckeditor', 'JSON decode error: @error', ['@error' => json_last_error_msg()], WATCHDOG_ERROR);
+    return ['error' => 'Invalid JSON input'];
+  }
+
+  if (isset($input['prompt']) && !empty($input['prompt'])) {
+    $config = config('openai.settings');
+    $apiKey = $config->get('api_key');
+
+    if (empty($apiKey)) {
+      return ['error' => 'API key is not configured'];
+    }
+
+    $api = new OpenAIApi($apiKey);
+    $model = $input['options']['model'] ?? 'default-model';
+    $temperature = $input['options']['temperature'] ?? 0.7;
+    $maxTokens = $input['options']['max_tokens'] ?? 1000;
+
+    $messages = [
+      ['role' => 'user', 'content' => $input['prompt']]
+    ];
+
+    // Call the chat method and handle response
+    $response = $api->chat($model, $messages, $temperature, $maxTokens);
+
+    // Log the response for debugging
+    watchdog('openai_ckeditor', 'Generated response: @response', ['@response' => $response], WATCHDOG_NOTICE);
+
+    return ['responseText' => $response];
+  } else {
+    return ['error' => 'No prompt received or prompt is empty'];
+  }
+}

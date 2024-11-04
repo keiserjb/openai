@@ -1,0 +1,213 @@
+<?php
+
+/**
+ * @file
+ * Permissions for the OpenAI ChatGPT module.
+ */
+
+function openai_chatgpt_permission()
+{
+  return [
+    'access openai chatgpt' => [
+      'title' => t('Permit access to using the OpenAI ChatGPT explorer.'),
+    ],
+  ];
+}
+
+/**
+ * Implements hook_menu().
+ */
+function openai_chatgpt_menu()
+{
+  $items = [];
+
+  $items['admin/config/openai/chatgpt'] = [
+    'title'            => 'ChatGPT explorer',
+    'description'      => 'Contains a form where you can experiment and test the OpenAI ChatGPT endpoint.',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => ['openai_chatgpt_form'],
+    'access callback'  => 'user_access',
+    'access arguments' => ['access openai chatgpt'],
+    'parent'           => 'admin/config/openai',
+  ];
+
+  return $items;
+}
+
+/**
+ * Implements the OpenAI ChatGPT form.
+ */
+function openai_chatgpt_form($form, &$form_state)
+{
+  $config = config('openai.settings');
+  $apiKey = $config->get('api_key');
+
+  if (empty($apiKey)) {
+    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
+    return $form;
+  }
+
+  $api = new OpenAIApi($apiKey); // Ensure this matches the constructor expectation.
+
+  $form['text'] = [
+    '#type' => 'textarea',
+    '#title' => t('Ask ChatGPT'),
+    '#rows' => 1,
+    '#description' => t('Enter your text here. When submitted, OpenAI will generate a response from its Chats endpoint. Please note that each query counts against your API usage for OpenAI. Based on the complexity of your text, OpenAI traffic, and other factors, a response can sometimes take up to 10-15 seconds to complete. Please allow the operation to finish. Be cautious not to exceed the requests per minute quota (20/Minute by default), or you may be temporarily blocked.'),
+    '#required' => TRUE,
+  ];
+
+  $form['options'] = [
+    '#type' => 'fieldset',
+    '#title' => t('Options'),
+    '#description' => t('Set various options related to how ChatGPT generates its response.'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  ];
+
+  $models = $api->filterModels(['gpt']);
+
+  $form['options']['model'] = [
+    '#type' => 'select',
+    '#title' => t('Model'),
+    '#options' => $models,
+    '#default_value' => 'gpt-3.5-turbo',
+    '#description' => t('Select which model to use to analyze text. See the <a href=":link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/models/gpt-3.5']),
+  ];
+
+  $form['options']['temperature'] = [
+    '#type' => 'number',
+    '#title' => t('Temperature'),
+    '#min' => 0,
+    '#max' => 2,
+    '#step' => .1,
+    '#default_value' => '0.4',
+    '#description' => t('What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.'),
+  ];
+
+  $form['options']['max_tokens'] = [
+    '#type' => 'number',
+    '#title' => t('Max tokens'),
+    '#min' => 128,
+    '#step' => 1,
+    '#default_value' => '128',
+    '#description' => t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length.'),
+  ];
+
+  $form['options']['system'] = [
+    '#type' => 'textarea',
+    '#title' => t('Profile'),
+    '#default_value' => 'You are a friendly helpful assistant inside of a Backdrop website. Be encouraging and polite and ask follow up questions of the user after giving the answer.',
+    '#description' => t('The "profile" helps set the behavior of the ChatGPT response. You can change/influence how it response by adjusting the above instruction. If you want to change this value after starting a conversation, you will need to reload the form first.'),
+    '#required' => TRUE,
+  ];
+
+  $form['response'] = [
+    '#type' => 'textarea',
+    '#title' => t('Response from OpenAI'),
+    '#attributes' => [
+      'readonly' => 'readonly',
+    ],
+    '#prefix' => '<div id="openai-chatgpt-response">',
+    '#suffix' => '</div>',
+    '#description' => t('The response from OpenAI will appear in the textbox above.')
+  ];
+
+  $form['actions'] = [
+    '#type' => 'actions',
+  ];
+
+  $form['actions']['submit'] = [
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+    '#ajax' => [
+      'callback' => 'openai_chatgpt_get_response',
+      'wrapper' => 'openai-chatgpt-response',
+      'progress' => [
+        'type' => 'throbber',
+      ],
+    ],
+  ];
+
+  return $form;
+}
+
+/**
+ * Form validation handler.
+ */
+function openai_chatgpt_form_validate($form, &$form_state)
+{
+  $model = $form_state['values']['model'];
+  $max_tokens = (int) $form_state['values']['max_tokens'];
+
+  switch ($model) {
+    case 'gpt-4':
+    case 'gpt-4-0314':
+      if ($max_tokens > 8192) {
+        form_set_error('options][max_tokens', t('The model you have selected only supports a maximum of 8192 tokens. Please reduce the max token value to 8192 or lower.'));
+      }
+      break;
+    case 'gpt-3.5-turbo':
+    case 'gpt-3.5-turbo-0301':
+      if ($max_tokens > 4096) {
+        form_set_error('options][max_tokens', t('The model you have selected only supports a maximum of 4096 tokens. Please reduce the max token value to 4096 or lower.'));
+      }
+      break;
+    case 'gpt-3.5-turbo-16k':
+      if ($max_tokens > 16384) {
+        form_set_error('options][max_tokens', t('The model you have selected only supports a maximum of 16384 tokens. Please reduce the max token value to 16384 or lower.'));
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+/**
+ * Ajax callback for submitting the form.
+ */
+function openai_chatgpt_get_response($form, &$form_state)
+{
+  $errors = form_get_errors();
+  if (empty($errors)) {
+    $storage = $form_state['storage'];
+    $last_response = end($storage['messages']);
+    $form['response']['#value'] = trim($last_response['content']) ?? t('No answer was provided.');
+  }
+  return $form['response'];
+}
+
+/**
+ * Form submission handler.
+ */
+function openai_chatgpt_form_submit($form, &$form_state)
+{
+  $config = config('openai.settings');
+  $apiKey = $config->get('api_key');
+
+  $text = $form_state['values']['text'];
+  $system = $form_state['values']['system'];
+  $model = $form_state['values']['model'];
+  $temperature = $form_state['values']['temperature'];
+  $max_tokens = $form_state['values']['max_tokens'];
+
+  // Now pass the API key to the constructor
+  $api = new OpenAIApi($apiKey);
+
+  $storage = $form_state['storage'];
+
+  if (!empty($storage['messages'])) {
+    $messages = $storage['messages'];
+    $messages[] = ['role' => 'user', 'content' => trim($text)];
+  } else {
+    $messages = [
+      ['role' => 'system', 'content' => trim($system)],
+      ['role' => 'user', 'content' => trim($text)]
+    ];
+  }
+
+  $result = $api->chat($model, $messages, $temperature, $max_tokens);
+  $messages[] = ['role' => 'assistant', 'content' => $result];
+  $form_state['storage'] = ['messages' => $messages];
+  $form_state['rebuild'] = TRUE;
+}

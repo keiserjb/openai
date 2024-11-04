@@ -22,7 +22,7 @@ class VectorDatabaseStats extends ControllerBase {
    */
   public function __construct(
     protected VectorClientPluginManager $pluginManager,
-    protected ConfigFactoryInterface $config
+    protected ConfigFactoryInterface $config,
   ) {
   }
 

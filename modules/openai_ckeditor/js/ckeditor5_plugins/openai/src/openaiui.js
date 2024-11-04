@@ -3,7 +3,7 @@
  */
 
 import {Plugin} from 'ckeditor5/src/core';
-import {DropdownButtonView, Model, addListToDropdown, createDropdown} from 'ckeditor5/src/ui';
+import {DropdownButtonView, ViewModel, addListToDropdown, createDropdown} from 'ckeditor5/src/ui';
 import icon from '../../../../icons/openai.svg';
 import { Collection } from 'ckeditor5/src/utils';
 import CompletionCommand from './completion/completioncommand';
@@ -32,7 +32,7 @@ export default class OpenAIUI extends Plugin {
       // @todo: loop Enabled plugins and add them as items with their configuration
       items.add( {
         type: 'button',
-        model: new Model( {
+        model: new ViewModel( {
             isEnabled: config.completion.enabled,
             label: 'Text Completion',
             withText: true,
@@ -43,7 +43,7 @@ export default class OpenAIUI extends Plugin {
 
       items.add( {
         type: 'button',
-        model: new Model( {
+        model: new ViewModel( {
           isEnabled: config.completion.enabled,
           label: 'Adjust tone/voice',
           withText: true,
@@ -54,7 +54,7 @@ export default class OpenAIUI extends Plugin {
 
       items.add( {
         type: 'button',
-        model: new Model( {
+        model: new ViewModel( {
             isEnabled: config.completion.enabled,
             label: 'Summarize',
             withText: true,
@@ -65,7 +65,7 @@ export default class OpenAIUI extends Plugin {
 
       items.add( {
         type: 'button',
-        model: new Model( {
+        model: new ViewModel( {
             isEnabled: config.completion.enabled,
             label: 'Translate',
             withText: true,
@@ -76,7 +76,7 @@ export default class OpenAIUI extends Plugin {
 
       items.add( {
         type: 'button',
-        model: new Model( {
+        model: new ViewModel( {
           isEnabled: config.completion.enabled,
           label: 'Reformat/correct HTML',
           withText: true,
@@ -88,7 +88,7 @@ export default class OpenAIUI extends Plugin {
       //
       // items.add( {
       //   type: 'button',
-      //   model: new Model( {
+      //   model: new ViewModel( {
       //       isEnabled: false,
       //       label: 'Sentiment analysis',
       //       withText: true,
@@ -99,7 +99,7 @@ export default class OpenAIUI extends Plugin {
 
       items.add( {
         type: 'button',
-        model: new Model( {
+        model: new ViewModel( {
           label: 'Help & Support',
           withText: true,
           command: 'HelpCommand',

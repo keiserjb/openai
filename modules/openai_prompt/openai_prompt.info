@@ -3,5 +3,5 @@ description = Adds a form in the admin to enter a prompt and get a response back
 package = OpenAI
 type = module
 backdrop = 1.x
-configure = /admin/config/openai/openai-prompt
+configure = admin/config/openai/openai-prompt
 dependencies[] = openai
