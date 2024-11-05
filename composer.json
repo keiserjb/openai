@@ -1,0 +1,29 @@
+{
+    "name": "backdrop/openai",
+    "description": "A set of modules to enable OpenAI integration with Backdrop and augment the content experience with AI-assisted tools.",
+    "keywords": ["openai", "GPT-3", "DALL-E", "content generation", "AI", "artificial intelligence"],
+    "type": "project",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Justin Keiser",
+            "homepage": "https://keiserjb.com",
+            "role": "Maintainer"
+        }
+    ],
+    "require": {
+        "openai-php/client": ">=v0.7.8",
+        "guzzlehttp/guzzle": "^7.9",
+        "guzzlehttp/psr7": "^2.7",
+        "symfony/http-client": "^7.1",
+        "nyholm/psr7": "^1.8"
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true,
+            "composer/installers": true
+        },
+        "optimize-autoloader": true,
+        "preferred-install": "dist"
+    }
+}
