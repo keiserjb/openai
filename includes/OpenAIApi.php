@@ -16,6 +16,8 @@ class OpenAIApi {
 
   protected $cache;
 
+  protected $logger;
+
   public function __construct($apiKey, $logger = NULL) {
 
     // Initialize the cache
