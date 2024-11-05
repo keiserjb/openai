@@ -1,6 +1,6 @@
 <?php
 
-require_once BACKDROP_ROOT . '/' . backdrop_get_path('module', 'openai') . '/libraries/openai-php/client/vendor/autoload.php';
+require_once BACKDROP_ROOT . '/' . backdrop_get_path('module', 'openai') . '/vendor/autoload.php';
 
 use GuzzleHttp\Client as GuzzleClient;
 use OpenAI\Client as OpenAIClient;
