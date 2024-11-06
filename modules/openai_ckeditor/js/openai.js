@@ -10,9 +10,9 @@
         const activeFormat = $formatSelector.val();
         Backdrop.settings.filter = Backdrop.settings.filter || {};
         Backdrop.settings.filter.activeFormat = activeFormat;
-        console.log(Backdrop.settings.filter.activeFormat);
-        console.log(Backdrop.settings.filter);
-        // Trigger an event for CKEditor5
+        console.log('Setting active format:', Backdrop.settings.filter.activeFormat);
+
+        // Trigger an event for CKEditor5 with the new active format
         $(document).trigger('backdrop:activeFormatChanged', [activeFormat]);
       };
 
@@ -50,7 +50,7 @@
       // Ensure the status is set to "Idle" when the editor is ready
        editor.model.document.once('change:data', () => {
         const editorContainer = editor.ui.view.editable.element.parentElement;
-        updateStatus('Idle', editorContainer);
+        this.updateStatus('Idle', editorContainer);
       });
 
 
@@ -417,11 +417,21 @@
         return dropdownView;
       });
 
-      // Update OpenAI settings when the format changes
+      // Listen for active format changes
       $(document).on('backdrop:activeFormatChanged', (event, newFormat) => {
         this.activeFormat = newFormat;
-        editor.config.define('openai', this.loadOpenAISettings(newFormat));
+        console.log('Active format updated in CKEditor plugin:', this.activeFormat);
+
+        // Immediately load the OpenAI settings for the new format
+        const openAISettings = this.loadOpenAISettings(this.activeFormat);
+        editor.config.define('openai', openAISettings);
+        console.log('OpenAI settings loaded for new format:', openAISettings);
       });
+
+      // Set initial format on load
+      this.activeFormat = Backdrop.settings.filter?.activeFormat;
+      console.log('Initial active format in CKEditor plugin:', this.activeFormat);
+      editor.config.define('openai', this.loadOpenAISettings(this.activeFormat));
     }
 
     loadOpenAISettings(format) {

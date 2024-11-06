@@ -278,9 +278,6 @@ function check_rate_limit($user_id) {
 /**
  * Handles API request for generating OpenAI completion.
  */
-/**
- * Handles API request for generating OpenAI completion.
- */
 function openai_ckeditor_generate_completion() {
   global $user;
 
@@ -301,7 +298,7 @@ function openai_ckeditor_generate_completion() {
 
   if (isset($input['prompt']) && !empty($input['prompt'])) {
     // Sanitize the input to remove any potentially harmful content.
-    $input['prompt'] = filter_var($input['prompt'], FILTER_SANITIZE_STRING);
+    $input['prompt'] = filter_var($input['prompt'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
     $config = config('openai.settings');
     $apiKey = $config->get('api_key');
@@ -328,6 +325,3 @@ function openai_ckeditor_generate_completion() {
     return backdrop_json_output(['error' => 'No prompt received or prompt is empty']);
   }
 }
-
-
-
