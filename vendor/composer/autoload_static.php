@@ -67,8 +67,8 @@ class ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849
         ),
         'Psr\\Http\\Message\\' => 
         array (
-            0 => __DIR__ . '/..' . '/psr/http-message/src',
-            1 => __DIR__ . '/..' . '/psr/http-factory/src',
+            0 => __DIR__ . '/..' . '/psr/http-factory/src',
+            1 => __DIR__ . '/..' . '/psr/http-message/src',
         ),
         'Psr\\Http\\Client\\' => 
         array (
@@ -324,6 +324,8 @@ class ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849
         'OpenAI\\Responses\\Chat\\CreateResponseToolCall' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Chat/CreateResponseToolCall.php',
         'OpenAI\\Responses\\Chat\\CreateResponseToolCallFunction' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Chat/CreateResponseToolCallFunction.php',
         'OpenAI\\Responses\\Chat\\CreateResponseUsage' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Chat/CreateResponseUsage.php',
+        'OpenAI\\Responses\\Chat\\CreateResponseUsageCompletionTokensDetails' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Chat/CreateResponseUsageCompletionTokensDetails.php',
+        'OpenAI\\Responses\\Chat\\CreateResponseUsagePromptTokensDetails' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Chat/CreateResponseUsagePromptTokensDetails.php',
         'OpenAI\\Responses\\Chat\\CreateStreamedResponse' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Chat/CreateStreamedResponse.php',
         'OpenAI\\Responses\\Chat\\CreateStreamedResponseChoice' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Chat/CreateStreamedResponseChoice.php',
         'OpenAI\\Responses\\Chat\\CreateStreamedResponseDelta' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Chat/CreateStreamedResponseDelta.php',
