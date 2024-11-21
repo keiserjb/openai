@@ -88,8 +88,8 @@ function openai_ckeditor_plugin_enabled_callback($format, $plugin_name) {
  */
 function openai_ckeditor_form_alter(&$form, &$form_state, $form_id) {
   if ($form_id === 'ckeditor5_settings_form' || $form_id === 'filter_admin_format_form') {
-    $config = config('openai.settings');
-    $apiKey = $config->get('api_key');
+    $openai_config = config('openai.settings');
+    $apiKey = key_get_key_value($openai_config->get('api_key'));
 
     // Ensure an API key is configured, or show an error.
     if (empty($apiKey)) {
@@ -301,8 +301,8 @@ function openai_ckeditor_generate_completion() {
     // Sanitize the input to remove any potentially harmful content.
     $input['prompt'] = filter_var($input['prompt'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-    $config = config('openai.settings');
-    $apiKey = $config->get('api_key');
+    $openai_config = config('openai.settings');
+    $apiKey = key_get_key_value($openai_config->get('api_key'));
 
     if (empty($apiKey)) {
       return backdrop_json_output(['error' => 'API key is not configured']);
