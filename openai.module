@@ -143,18 +143,22 @@ function openai_settings_form($form, &$form_state) {
  * @return array
  *   A list of models or an empty array if unavailable.
  */
+/**
+ * Fetches available models from OpenAI.
+ *
+ * @return array
+ *   A list of models or an empty array if unavailable.
+ */
 function openai_fetch_available_models() {
   try {
+    // Retrieve the API key identifier from the configuration.
+    $apiKey = config_get('openai.settings', 'api_key');
 
-    // Retrieve the API key using the Key module.
-    $openai_config = config('openai.settings');
-    $apiKey = key_get_key_value($openai_config->get('api_key'));
-
-    // Ensure the API key is set.
-    if (empty($apiKey)) {
+    // Ensure the API key is valid.
+    if (empty($apiKey) || !is_string($apiKey)) {
       watchdog(
         'openai',
-        'The API key could not be retrieved from the Key module. Please configure the key in the OpenAI settings.',
+        'The API key could not be retrieved or is invalid. Please configure the key in OpenAI settings.',
         [],
         WATCHDOG_ERROR
       );

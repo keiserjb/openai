@@ -42,39 +42,65 @@ function openai_dblog_menu() {
  * Form builder function for OpenAI log analyzer settings.
  */
 function openai_dblog_settings_form($form, &$form_state) {
+  // Load the OpenAI dblog settings.
   $config = config_get('openai_dblog.settings');
-  $openai_config = config('openai.settings');
-  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
+  // Load OpenAI settings and fetch the API key.
+  $openai_config = config('openai.settings');
+  // Load the OpenAI API key directly from the Key module.
+  $apiKey = key_get_key_value(config('openai.settings')->get('api_key'));
+
+
+  // Validate the API key.
+  if (empty($apiKey)) {
+    form_set_error('', t('The API key could not be retrieved. Please ensure it is configured correctly in the Key module.'));
+    return $form;
+  }
+
+  // Initialize the OpenAI API client.
+  $api = new OpenAIApi($apiKey);
+
+  // Watchdog severity levels.
   $levels = watchdog_severity_levels();
   $options = [];
   foreach ($levels as $key => $label) {
-    $options[$label] = $label;
+    $options[$key] = $label;
   }
 
   $form['levels'] = [
     '#type' => 'checkboxes',
     '#title' => t('Log level(s) to analyze'),
     '#options' => $options,
-    '#default_value' => array_values($config['levels']),
+    '#default_value' => isset($config['levels']) ? $config['levels'] : [],
     '#description' => t('Select which log levels should be analyzed when viewed. Non-error levels like notice and debug may cause wasted API usage.'),
   ];
 
-  // Fetch models from the OpenAI API
-  $models = $api->filterModels(['gpt', 'text']);
-  $model_options = [];
-  foreach ($models as $model) {
-    $model_options[$model] = $model;
+  // Fetch models from the OpenAI API.
+  try {
+    $models = $api->filterModels(['gpt', 'text']);
+    $model_options = [];
+    foreach ($models as $model) {
+      $model_options[$model] = $model;
+    }
+  } catch (Exception $e) {
+    watchdog(
+      'openai',
+      'Failed to fetch models: @message',
+      ['@message' => $e->getMessage()],
+      WATCHDOG_ERROR
+    );
+    $model_options = [];
   }
 
   $form['model'] = [
     '#type' => 'select',
     '#title' => t('Model to use'),
     '#options' => $model_options,
-    '#default_value' => $config['model'],
-    '#description' => t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', [':link' => 'https://platform.openai.com/docs/models/overview']),
+    '#default_value' => isset($config['model']) ? $config['model'] : '',
+    '#description' => t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/models/overview']),
   ];
 
+  // Add the submit button.
   $form['actions'] = [
     '#type' => 'actions',
   ];
@@ -83,10 +109,12 @@ function openai_dblog_settings_form($form, &$form_state) {
     '#value' => t('Save configuration'),
   ];
 
+  // Add the submit callback.
   $form['#submit'][] = 'openai_dblog_settings_form_submit';
 
   return $form;
 }
+
 
 /**
  * Form submission handler for openai_dblog_settings_form.
