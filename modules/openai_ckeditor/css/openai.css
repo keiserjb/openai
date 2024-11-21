@@ -18,13 +18,19 @@
   margin-top: 15px;
 }
 
-.ck-prompt-input {
+.ck-input {
   width: calc(100% - 10px);
+  min-height: 50px;
+  max-height: 300px; /* Prevents it from growing indefinitely */
   margin-bottom: 10px;
   padding: 5px;
   border-radius: 4px;
   border: 1px solid #ccc;
   font-size: 1em;
+  line-height: 1.5; /* For consistent line spacing */
+  resize: none; /* Disables manual resizing */
+  overflow: hidden; /* Prevents scrollbars */
+  box-sizing: border-box; /* Ensures padding is included in dimensions */
 }
 
 .ck-form-buttons {

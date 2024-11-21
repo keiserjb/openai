@@ -36,92 +36,87 @@ return $items;
   /**
    * Form constructor for the OpenAI TTS form.
    */
-  function openai_tts_form($form, &$form_state) {
-    $config = config('openai.settings');
-    $apiKey = $config->get('api_key');
+function openai_tts_form($form, &$form_state) {
+  $form = [];
+  $form['#config'] = 'openai_tts.settings';
 
-    if (empty($apiKey)) {
-      form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
-      return $form;
-    }
+  // Retrieve the API key
+  $openai_config = config('openai.settings');
+  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
-    $api = new OpenAIApi($apiKey); // Ensure this matches the constructor expectation.
-
-    $file_system = file_default_scheme();
-    $time_service = time();
-
-    $form['text'] = [
-      '#type' => 'textarea',
-      '#title' => t('Text to convert'),
-      '#description' => t('The text to turn into speech.'),
-      '#required' => TRUE,
-    ];
-
-    $models = $api->filterModels(['tts']);
-
-    $form['model'] = [
-      '#type' => 'select',
-      '#title' => t('Model'),
-      '#options' => $models,
-      '#default_value' => 'tts-1',
-      '#description' => t('The model to use to turn text into speech. See the <a href=":link">link</a> for more information.', ['@link' => 'https://platform.openai.com/docs/models/tts']),
-    ];
-
-    $form['voice'] = [
-      '#type' => 'select',
-      '#title' => t('Voice'),
-      '#options' => [
-        'alloy' => 'Alloy',
-        'echo' => 'Echo',
-        'fable' => 'Fable',
-        'onyx' => 'Onyx',
-        'nova' => 'Nova',
-        'shimmer' => 'Shimmer',
-      ],
-      '#default_value' => 'alloy',
-      '#description' => t('The voice to use to turn text into speech. See the <a href=":link">link</a> for more information.', ['@link' => 'https://platform.openai.com/docs/guides/text-to-speech/voice-options']),
-    ];
-
-    $form['response_format'] = [
-      '#type' => 'select',
-      '#title' => t('Response Format'),
-      '#options' => [
-        'mp3' => 'MP3',
-        'opus' => 'Opus',
-        'aac' => 'AAC',
-        'flac' => 'FLAC',
-      ],
-      '#default_value' => 'mp3',
-      '#description' => t('The audio format of the result. See the <a href=":link">link</a> for more information.', ['@link' => 'https://platform.openai.com/docs/guides/text-to-speech/supported-output-formats']),
-    ];
-
-    $form['response'] = [
-      '#markup' => t('The response will create a file link to the audio file below.'),
-    ];
-
-    $form['file'] = [
-      '#prefix' => '<div id="openai-tts-response">',
-      '#suffix' => '</div>',
-    ];
-
-    $form['actions'] = [
-      '#type' => 'actions',
-    ];
-
-    $form['actions']['submit'] = [
-      '#type' => 'submit',
-      '#value' => t('Submit'),
-      '#ajax' => [
-        'callback' => 'openai_tts_get_response',
-        'wrapper' => 'openai-tts-response',
-        'progress' => [
-          'type' => 'throbber',
-        ],
-      ],
-    ];
-
+  if (empty($apiKey)) {
+    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
     return $form;
   }
+
+  $api = new OpenAIApi($apiKey);
+
+  // Form fields
+  $form['text'] = [
+    '#type' => 'textarea',
+    '#title' => t('Text to convert'),
+    '#description' => t('The text to turn into speech.'),
+    '#required' => TRUE,
+  ];
+
+  // Get TTS models
+  $models = $api->filterModels(['tts']);
+  $form['model'] = [
+    '#type' => 'select',
+    '#title' => t('Model'),
+    '#options' => $models,
+    '#default_value' => 'tts-1',
+    '#description' => t('The model to use to turn text into speech. See the <a href="@link" target="_blank">link</a> for more information.', ['@link' => 'https://platform.openai.com/docs/models/tts']),
+  ];
+
+  // Voice selection
+  $form['voice'] = [
+    '#type' => 'select',
+    '#title' => t('Voice'),
+    '#options' => [
+      'alloy' => 'Alloy',
+      'echo' => 'Echo',
+      'fable' => 'Fable',
+      'onyx' => 'Onyx',
+      'nova' => 'Nova',
+      'shimmer' => 'Shimmer',
+    ],
+    '#default_value' => 'alloy',
+    '#description' => t('The voice to use to turn text into speech.'),
+  ];
+
+  // Response format
+  $form['response_format'] = [
+    '#type' => 'select',
+    '#title' => t('Response Format'),
+    '#options' => [
+      'mp3' => 'MP3',
+      'opus' => 'Opus',
+      'aac' => 'AAC',
+      'flac' => 'FLAC',
+    ],
+    '#default_value' => 'mp3',
+    '#description' => t('The audio format of the result.'),
+  ];
+
+  // Placeholder for the response file link
+  $form['file'] = [
+    '#prefix' => '<div id="openai-tts-response">',
+    '#suffix' => '</div>',
+  ];
+
+  $form['actions']['submit'] = [
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+    '#ajax' => [
+      'callback' => 'openai_tts_get_response',
+      'wrapper' => 'openai-tts-response',
+      'progress' => ['type' => 'throbber'],
+    ],
+  ];
+
+  return $form;
+}
 
   /**
    * Form validation for the OpenAI TTS form.
@@ -159,57 +154,26 @@ return $items;
  * Form submission handler for the OpenAI TTS form.
  */
 function openai_tts_form_submit($form, &$form_state) {
-    $config = config('openai.settings');
-    $apiKey = $config->get('api_key');
+  $openai_config = config('openai.settings');
+  $apiKey = key_get_key_value(config('openai.settings')->get('api_key'));
+  $api = new OpenAIApi($apiKey);
 
-    if (empty($apiKey)) {
-      form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
-      return $form;
-    }
+  $text = $form_state['values']['text'];
+  $model = $form_state['values']['model'];
+  $voice = $form_state['values']['voice'];
+  $format = $form_state['values']['response_format'];
 
-    $api = new OpenAIApi($apiKey);
+  $filename = 'tts_result-' . REQUEST_TIME . '.' . $format;
+  $file_uri = file_unmanaged_save_data($api->textToSpeech($model, $text, $voice, $format), 'public://' . $filename, FILE_EXISTS_REPLACE);
 
-    $file_system = file_default_scheme();
-    $timestamp = REQUEST_TIME;
-
-    $text = $form_state['values']['text'];
-    $model = $form_state['values']['model'];
-    $voice = $form_state['values']['voice'];
-    $format = $form_state['values']['response_format'];
-
-    global $user; // Get the current user.
-
-    try {
-      $response = $api->textToSpeech($model, $text, $voice, $format);
-      $filename = 'tts_result-' . $timestamp . '.' . $format;
-      $file_uri = file_unmanaged_save_data($response, $file_system . '://' . $filename, FILE_EXISTS_REPLACE);
-
-      if ($file_uri) {
-        // Create a managed file entity.
-        $file = entity_create('file', [
-          'uri' => $file_uri,
-          'filename' => $filename,
-          'filemime' => file_get_mimetype($file_uri),
-          'status' => 1,
-          'uid' => $user->uid,
-          'timestamp' => $timestamp,
-        ]);
-
-        file_save($file);
-
-        // Set storage with file details, assuming save was successful.
-        $form_state['storage'] = [
-          'filepath' => $file->uri,
-          'filename' => $file->filename,
-          'fid' => $file->fid,
-        ];
-      } else {
-        form_set_error('', t('Failed to save the audio data to a file.'));
-      }
-    }
-    catch (Exception $e) {
-      form_set_error('', t('An error occurred while processing the text: @message', ['@message' => $e->getMessage()]));
-    }
-
-    $form_state['rebuild'] = TRUE;
+  if ($file_uri) {
+    $file_url = file_create_url($file_uri);
+    $form_state['storage']['filepath'] = $file_uri;
+    $form_state['storage']['filename'] = $filename;
+    $form['file']['#markup'] = t('Download the file: <a href="@url">@filename</a>', ['@url' => $file_url, '@filename' => $filename]);
+  } else {
+    form_set_error('', t('Failed to save the audio file.'));
   }
+
+  $form_state['rebuild'] = TRUE;
+}

@@ -243,11 +243,12 @@ function openai_ckeditor_text_completion_form_submit($form, &$form_state) {
  * Helper function to communicate with OpenAI.
  */
 function openai_ckeditor_generate_text($prompt, $settings) {
-  $api_key = config_get('openai.settings', 'api_key');
+  $openai_config = config('openai.settings');
+  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   // Load the OpenAIApi class.
   module_load_include('php', 'openai_ckeditor', 'includes/OpenAI');
-  $openai_api = new OpenAIApi($api_key);
+  $openai_api = new OpenAIApi($apiKey);
 
   $use_chat_endpoint = strpos($settings['model'], 'gpt') !== FALSE;
 

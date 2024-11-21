@@ -1,16 +1,11 @@
 <?php
 
 /**
- * @file
- * Contains code to run install based tasks for the module.
- */
-
-/**
  * Implements hook_schema().
  */
 function openai_embeddings_schema() {
   $schema['openai_embeddings'] = [
-    'description' => 'Stores embedding data from OpenAI in Drupal.',
+    'description' => 'Stores embedding data from OpenAI in Backdrop CMS.',
     'fields' => [
       'id' => [
         'type' => 'serial',
@@ -25,19 +20,19 @@ function openai_embeddings_schema() {
         'default' => 0,
       ],
       'entity_type' => [
-        'type' => 'varchar_ascii',
+        'type' => 'varchar',
         'length' => 64,
         'not null' => TRUE,
         'description' => 'The entity type (node, paragraph, user, etc).',
       ],
       'bundle' => [
-        'type' => 'varchar_ascii',
+        'type' => 'varchar',
         'length' => 64,
         'not null' => TRUE,
         'description' => 'The entity bundle.',
       ],
       'field_name' => [
-        'type' => 'varchar_ascii',
+        'type' => 'varchar',
         'length' => 128,
         'description' => 'The field name the embedding was generated from (title, field_body, etc).',
       ],
@@ -49,17 +44,14 @@ function openai_embeddings_schema() {
         'description' => 'The field delta position this embedding was generated from.',
       ],
       'embedding' => [
-        'mysql_type' => 'json',
-        'pgsql_type' => 'jsonb',
+        'type' => 'text', // Backdrop does not support JSON data types natively.
         'size' => 'big',
         'description' => 'The embedding values from OpenAI.',
       ],
       'data' => [
-        'mysql_type' => 'json',
-        'pgsql_type' => 'jsonb',
-        'not null' => FALSE,
+        'type' => 'text', // Backdrop does not support JSON data types natively.
         'size' => 'big',
-        'description' => 'Usage and misc data returned from OpenAI. Useful for debugging or viewing how many tokens an embedding used.',
+        'description' => 'Usage and misc data returned from OpenAI.',
       ],
     ],
     'primary key' => [
@@ -88,29 +80,19 @@ function openai_embeddings_schema() {
 }
 
 /**
- * Allow disabling of namespace, maintain status quo of false.
- */
-function openai_embeddings_update_10001() {
-  // Do nothing, we no longer need the disable namespace
-  // as per openai_embeddings_update_10003().
-}
-
-/**
  * Move pinecone configuration to mapped embeddings configuration.
  */
 function openai_embeddings_update_10002() {
-  $pinecone_config = \Drupal::configFactory()->getEditable('openai_embeddings.pinecone_client');
+  $pinecone_config = config_get('openai_embeddings.pinecone_client');
   if ($pinecone_config) {
-
-    // Move the pinecone config into the embeddings settings mapped data.
-    $embeddings_config = \Drupal::configFactory()->getEditable('openai_embeddings.settings');
-    $embeddings_config->set('vector_clients.pinecone.hostname', $pinecone_config->get('hostname'));
-    $embeddings_config->set('vector_clients.pinecone.api_key', $pinecone_config->get('api_key'));
-    $embeddings_config->set('vector_clients.pinecone.disable_namespace', $pinecone_config->get('disable_namespace'));
-    $embeddings_config->save();
+    $embeddings_config = config_get('openai_embeddings.settings');
+    $embeddings_config['vector_clients']['pinecone']['hostname'] = $pinecone_config['hostname'];
+    $embeddings_config['vector_clients']['pinecone']['api_key'] = $pinecone_config['api_key'];
+    $embeddings_config['vector_clients']['pinecone']['disable_namespace'] = $pinecone_config['disable_namespace'];
+    config_set('openai_embeddings.settings', $embeddings_config);
 
     // Delete the original pinecone config.
-    $pinecone_config->delete();
+    config_set('openai_embeddings.pinecone_client', NULL);
   }
 }
 
@@ -118,16 +100,32 @@ function openai_embeddings_update_10002() {
  * Allow disabling of namespace, maintain status quo of false.
  */
 function openai_embeddings_update_10003() {
-  $config = \Drupal::configFactory()->getEditable('openai_embeddings.settings');
-  if ($config->get('vector_clients.pinecone.disable_namespace')) {
-    $config->clear('vector_clients.pinecone.disable_namespace');
-    $config->save();
+  $config = config_get('openai_embeddings.settings');
+  if (!empty($config['vector_clients']['pinecone']['disable_namespace'])) {
+    unset($config['vector_clients']['pinecone']['disable_namespace']);
+    config_set('openai_embeddings.settings', $config);
   }
 }
 
 /**
- * Clear cache of models list given change to filters in #3417202.
+ * Clear cache of models list given change to filters.
  */
 function openai_embeddings_update_10004() {
-  \Drupal::cache()->invalidate('openai_models');
+  cache_clear_all('openai_models', 'cache');
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function openai_embeddings_uninstall() {
+  // Delete configuration.
+  config('openai_embeddings.settings')->delete();
+
+  // Drop the table.
+  try {
+    db_drop_table('openai_embeddings');
+  }
+  catch (Exception $e) {
+    watchdog('openai_embeddings', 'Failed to drop the table "openai_embeddings": @message', ['@message' => $e->getMessage()], WATCHDOG_WARNING);
+  }
 }

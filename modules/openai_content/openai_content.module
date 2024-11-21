@@ -247,8 +247,8 @@ function _openai_content_get_all_text_with_summary_fields($entity) {
  *   The renderable part of the form.
  */
 function openai_content_entity_adjust_tone($form, &$form_state) {
-  $config = config_get('openai.settings');
-  $apiKey = $config['api_key'];
+  $openai_config = config('openai.settings');
+  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (isset($form_state['values']['target_field'])) {
     $target_field = $form_state['values']['target_field'];
@@ -308,8 +308,8 @@ function openai_content_entity_adjust_tone($form, &$form_state) {
  *   The renderable part of the form.
  */
 function openai_content_entity_field_summarize($form, &$form_state) {
-  $config = config_get('openai.settings');
-  $apiKey = $config['api_key'];
+  $openai_config = config('openai.settings');
+  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (isset($form_state['values']['target_field'])) {
     $target_field = $form_state['values']['target_field'];
@@ -368,8 +368,8 @@ function openai_content_entity_field_summarize($form, &$form_state) {
  *   The renderable part of the form.
  */
 function openai_content_suggest_title($form, &$form_state) {
-  $config = config_get('openai.settings');
-  $apiKey = $config['api_key'];
+  $openai_config = config('openai.settings');
+  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (isset($form_state['values']['target_field'])) {
     $target_field = $form_state['values']['target_field'];
@@ -429,8 +429,8 @@ function openai_content_suggest_title($form, &$form_state) {
  *   The renderable part of the form.
  */
 function openai_content_entity_suggest_taxonomy($form, &$form_state) {
-  $config = config_get('openai.settings');
-  $apiKey = $config['api_key'];
+  $openai_config = config('openai.settings');
+  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (isset($form_state['values']['target_field'])) {
     $target_field = $form_state['values']['target_field'];
@@ -488,8 +488,8 @@ function openai_content_entity_suggest_taxonomy($form, &$form_state) {
  *   The renderable part of the form.
  */
 function openai_content_entity_analyze_content($form, &$form_state) {
-  $config = config_get('openai.settings');
-  $apiKey = $config['api_key'];
+  $openai_config = config('openai.settings');
+  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (isset($form_state['values']['target_field'])) {
     $target_field = $form_state['values']['target_field'];

@@ -1,0 +1,7 @@
+name = OpenAI Text Embeddings
+type = module
+description = Examines content and generates vectors to calculate relationships between strings and integrates with different vector backends (Pinecone, Milvus, Weaviate etc).
+package = OpenAI
+backdrop = 1.x
+configure = admin/config/openai/openai-embeddings/settings
+dependencies[] = openai

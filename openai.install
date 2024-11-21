@@ -4,32 +4,42 @@
  * Implements hook_requirements().
  */
 function openai_requirements($phase) {
-  $requirements = array();
+  $requirements = [];
 
   if ($phase == 'runtime') {
-    $config = config_get('openai.settings');
-
-    if (!empty($config['api_key'])) {
-      $requirements['openai'] = array(
+    // Check if the Key module is enabled.
+    if (!module_exists('key')) {
+      $requirements['openai'] = [
         'title' => t('OpenAI'),
-        'value' => t('API key detected'),
-        'severity' => REQUIREMENT_OK,
-      );
-    }
-    else {
-      $message = t('You have not provided an OpenAI API key yet. This is required for its functionality to work. Please obtain an API key from <a href=":account">your OpenAI account</a> and add it to the <a href=":settings">OpenAI settings configuration here</a>.',
-        array(
-          ':account' => 'https://platform.openai.com/',
-          ':settings' => url('admin/config/openai/settings')
-        )
-      );
-
-      $requirements['openai'] = array(
-        'title' => t('OpenAI'),
-        'value' => t('API key not provided'),
+        'value' => t('Key module not enabled'),
         'severity' => REQUIREMENT_ERROR,
-        'description' => $message,
-      );
+        'description' => t(
+          'The OpenAI module requires the Key module to securely manage the API key. Enable the Key module from the <a href="@modules">modules page</a>.',
+          ['@modules' => url('admin/modules')]
+        ),
+      ];
+    } else {
+      // Check if a valid key has been selected in the OpenAI settings.
+      $config = config_get('openai.settings');
+      $key_id = $config['api_key_key'];
+
+      if (!empty($key_id) && key_get_key($key_id)) {
+        $requirements['openai'] = [
+          'title' => t('OpenAI'),
+          'value' => t('API key detected and managed via Key module'),
+          'severity' => REQUIREMENT_OK,
+        ];
+      } else {
+        $requirements['openai'] = [
+          'title' => t('OpenAI'),
+          'value' => t('API key not configured'),
+          'severity' => REQUIREMENT_ERROR,
+          'description' => t(
+            'An API key is required for OpenAI functionality. Configure the key in the <a href="@settings">OpenAI settings</a>.',
+            ['@settings' => url('admin/config/openai/settings')]
+          ),
+        ];
+      }
     }
   }
 

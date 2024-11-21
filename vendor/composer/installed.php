@@ -3,7 +3,7 @@
         'name' => 'backdrop/openai',
         'pretty_version' => 'dev-1.x-1.x',
         'version' => 'dev-1.x-1.x',
-        'reference' => 'aca43e5b95f64a7b97b00d620a3ec26a6c615f7c',
+        'reference' => '8d9ef06d99bdc07c5d6c746ffae51409be83a304',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -13,7 +13,7 @@
         'backdrop/openai' => array(
             'pretty_version' => 'dev-1.x-1.x',
             'version' => 'dev-1.x-1.x',
-            'reference' => 'aca43e5b95f64a7b97b00d620a3ec26a6c615f7c',
+            'reference' => '8d9ef06d99bdc07c5d6c746ffae51409be83a304',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -56,9 +56,9 @@
             'dev_requirement' => false,
         ),
         'openai-php/client' => array(
-            'pretty_version' => 'v0.10.2',
-            'version' => '0.10.2.0',
-            'reference' => 'efa92628ba9fb56f7877c0d616f5221c4a447856',
+            'pretty_version' => 'v0.10.3',
+            'version' => '0.10.3.0',
+            'reference' => '4a565d145e0fb3ea1baba8fffe39d86c56b6dc2c',
             'type' => 'library',
             'install_path' => __DIR__ . '/../openai-php/client',
             'aliases' => array(),
@@ -121,8 +121,8 @@
         'psr/http-client-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '*',
-                1 => '1.0',
+                0 => '1.0',
+                1 => '*',
             ),
         ),
         'psr/http-factory' => array(
@@ -137,8 +137,8 @@
         'psr/http-factory-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '*',
-                1 => '1.0',
+                0 => '1.0',
+                1 => '*',
             ),
         ),
         'psr/http-message' => array(
@@ -153,8 +153,8 @@
         'psr/http-message-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '*',
-                1 => '1.0',
+                0 => '1.0',
+                1 => '*',
             ),
         ),
         'psr/log' => array(
@@ -185,9 +185,9 @@
             'dev_requirement' => false,
         ),
         'symfony/http-client' => array(
-            'pretty_version' => 'v7.1.6',
-            'version' => '7.1.6.0',
-            'reference' => '274e2f6886b43a36f8bd5dfeb67215f7ebf9e291',
+            'pretty_version' => 'v7.1.8',
+            'version' => '7.1.8.0',
+            'reference' => 'c30d91a1deac0dc3ed5e604683cf2e1dfc635b8a',
             'type' => 'library',
             'install_path' => __DIR__ . '/../symfony/http-client',
             'aliases' => array(),

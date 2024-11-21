@@ -1,93 +1,862 @@
 <?php
 
-/**
- * @file
- * Contains hook implementations for this module.
- */
-
-use Drupal\Core\Entity\ContentEntityInterface;
-use Drupal\Core\Entity\EntityInterface;
+require_once BACKDROP_ROOT . '/' . backdrop_get_path('module', 'openai') . '/includes/OpenAIApi.php';
 
 /**
- * Implements hook_entity_insert().
+ * Implements hook_config_info().
  */
-function openai_embeddings_entity_insert(EntityInterface $entity) {
-  openai_embeddings_insert_queue_item($entity);
+function openai_embeddings_config_info() {
+  $prefixes['openai_embeddings.settings'] = array(
+    'label' => t('OpenAI Embeddings Settings'),
+    'group' => t('Configuration'),
+  );
+  return $prefixes;
 }
 
 /**
- * Implements hook_entity_update().
+ * Implements hook_autoload_info().
  */
-function openai_embeddings_entity_update(EntityInterface $entity) {
-  openai_embeddings_insert_queue_item($entity);
+function openai_embeddings_autoload_info() {
+  return array(
+    'VectorClientBase'     => 'includes/VectorClientBase.php',
+    'PineconeVectorClient'  => 'includes/PineconeVectorClient.php',
+    'MilvusVectorClient'  => 'includes/MilvusVectorClient.php',
+    'EmbeddingQueueWorker' => 'includes/EmbeddingQueueWorker.php'
+  );
 }
 
 /**
- * Implements hook_entity_delete().
+ * Implements hook_menu().
  */
-function openai_embeddings_entity_delete(EntityInterface $entity) {
-  if ($entity instanceof ContentEntityInterface) {
-    $plugin_id = \Drupal::configFactory()
-      ->get('openai_embeddings.settings')
-      ->get('vector_client_plugin');
-    if ($plugin_id) {
-      $vector_client = \Drupal::service('plugin.manager.vector_client')->createInstance($plugin_id);
+function openai_embeddings_menu() {
+  $items = [];
 
-      try {
-        $records = \Drupal::database()->select('openai_embeddings', 'e')
-          ->fields('e', ['entity_id', 'entity_type', 'field_name'])
-          ->condition('entity_id', $entity->id())
-          ->condition('entity_type', $entity->getEntityTypeId())
-          ->execute();
+  // Main Embeddings settings page that should be visible under OpenAI.
+  $items['admin/config/openai/openai-embeddings'] = [
+    'title' => 'Embeddings settings',
+    'description' => 'Manage text embedding analysis settings.',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => ['openai_embeddings_settings_form'],
+    'access arguments' => ['administer site configuration'],
+    'type' => MENU_NORMAL_ITEM, // Main visible link under OpenAI.
+    'parent' => 'admin/config/openai', // Ensure it appears under OpenAI.
+  ];
 
-        foreach ($records as $record) {
-          $vector_client->delete([
-            'collection' => $record->entity_type . ':' . $record->field_name,
-            'filter' => [
-              'entity_id' => $entity->id(),
-              'entity_type' => $entity->getEntityTypeId(),
-              'bundle' => $entity->bundle(),
-            ],
-          ]);
-        }
-      }
-      catch (\Exception $e) {
-        \Drupal::logger('openai_embeddings')
-          ->error('Error trying to delete record(s) in the vector database.');
-      }
+  // Embeddings settings tab as the default local task.
+  $items['admin/config/openai/openai-embeddings/settings'] = [
+    'title' => 'Embeddings settings',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => ['openai_embeddings_settings_form'],
+    'access arguments' => ['administer site configuration'],
+    'type' => MENU_DEFAULT_LOCAL_TASK, // Default tab.
+  ];
+
+  // Search test tab.
+  $items['admin/config/openai/openai-embeddings/test-search'] = [
+    'title' => 'Search test',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => ['openai_embeddings_search_form'],
+    'access arguments' => ['administer site configuration'],
+    'type' => MENU_LOCAL_TASK, // Secondary tab.
+    'weight' => 5,
+  ];
+
+  $items['admin/config/openai/openai-embeddings/add-to-queue'] = [
+    'title' => 'Add Existing Content to Queue',
+    'description' => 'Queue all existing content for embedding generation.',
+    'page callback' => 'openai_embeddings_add_to_queue_page',
+    'access arguments' => ['administer site configuration'],
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 6,
+  ];
+
+  // Index stats tab.
+  $items['admin/config/openai/openai-embeddings/stats'] = [
+    'title' => 'Index Stats',
+    'page callback' => 'openai_embeddings_vector_database_stats',
+    'access arguments' => ['administer site configuration'],
+    'type' => MENU_LOCAL_TASK, // Secondary tab.
+    'weight' => 7,
+  ];
+
+  // Delete items tab - set to appear last by adjusting the weight.
+  $items['admin/config/openai/openai-embeddings/delete'] = [
+    'title' => 'Delete Items',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => ['openai_embeddings_delete_confirm_form'],
+    'access arguments' => ['administer site configuration'],
+    'type' => MENU_LOCAL_TASK, // Secondary tab.
+    'weight' => 10, // Ensure this appears as the last tab.
+  ];
+
+  return $items;
+}
+
+function openai_embeddings_settings_form(array $form, array &$form_state) {
+  // Get the configuration object to load values
+  $config = config('openai_embeddings.settings');
+
+  $openai_config = config('openai.settings');
+  $apiKey = key_get_key_value($openai_config->get('api_key'));
+
+    if (empty($apiKey)) {
+      form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
+      return $form;
     }
+
+    $api = new OpenAIApi($apiKey);
+
+  $form = array();
+  $form['#config'] = 'openai_embeddings.settings';
+
+  // Retrieve content types and taxonomies
+  $content_types = node_type_get_types();  // Retrieve all content types
+  $vocabularies = taxonomy_get_vocabularies();
+
+  // Create the content types checkboxes
+  $content_type_options = [];
+  foreach ($content_types as $type => $info) {
+    $content_type_options[$type] = $info->name;
+  }
+
+  // Create the taxonomy vocabularies checkboxes
+  $vocabulary_options = [];
+  foreach ($vocabularies as $vocabulary) {
+    $vocabulary_options[$vocabulary->machine_name] = $vocabulary->name;
+  }
+
+  // Add the 'content_types' fieldset
+  $form['entity_analysis'] = [
+    '#type' => 'fieldset',
+    '#title' => t('Enable analysis of these entities and their bundles'),
+  ];
+
+  // Content types section
+  $form['entity_analysis']['content_types'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Select content types to analyze'),
+    '#options' => $content_type_options,
+    '#default_value' => $config->get('content_types') ?? [],  // Default to previously saved value
+  );
+
+  // Taxonomy vocabularies section
+  $form['entity_analysis']['taxonomy_vocabularies'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Select vocabularies to analyze'),
+    '#options' => $vocabulary_options,
+    '#default_value' => $config->get('taxonomy_vocabularies') ?? [],  // Default to previously saved value
+  );
+
+  // Stopwords section
+  $stopwords = $config->get('stopwords');
+  if (is_string($stopwords)) {
+    $stopwords = explode(',', $stopwords); // Convert string into array
+  }
+  $stopwords = array_map('trim', $stopwords);  // Clean the array
+
+  $form['stopwords'] = [
+    '#type' => 'textarea',
+    '#title' => t('Stopwords'),
+    '#default_value' => implode(', ', $stopwords),
+    '#description' => t('Enter a comma-delimited list of words to exclude from generating embedding values.'),
+  ];
+
+  // Model section
+
+  $models = $api->filterModels(['text-embedding-']);
+
+  $form['model'] = [
+    '#type' => 'select',
+    '#title' => t('Model to use'),
+    '#options' => $models,
+    '#default_value' => $config->get('model') ?? 'text-embedding-ada-002',
+    '#required' => TRUE,
+    '#description' => t('Select the model to analyze text. See the <a href="@link" target="_blank">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/guides/embeddings/embedding-models']),
+  ];
+
+  // Content type options for the dropdown
+  $plugin_options = [
+    'pinecone' => t('Pinecone'),
+    //'milvus' => t('Milvus'),
+  ];
+
+  // Default selected plugin
+  $selected_plugin = $config->get('connections.vector_client_plugin') ?? 'pinecone';
+
+  // Add a field to select the vector client plugin (Pinecone or Milvus)
+  $form['connections']['vector_client_plugin'] = [
+    '#type' => 'select',
+    '#title' => t('Select Vector Client Plugin'),
+    '#options' => $plugin_options,
+    '#default_value' => $selected_plugin,
+    '#required' => TRUE,
+  ];
+
+  // Pinecone settings (conditionally visible based on plugin selection)
+  $form['connections']['plugin_settings']['pinecone_settings'] = [
+    '#type' => 'fieldset',
+    '#title' => t('Pinecone Configuration'),
+    '#states' => [
+      'visible' => [
+        ':input[name="vector_client_plugin"]' => ['value' => 'pinecone'],
+      ],
+    ],
+  ];
+
+  // Pinecone API Key
+  $form['connections']['plugin_settings']['pinecone_settings']['pinecone_api_key'] = [
+    '#type' => 'key_select',
+    '#title' => t('API Key'),
+    '#options' => key_get_key_names_as_options(),
+    '#key_filters' => ['type' => 'authentication'],
+    //'#default_value' => $config->get('pinecone_api_key'),
+    '#description' => t('The API key for Pinecone.'),
+  ];
+
+  // Pinecone Hostname
+  $form['connections']['plugin_settings']['pinecone_settings']['pinecone_hostname'] = [
+    '#type' => 'key_select',
+    '#title' => t('Hostname'),
+    '#options' => key_get_key_names_as_options(),
+    '#key_filters' => ['type' => 'authentication'],
+    '#default_value' => $config->get('pinecone_hostname'),
+    '#description' => t('The hostname or URI for your Pinecone instance.'),
+  ];
+
+  // Pinecone Disable Namespace
+  $form['connections']['plugin_settings']['pinecone_settings']['pinecone_disable_namespace'] = [
+    '#type' => 'checkbox',
+    '#title' => t('Disable namespace'),
+    '#default_value' => $config->get('pinecone_disable_namespace'),
+    '#description' => t('The starter plan does not support namespaces. This means that all items get indexed together by disabling this; however, it allows you to at least demo the features.'),
+  ];
+
+  // Milvus settings (conditionally visible based on plugin selection)
+  /* $form['connections']['plugin_settings']['milvus_settings'] = [
+    '#type' => 'fieldset',
+    '#title' => t('Milvus Configuration'),
+    '#states' => [
+      'visible' => [
+        ':input[name="vector_client_plugin"]' => ['value' => 'milvus'],
+      ],
+    ],
+  ]; */
+
+  // Milvus API Token
+  /* $form['connections']['plugin_settings']['milvus_settings']['milvus_token'] = [
+    '#type' => 'key_select',
+    '#title' => t('API Token'),
+    '#options' => key_get_key_names_as_options(),
+    '#key_filters' => ['type' => 'authentication'],
+    '#default_value' => $config->get('milvus_token'),
+    '#description' => t('The API token for Milvus.'),
+  ]; */
+
+  // Milvus Hostname
+  /* $form['connections']['plugin_settings']['milvus_settings']['milvus_hostname'] = [
+    '#type' => 'key_select',
+    '#title' => t('Hostname'),
+    '#options' => key_get_key_names_as_options(),
+    '#key_filters' => ['type' => 'authentication'],
+    '#default_value' => $config->get('milvus_hostname'),
+    '#description' => t('The hostname or URI for your Milvus instance.'),
+  ]; */
+
+  // Return the system settings form
+  return system_settings_form($form);
+}
+
+/**
+ * Implements the OpenAI Embeddings Search Form in Backdrop CMS.
+ */
+function openai_embeddings_search_form($form, &$form_state) {
+  // Search input.
+  $form['search_input'] = [
+    '#type' => 'textarea',
+    '#title' => t('Search text'),
+    '#description' => t('Enter the text here to search. When submitted, OpenAI will generate an embed and then find comparable content. Each query counts against your API usage, and responses may take time based on input complexity.'),
+    '#required' => TRUE,
+    '#maxlength' => 1024,
+  ];
+
+  // Namespace/Collection input.
+  $form['namespace'] = [
+    '#type' => 'textfield',
+    '#title' => t('Namespace/Collection'),
+    '#description' => t('Enter the namespace to search through, if applicable.'),
+    '#maxlength' => 64,
+  ];
+
+  // Entity type filter.
+  $form['filter_by'] = [
+    '#type' => 'select',
+    '#title' => t('Filter by'),
+    '#options' => [
+      'node' => t('Nodes'),
+      'taxonomy_term' => t('Taxonomy terms'),
+      'media' => t('Media'),
+      'paragraph' => t('Paragraphs'),
+    ],
+    '#description' => t('Select an entity type to filter by.'),
+  ];
+
+  // Relevancy threshold.
+  $form['score_threshold'] = [
+    '#type' => 'number',
+    '#title' => t('Relevancy threshold'),
+    '#min' => 0.1,
+    '#max' => 1,
+    '#step' => 0.01,
+    '#default_value' => 0.8,
+    '#description' => t('Set the relevancy threshold, typically .8 or higher for most relevant results.'),
+  ];
+
+  // Response display area.
+  $form['response_title'] = [
+    '#type' => 'markup',
+    '#markup' => '<p>' . t('The search response will appear below.') . '</p>',
+  ];
+  $form['response'] = [
+    '#type' => 'markup',
+    '#prefix' => '<div id="openai-response">',
+    '#suffix' => '</div>',
+  ];
+
+  // Submit button with AJAX callback.
+  $form['actions']['submit'] = [
+    '#type' => 'submit',
+    '#value' => t('Search'),
+    '#ajax' => [
+      'callback' => 'openai_embeddings_search_form_ajax_callback',
+      'wrapper' => 'openai-response',
+    ],
+  ];
+
+  return $form;
+}
+
+/**
+ * AJAX callback function for the search form.
+ */
+function openai_embeddings_search_form_ajax_callback($form, &$form_state) {
+  $query_text = $form_state['values']['search_input'];
+  $filter_by = $form_state['values']['filter_by'];
+  $score_threshold = $form_state['values']['score_threshold'];
+  $namespace = $form_state['values']['namespace'];
+
+  // Prepare the query text for embedding.
+  $text = openai_embeddings_prepare_text($query_text, 1024);
+  $openai_response = openai_client_embed($text, 'text-embedding-ada-002');
+
+  $output = '<ul>';
+
+  if ($openai_response) {
+      $embedding = $openai_response['data'][0]['embedding'];
+      $vector_client = openai_embeddings_get_vector_client('pinecone');
+
+      // Perform the Pinecone query.
+      $query_options = [
+          'vector' => $embedding,
+          'top_k' => 8,
+          'collection' => $namespace,
+          'include_metadata' => TRUE,
+      ];
+      $vector_results = $vector_client->query($query_options);
+
+      if (!empty($vector_results['matches'])) {
+          foreach ($vector_results['matches'] as $match) {
+              $entity_type = $match['metadata']['entity_type'] ?? null;
+              $entity_id = $match['metadata']['entity_id'] ?? null;
+
+              // Check if metadata is missing.
+              if (!$entity_type || !$entity_id) {
+                  /* watchdog('openai_embeddings', 'Missing metadata in match: @match', [
+                      '@match' => print_r($match, TRUE),
+                  ], WATCHDOG_WARNING); */
+                  $output .= '<li>Match found but missing entity metadata.</li>';
+                  continue;
+              }
+
+              // Load the entity.
+              $entity = entity_load($entity_type, $entity_id);
+              if ($entity) {
+                  // Use a safe fallback for labels.
+                  $entity_label = method_exists($entity, 'label') ? $entity->label() : "Entity $entity_id";
+                  $output .= '<li>' . l($entity_label, "$entity_type/$entity_id") . ' had a score of ' . $match['score'] . '</li>';
+              } else {
+                  $output .= '<li>Entity with ID ' . $entity_id . ' could not be loaded.</li>';
+              }
+          }
+      } else {
+          $output .= '<li>No results found or below threshold.</li>';
+      }
+  } else {
+      $output = '<p>Error retrieving results from OpenAI or Pinecone.</p>';
+  }
+
+  $output .= '</ul>';
+
+  // Return an AJAX response to replace the results dynamically.
+  return [
+      '#markup' => $output,
+      '#prefix' => '<div id="openai-response">',
+      '#suffix' => '</div>',
+  ];
+}
+
+/**
+ * OpenAI client function to perform text embedding.
+ *
+ * @param string $text
+ *   The text to embed.
+ * @param string $model
+ *   The model to use (default: text-embedding-ada-002).
+ *
+ * @return array
+ *   The embedding data.
+ *
+ * @throws Exception
+ *   If the API call fails.
+ */
+function openai_client_embed($text, $model = 'text-embedding-ada-002') {
+  $api_key = config_get('openai.settings')['api_key'];
+  $endpoint = 'https://api.openai.com/v1/embeddings';
+
+  try {
+    // Use Guzzle HTTP client for the API call.
+    $client = new \GuzzleHttp\Client();
+    $response = $client->post($endpoint, [
+      'headers' => [
+        'Authorization' => "Bearer {$api_key}",
+        'Content-Type' => 'application/json',
+      ],
+      'json' => [
+        'model' => $model,
+        'input' => $text,
+      ],
+    ]);
+
+    // Decode the response body into an array.
+    $response_data = json_decode($response->getBody()->getContents(), TRUE);
+
+    // Check if decoding was successful and data exists.
+    if (json_last_error() !== JSON_ERROR_NONE || !isset($response_data['data'][0]['embedding'])) {
+      throw new \Exception('Failed to decode OpenAI API response or embedding data is missing.');
+    }
+
+    // Log the decoded response for debugging.
+    /* watchdog('openai_embeddings', 'Decoded Response: @response', [
+      '@response' => print_r($response_data, TRUE),
+    ], WATCHDOG_DEBUG); */
+
+    // Return the decoded response data.
+    return $response_data;
+  }
+  catch (\Exception $e) {
+    // Log the error and rethrow the exception.
+    /* watchdog('openai_embeddings', 'Error calling OpenAI API: @message', [
+      '@message' => $e->getMessage(),
+    ], WATCHDOG_ERROR); */
+    throw new Exception('OpenAI API call failed: ' . $e->getMessage());
+  }
+}
+
+/**
+ * Prepares text for OpenAI embedding request.
+ *
+ * @param string $text
+ *   The input text.
+ * @param int $max_length
+ *   Maximum length of the text (e.g., 8000 tokens).
+ *
+ * @return string
+ *   Trimmed and sanitized text.
+ */
+function openai_embeddings_prepare_text($text, $max_length) {
+  $sanitized_text = strip_tags($text); // Remove HTML tags if present.
+  return substr($sanitized_text, 0, $max_length);
+}
+
+function openai_embeddings_get_vector_client($type = NULL) {
+  $config = config_get('openai_embeddings.settings');
+
+  // If no type is provided, fetch the default from configuration.
+  if (!$type) {
+    $type = $config['default_vector_client'] ?? 'pinecone';
+  }
+
+  if ($type === 'pinecone') {
+    return new PineconeVectorClient($config);
+  }
+  elseif ($type === 'milvus') {
+    return new MilvusVectorClient($config);
+  }
+
+  throw new Exception('Unknown vector client type: ' . $type);
+}
+
+/**
+ * Provides a confirmation form to delete all vector database items.
+ */
+function openai_embeddings_delete_confirm_form($form, &$form_state) {
+  // Confirmation question.
+  $form['question'] = [
+    '#type' => 'markup',
+    '#markup' => t('Are you sure you want to delete all items in your vector database index?'),
+  ];
+
+  // Description.
+  $form['description'] = [
+    '#type' => 'markup',
+    '#markup' => t('This will delete all items in your vector database instance. Note that this action is NOT permitted if you are using Pinecone and on their Starter plan.'),
+  ];
+
+  // Confirm button.
+  $form['confirm'] = [
+    '#type' => 'submit',
+    '#value' => t('Delete all items'),
+    '#button_type' => 'primary',
+  ];
+
+  // Cancel button.
+  $form['cancel'] = [
+    '#type' => 'markup',
+    '#markup' => l(t('Cancel'), 'admin/config/openai/openai-embeddings/settings'),
+  ];
+
+  return $form;
+}
+
+/**
+ * Submit handler for the delete confirmation form.
+ */
+function openai_embeddings_delete_confirm_form_submit($form, &$form_state) {
+  // Load database connection.
+  $database = backdrop_get_database();
+
+  // Query to retrieve entity types.
+  $results = $database->query('SELECT DISTINCT entity_type FROM {openai_embeddings}');
+  $plugin_id = config_get('openai_embeddings.settings', 'vector_client_plugin');
+  $vector_client = openai_embeddings_get_vector_client($plugin_id);
+
+  // Perform deletion for each entity type.
+  foreach ($results as $result) {
+    $vector_client->deleteAll([
+      'collection' => $result->entity_type,
+    ]);
+  }
+
+  // Notify user and redirect.
+  backdrop_set_message(t('All items have been deleted in the vector database.'));
+  $form_state['redirect'] = 'admin/config/openai/openai-embeddings/stats';
+}
+
+/**
+ * Implements hook_node_insert().
+ */
+function openai_embeddings_node_insert($node) {
+  openai_embeddings_insert_queue_item($node);
+}
+
+/**
+ * Implements hook_node_update().
+ */
+function openai_embeddings_node_update($node) {
+  openai_embeddings_insert_queue_item($node);
+}
+
+/**
+ * Implements hook_node_delete().
+ */
+function openai_embeddings_node_delete($node) {
+  // Get the plugin ID for the vector client from settings.
+  $plugin_id = config_get('openai_embeddings.settings', 'vector_client_plugin');
+  if ($plugin_id) {
+    $vector_client = openai_embeddings_get_vector_client($plugin_id);
 
     try {
-      \Drupal::database()->delete('openai_embeddings')
-        ->condition('entity_id', $entity->id())
-        ->condition('entity_type', $entity->getEntityTypeId())
-        ->execute();
+      // Query for records in the `openai_embeddings` table for this node.
+      $query = db_select('openai_embeddings', 'e')
+        ->fields('e', ['entity_id', 'entity_type', 'field_name'])
+        ->condition('entity_id', $node->nid)
+        ->condition('entity_type', 'node');
+      $records = $query->execute();
+
+      // Delete records in the vector client.
+      foreach ($records as $record) {
+        $vector_client->deleteAll([
+          'collection' => $record->entity_type . ':' . $record->field_name,
+          'filter' => [
+            'entity_id' => $node->nid,
+            'entity_type' => 'node',
+            'bundle' => $node->type,
+          ],
+        ]);
+      }
     }
-    catch (\Exception $e) {
-      \Drupal::logger('openai_embeddings')
-        ->error('Error trying to delete record(s) in the local database.');
+    catch (Exception $e) {
+      watchdog('openai_embeddings', 'Error trying to delete record(s) in the vector database.', [], WATCHDOG_ERROR);
     }
+  }
+
+  // Delete records from the local `openai_embeddings` table.
+  try {
+    db_delete('openai_embeddings')
+      ->condition('entity_id', $node->nid)
+      ->condition('entity_type', 'node')
+      ->execute();
+  }
+  catch (Exception $e) {
+    watchdog('openai_embeddings', 'Error trying to delete record(s) in the local database.', [], WATCHDOG_ERROR);
   }
 }
 
 /**
- * Inserts a content entity into the job queue.
- *
- * @param \Drupal\Core\Entity\EntityInterface $entity
- *   The content entity.
+ * Implements hook_cron_queue_info().
  */
-function openai_embeddings_insert_queue_item($entity) {
-  $config = \Drupal::config('openai_embeddings.settings');
-  $entity_types = $config->get('entity_types');
+function openai_embeddings_cron_queue_info() {
+  return [
+    'embedding_queue' => [
+      'worker callback' => 'openai_embeddings_process_queue_item',
+      'time' => 30, // Time allotted for queue processing during cron.
+    ],
+  ];
+}
 
-  if (!empty($entity_types) && array_key_exists($entity->getEntityTypeId(), $entity_types)) {
-    if (in_array($entity->bundle(), $entity_types[$entity->getEntityTypeId()])) {
-      $queue = \Drupal::service('queue')->get('embedding_queue');
-      $item = [];
-      $item['entity_id'] = $entity->id();
-      $item['entity_type'] = $entity->getEntityTypeId();
-      $item['bundle'] = $entity->bundle();
-      $queue->createItem($item);
-    }
+/**
+ * Inserts a content entity (node) into the job queue.
+ *
+ * @param object $node
+ *   The node entity.
+ */
+function openai_embeddings_insert_queue_item($node) {
+  $config = config_get('openai_embeddings.settings');
+  $entity_types = $config['entity_types'] ?? [];
+
+  // Check if the node's type is in the enabled entity types in settings.
+  if (!empty($entity_types['node']) && in_array($node->type, $entity_types['node'])) {
+    $queue = BackdropQueue::get('embedding_queue');
+    $item = [
+      'entity_id' => $node->nid,
+      'entity_type' => 'node',
+      'bundle' => $node->type,
+    ];
+    $queue->createItem($item);
   }
 }
+
+/**
+ * Processes items from the embedding queue.
+ *
+ * @param array $item
+ *   The data for the queue item.
+ */
+function openai_embeddings_process_queue_item($item) {
+  $worker = new EmbeddingQueueWorker();
+  $worker->processItem($item);
+}
+
+/**
+ * Displays statistics from the vector database.
+ */
+function openai_embeddings_vector_database_stats() {
+  try {
+    // Dynamically get the client based on configuration.
+    $client = openai_embeddings_get_vector_client();
+    $rows = $client->stats();
+
+    // Check if any stats are available.
+    if (empty($rows)) {
+      return [
+        '#markup' => '<p>' . t('No statistics available. Check the vector database configuration or ensure data has been indexed.') . '</p>',
+      ];
+    }
+
+    // Render the stats table.
+    return [
+      '#theme' => 'table',
+      '#header' => [
+        ['data' => t('Namespaces')],
+        ['data' => t('Vector Count')],
+      ],
+      '#rows' => array_map(function ($row) {
+        return [
+          'data' => [
+            ['data' => $row['Namespace'], 'class' => ['namespace-column']],
+            ['data' => $row['Vector Count'], 'class' => ['vector-count-column']],
+          ],
+        ];
+      }, $rows),
+      '#empty' => t('No vector data available.'),
+      '#attributes' => [
+        'class' => ['vector-database-stats'],
+      ],
+    ];
+  } catch (Exception $e) {
+    return [
+      '#markup' => '<p>' . t('Failed to fetch index stats. Please check the logs for details.') . '</p>',
+    ];
+  }
+}
+
+/**
+ * Page callback to queue existing content.
+ */
+function openai_embeddings_add_to_queue_page() {
+  // Fetch all published nodes.
+  $query = db_select('node', 'n')
+    ->fields('n', ['nid', 'type'])
+    ->condition('status', 1);
+  $results = $query->execute();
+
+  // Get the queue object for the embedding queue.
+  $queue = BackdropQueue::get('embedding_queue');
+  $queued_count = 0;
+  $feedback = '';
+
+  // Queue each node and log progress.
+  foreach ($results as $record) {
+    $item = [
+      'entity_id' => $record->nid,
+      'entity_type' => 'node',
+    ];
+    if ($queue->createItem($item)) {
+      $feedback .= t('Queued node ID @id for embedding.<br>', ['@id' => $record->nid]);
+      $queued_count++;
+    }
+  }
+
+  // Provide feedback to the user.
+  $feedback .= t('<strong>[success]</strong> @count nodes have been queued for embedding.', ['@count' => $queued_count]);
+
+  // Return the feedback.
+  return [
+    '#markup' => $feedback,
+  ];
+}
+
+
+/**
+ * Start a batch process to add existing content to the queue.
+ */
+function openai_embeddings_start_batch() {
+  $batch = [
+    'title' => t('Adding existing content to the embedding queue...'),
+    'operations' => [
+      ['openai_embeddings_batch_add_existing_content', []],
+    ],
+    'finished' => 'openai_embeddings_batch_finished',
+  ];
+  batch_set($batch);
+  batch_process();
+}
+
+/**
+ * Batch operation to add existing content to the embedding queue.
+ */
+function openai_embeddings_batch_add_existing_content(&$context) {
+  // Initialize the sandbox and results if they are empty.
+  if (empty($context['sandbox'])) {
+    $context['sandbox'] = [
+      'total' => db_query('SELECT COUNT(*) FROM {node} WHERE status = 1')->fetchField(),
+      'current' => 0,
+      'added' => 0,
+    ];
+    $context['results'] = ['added' => 0];
+  }
+
+  // If there are no nodes to process, immediately mark the batch as finished.
+  if ($context['sandbox']['total'] == 0) {
+    $context['finished'] = 1;
+    return;
+  }
+
+  // Determine the batch size for each iteration.
+  $limit = 50;
+
+  // Fetch the next set of nodes to process.
+  $query = db_select('node', 'n')
+    ->fields('n', ['nid', 'type'])
+    ->condition('status', 1)
+    ->range($context['sandbox']['current'], $limit);
+  $results = $query->execute();
+
+  // Get the queue object for the embedding queue.
+  $queue = BackdropQueue::get('embedding_queue');
+
+  // Process the results and add them to the queue.
+  $added_in_this_batch = 0;
+  foreach ($results as $record) {
+    $item = [
+      'entity_id' => $record->nid,
+      'entity_type' => 'node',
+    ];
+    if ($queue->createItem($item)) {
+      $added_in_this_batch++;
+    }
+  }
+
+  // Update the progress.
+  $context['sandbox']['current'] += $limit;
+  $context['sandbox']['added'] += $added_in_this_batch;
+  $context['results']['added'] += $added_in_this_batch;
+
+  // If we have processed all items, mark the batch as finished.
+  if ($context['sandbox']['current'] >= $context['sandbox']['total']) {
+    $context['finished'] = 1;
+    /* watchdog('openai_embeddings', 'Batch process completed: @added items added to the queue.', [
+      '@added' => $context['results']['added'],
+    ]); */
+  } else {
+    // Log progress for debugging.
+    /* watchdog('openai_embeddings', 'Batch progress: @current of @total items processed. Added this batch: @added.', [
+      '@current' => $context['sandbox']['current'],
+      '@total' => $context['sandbox']['total'],
+      '@added' => $added_in_this_batch,
+    ]); */
+  }
+}
+
+/**
+ * Callback for when the batch process finishes.
+ */
+function openai_embeddings_batch_finished($success, $results, $operations) {
+  if ($success) {
+    $added = $results['added'] ?? 0;
+    backdrop_set_message(t('Batch process completed: @count items added to the embedding queue.', ['@count' => $added]));
+    //watchdog('openai_embeddings', 'Batch process added @count items to the queue.', ['@count' => $added]);
+  } else {
+    backdrop_set_message(t('Batch process encountered an error.'), 'error');
+   // watchdog('openai_embeddings', 'Batch process encountered an error.', [], WATCHDOG_ERROR);
+  }
+}
+
+/**
+ * Manually queue all existing content.
+ */
+function openai_embeddings_queue_existing_content() {
+  $queue = BackdropQueue::get('embedding_queue');
+  $added = 0;
+
+  $query = db_select('node', 'n')
+    ->fields('n', ['nid', 'type'])
+    ->condition('status', 1);
+  $results = $query->execute();
+
+  foreach ($results as $record) {
+    $item = [
+      'entity_id' => $record->nid,
+      'entity_type' => 'node',
+    ];
+    if ($queue->createItem($item)) {
+      $added++;
+    }
+  }
+
+  //watchdog('openai_embeddings', '@count nodes added to the embedding queue.', ['@count' => $added]);
+  backdrop_set_message(t('@count nodes have been added to the embedding queue.', ['@count' => $added]));
+}
+
+
+
+

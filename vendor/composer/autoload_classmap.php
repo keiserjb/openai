@@ -221,6 +221,8 @@ return array(
     'OpenAI\\Responses\\Chat\\CreateResponseToolCall' => $vendorDir . '/openai-php/client/src/Responses/Chat/CreateResponseToolCall.php',
     'OpenAI\\Responses\\Chat\\CreateResponseToolCallFunction' => $vendorDir . '/openai-php/client/src/Responses/Chat/CreateResponseToolCallFunction.php',
     'OpenAI\\Responses\\Chat\\CreateResponseUsage' => $vendorDir . '/openai-php/client/src/Responses/Chat/CreateResponseUsage.php',
+    'OpenAI\\Responses\\Chat\\CreateResponseUsageCompletionTokensDetails' => $vendorDir . '/openai-php/client/src/Responses/Chat/CreateResponseUsageCompletionTokensDetails.php',
+    'OpenAI\\Responses\\Chat\\CreateResponseUsagePromptTokensDetails' => $vendorDir . '/openai-php/client/src/Responses/Chat/CreateResponseUsagePromptTokensDetails.php',
     'OpenAI\\Responses\\Chat\\CreateStreamedResponse' => $vendorDir . '/openai-php/client/src/Responses/Chat/CreateStreamedResponse.php',
     'OpenAI\\Responses\\Chat\\CreateStreamedResponseChoice' => $vendorDir . '/openai-php/client/src/Responses/Chat/CreateStreamedResponseChoice.php',
     'OpenAI\\Responses\\Chat\\CreateStreamedResponseDelta' => $vendorDir . '/openai-php/client/src/Responses/Chat/CreateStreamedResponseDelta.php',
