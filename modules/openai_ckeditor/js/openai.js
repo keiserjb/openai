@@ -485,20 +485,20 @@
       formElement.setAttribute('aria-modal', 'true');
       formElement.setAttribute('role', 'dialog');
       formElement.innerHTML = `
-        <label for="${inputId}" aria-label="${labelText}">${labelText}</label>
-        <input type="text" id="${inputId}" name="${inputId}" class="ck-input" aria-label="Input for ${labelText}" />
-        <div class="ck-form-buttons">
-            <button type="submit" class="ck-button-save" aria-label="Submit form">✔</button>
-            <button type="button" class="ck-button-cancel" aria-label="Cancel form">✘</button>
-        </div>
-    `;
+    <label for="${inputId}" aria-label="${labelText}">${labelText}</label>
+    <textarea id="${inputId}" name="${inputId}" class="ck-input" aria-label="Input for ${labelText}"></textarea>
+    <div class="ck-form-buttons">
+        <button type="submit" class="ck-button-save" aria-label="Submit form">✔</button>
+        <button type="button" class="ck-button-cancel" aria-label="Cancel form">✘</button>
+    </div>
+  `;
 
       // Append form to the document body or editor container
       document.body.appendChild(formElement);
       formElement.classList.add('ck-openai-form-modal');
 
       // Trap focus within the form
-      const focusableElements = formElement.querySelectorAll('input, button');
+      const focusableElements = formElement.querySelectorAll('textarea, button');
       const firstFocusableElement = focusableElements[0];
       const lastFocusableElement = focusableElements[focusableElements.length - 1];
 
@@ -537,6 +537,13 @@
 
       // Set focus to the first focusable element when the form is opened
       firstFocusableElement.focus();
+
+      // Add auto-resize functionality to the textarea
+      const textarea = formElement.querySelector('textarea');
+      textarea.addEventListener('input', function () {
+        textarea.style.height = 'auto'; // Reset height to auto to shrink if needed
+        textarea.style.height = `${textarea.scrollHeight}px`; // Adjust height to match content
+      });
 
       return formElement;
     }
@@ -734,3 +741,16 @@ _writeHTML(html, range) {
 
   CKEditor5.openai = { OpenAI: OpenAI };
 })(jQuery, Backdrop, CKEditor5);
+
+document.addEventListener('DOMContentLoaded', function () {
+  const textarea = document.getElementById('promptInput');
+
+  textarea.addEventListener('input', function () {
+    // Reset the height to auto to shrink if content is deleted
+    textarea.style.height = 'auto';
+
+    // Adjust height based on scrollHeight
+    textarea.style.height = textarea.scrollHeight + 'px';
+  });
+});
+

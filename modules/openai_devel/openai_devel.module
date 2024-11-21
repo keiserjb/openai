@@ -14,44 +14,41 @@ function openai_devel_menu() {
     'type' => MENU_NORMAL_ITEM,
   ];
 
+  $items['admin/devel/generate/content-gpt'] = [
+    'title' => 'Generate nodes (ChatGPT)',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => ['openai_devel_generate_content_form'],
+    'access arguments' => ['administer site configuration'],
+    'type' => MENU_LOCAL_TASK,
+  ];
+
   return $items;
 }
 
 /**
  * Form for generating content using OpenAI's GPT services.
- *
- * @param array $form
- *   The form array.
- * @param array $form_state
- *   The form state.
- *
- * @return array
- *   The form array.
  */
 function openai_devel_generate_content_form($form, &$form_state) {
   $config = config_get('openai.settings');
-  $apiKey = $config['api_key'];
+  $apiKey = key_get_key_value($config['api_key']);
 
   if (empty($apiKey)) {
-    backdrop_set_message(
-      t('API key is not set. Please configure the API key in OpenAI settings.'),
-      'error'
-    );
-    return;
+    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
+    return $form;
   }
 
+  $api = new OpenAIApi($apiKey);
+  $models = $api->filterModels(['gpt']);
+
+  // OpenAI settings.
   $form['openai_model'] = [
     '#type' => 'select',
     '#title' => t('Model'),
-    '#options' => [
-      'gpt-3.5-turbo' => 'gpt-3.5-turbo',
-      'gpt-4' => 'gpt-4',
-    ],
+    '#options' => $models,
     '#default_value' => 'gpt-3.5-turbo',
     '#description' => t('Select which model to use to generate text.'),
     '#required' => TRUE,
   ];
-
   $form['openai_system'] = [
     '#type' => 'textarea',
     '#title' => t('Profile'),
@@ -120,7 +117,7 @@ function openai_devel_generate_content_form($form, &$form_state) {
   $form['num_nodes'] = array(
     '#type' => 'number',
     '#title' => t('How many nodes would you like to generate?'),
-    '#default_value' => 50,
+    '#default_value' => 15,
     '#min' => 1,
     '#max' => 999999,
   );
@@ -147,13 +144,14 @@ function openai_devel_generate_content_form($form, &$form_state) {
     '#access' => module_exists('comment'),
   );
 
-  $form['title_length'] = array(
+  $form['title_length'] = [
     '#type' => 'number',
     '#title' => t('Maximum number of words in titles'),
     '#default_value' => 4,
     '#min' => 1,
     '#max' => 100,
-  );
+    '#description' => t('Set the maximum number of words for generated titles.'),
+  ];
 
   $form['add_alias'] = array(
     '#type' => 'checkbox',
@@ -191,116 +189,164 @@ function openai_devel_generate_content_form($form, &$form_state) {
 }
 
 /**
- * FormAPI submission to generate nodes.
+ * Form submission handler.
  */
 function openai_devel_generate_content_form_submit($form, &$form_state) {
+  $options = [
+    'node_types' => array_filter($form_state['values']['node_types']),
+    'num_nodes' => $form_state['values']['num_nodes'],
+    'system' => $form_state['values']['openai_system'],
+    'model' => $form_state['values']['openai_model'],
+    'temperature' => $form_state['values']['openai_temperature'],
+    'max_tokens' => $form_state['values']['openai_max_tokens'],
+    'add_alias' => $form_state['values']['add_alias'],
+    'max_comments' => $form_state['values']['max_comments'],
+    'time_range' => $form_state['values']['time_range'],
+    'languages' => array_filter($form_state['values']['add_language']),
+    'title_length' => $form_state['values']['title_length'],
+  ];
+
+  // Handle content deletion if selected.
+  if ($form_state['values']['kill_content']) {
+    $nids = db_query("SELECT nid FROM {node} WHERE type IN (:types)", [':types' => $options['node_types']])->fetchCol();
+    if ($nids) {
+      node_delete_multiple($nids);
+      backdrop_set_message(t('Deleted @count nodes.', ['@count' => count($nids)]));
+    }
+  }
+  // Generate content.
+  $total_created = openai_devel_generate_content($options);
+
+  backdrop_set_message(t('Created @count nodes.', ['@count' => $total_created]));
+}
+
+
+/**
+ * Generates content using OpenAI.
+ */
+function openai_devel_generate_content($options) {
   $config = config_get('openai.settings');
-  $apiKey = $config['api_key'];
+  $apiKey = key_get_key_value($config['api_key']);
   $api = new OpenAIApi($apiKey);
 
-  $model = $form_state['values']['openai_model'];
-  $system = $form_state['values']['openai_system'];
-  $temperature = $form_state['values']['openai_temperature'];
-  $max_tokens = $form_state['values']['openai_max_tokens'];
-  $html = $form_state['values']['openai_html'];
+  $node_types = $options['node_types'] ?? [];
+  $system = $options['system'] ?? '';
+  $model = $options['model'] ?? 'gpt-3.5-turbo';
+  $temperature = $options['temperature'] ?? 0.7;
+  $max_tokens = $options['max_tokens'] ?? 512;
+  $add_alias = $options['add_alias'] ?? FALSE;
+  $num_nodes = $options['num_nodes'] ?? 1;
+  $max_comments = $options['max_comments'] ?? 0;
+  $time_range = $options['time_range'] ?? 0;
+  $languages = $options['languages'] ?? [];
+  $title_length = $options['title_length'] ?? 4;
 
-  // Get the selected node types and the number of nodes to generate.
-  $node_types = array_filter($form_state['values']['node_types']);
-  $num_nodes = $form_state['values']['num_nodes'];
-  $created_nodes = 0;
+  $total_created = 0;
 
   foreach ($node_types as $type) {
     for ($i = 0; $i < $num_nodes; $i++) {
-      // Adding more variation to the prompts
-      $unique_prompt = "Generate unique and relevant content for a {$type} node. ";
-      $unique_prompt .= "Title it appropriately, followed by several paragraphs of engaging text. ";
-      $unique_prompt .= "Make this one different from any others generated so far.";
-
-      // Create a unique system message for each node
-      $system_variation = $system . " This is node number " . ($i + 1) . " for the content type '{$type}'.";
-
       try {
+        // Include title length in the prompt for OpenAI.
+        $system_message = $system . " Generate unique content for type '$type'. The title should have approximately $title_length words.";
+        $unique_prompt = "Generate unique and relevant content for a '{$type}' node. The title should be $title_length words. Avoid using the word 'title' in the title. Ensure the content is engaging and contains several paragraphs. Incorporate specific details or examples to make it stand out. Make this one distinct from any others by focusing on a specific perspective, historical detail, or novel idea.";
+
         $response = $api->chat(
           $model,
           [
-            ['role' => 'system', 'content' => $system_variation],
-            ['role' => 'user', 'content' => $unique_prompt]
+            ['role' => 'system', 'content' => $system_message],
+            ['role' => 'user', 'content' => $unique_prompt],
           ],
           $temperature,
           $max_tokens
         );
 
-        // Process response
-        $output = $html ? filter_xss($response) : check_plain($response);
-        list($title, $body) = openai_devel_extract_title_and_body($output);
+        list($title, $body) = openai_devel_extract_title_and_body($response);
 
-        // Clean up the title and body content
-        $title = openai_devel_unsupported_characters($title);
-        $body = openai_devel_unsupported_characters($body);
+        // Set language for the node.
+        $langcode = LANGUAGE_NONE;
+        if (!empty($languages)) {
+          $langcode = array_rand($languages);
+        }
 
-        // Create node
-        $values = [
+        // Create node.
+        $node = new Node([
           'type' => $type,
-          'title' => truncate_utf8($title, 255, TRUE, TRUE),
+          'title' => $title,
           'body' => [
-            LANGUAGE_NONE => [
-              0 => [
-                'value' => truncate_utf8($body, 2000, TRUE, TRUE),
-                'format' => $html ? 'full_html' : 'plain_text',
+            $langcode => [
+              [
+                'value' => $body,
+                'format' => 'full_html',
               ],
             ],
           ],
           'uid' => 1,
           'status' => 1,
-          'comment' => 0,
-          'last_comment_timestamp' => REQUEST_TIME,
-          'last_comment_name' => '',
-          'last_comment_uid' => 0,
-          'comment_count' => 0,
-          'promote' => 0,
-          'sticky' => 0,
-          'created' => REQUEST_TIME,
-        ];
-        $node = entity_create('node', $values);
+          'created' => REQUEST_TIME - mt_rand(0, $time_range),
+        ]);
+
         $node->save();
-        $created_nodes++;
+
+        // Add URL alias if required.
+        if ($add_alias) {
+          $path_alias = [
+            'source' => '/node/' . $node->nid,
+            'alias' => '/generated-' . strtolower($type) . '-' . $node->nid,
+          ];
+          path_save($path_alias); // Pass array directly without reference.
+        }
+
+
+        // Add comments if required.
+        if ($max_comments > 0 && $node->comment == COMMENT_NODE_OPEN) {
+          for ($c = 0; $c < $max_comments; $c++) {
+            $comment = new Comment([
+              'nid' => $node->nid,
+              'uid' => 1,
+              'subject' => t('Generated Comment'),
+              'comment_body' => [
+                $langcode => [
+                  [
+                    'value' => 'This is a generated comment.',
+                    'format' => 'plain_text',
+                  ],
+                ],
+              ],
+              'status' => 1,
+              'created' => REQUEST_TIME - mt_rand(0, 3600),
+            ]);
+            $comment->save();
+          }
+        }
+
+        $total_created++;
       } catch (Exception $e) {
-        form_set_error('', t('Error generating content: @message', ['@message' => $e->getMessage()]));
+        watchdog('openai_devel', 'Error: @message', ['@message' => $e->getMessage()], WATCHDOG_ERROR);
       }
     }
   }
 
-  backdrop_set_message(t('@num node(s) created.', ['@num' => $created_nodes]));
-
+  return $total_created;
 }
 
 /**
- * Extracts the title and body from the OpenAI response.
+ * Clean the body text by removing unnecessary artifacts.
  */
-function openai_devel_extract_title_and_body($output) {
-  // Assuming the title is the first line ending with a period, followed by body content
-  $lines = explode("\n", $output);
-  $title = trim(array_shift($lines));
+function openai_devel_extract_title_and_body($response) {
+  $lines = explode("\n", $response);
 
-  // Remove "Title: " prefix if present
-  if (strpos($title, 'Title: ') === 0) {
-    $title = substr($title, 7);
-  }
+  // Remove Markdown-style headers from the title.
+  $title = trim(array_shift($lines));
+  // Remove leading `#` or `*` characters from the title.
+  $title = preg_replace('/^[#*]+/', '', $title);
+
+  // Remove trailing `#` or `*` characters from the title.
+  $title = preg_replace('/[#*]+$/', '', $title);
 
   $body = implode("\n", $lines);
-  return [$title, $body];
+
+  return [trim($title), trim($body)];
 }
-
-/**
- * Removes unsupported characters from the string.
- */
-function openai_devel_unsupported_characters($string) {
-  return preg_replace('/[^\x20-\x7E]/', '', $string);
-}
-
-
-
-
 
 
 

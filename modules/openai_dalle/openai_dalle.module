@@ -230,8 +230,8 @@ function openai_dalle_get_response($form, &$form_state) {
  * Form submit handler for the DALL-E form.
  */
 function openai_dalle_form_submit($form, &$form_state) {
-  $config = config_get('openai.settings');
-  $apiKey = $config['api_key'];
+  $openai_config = config('openai.settings');
+  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (empty($apiKey)) {
     form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));

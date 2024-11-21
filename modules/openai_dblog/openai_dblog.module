@@ -1,6 +1,17 @@
 <?php
 
 /**
+ * Implements hook_config_info().
+ */
+function openai_dblog_config_info() {
+  $prefixes['openai_dblog.settings'] = array(
+    'label' => t('OpenAI dblog Settings'),
+    'group' => t('Configuration'),
+  );
+  return $prefixes;
+}
+
+/**
  * Implements hook_autoload_info().
  */
 function openai_dblog_autoload_info() {
@@ -32,7 +43,8 @@ function openai_dblog_menu() {
  */
 function openai_dblog_settings_form($form, &$form_state) {
   $config = config_get('openai_dblog.settings');
-  $api = new OpenAIApi(config_get('openai.settings')['api_key']);
+  $openai_config = config('openai.settings');
+  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   $levels = watchdog_severity_levels();
   $options = [];

@@ -5,3 +5,4 @@ package = OpenAI
 type = module
 backdrop = 1.x
 configure = admin/config/openai/settings
+dependencies[] = key

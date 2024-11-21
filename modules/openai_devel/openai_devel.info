@@ -4,4 +4,5 @@ description = Adds GPT generational capability to Devel generate commands.
 package = OpenAI
 backdrop = 1.x
 configure = admin/devel/generate/content-gpt
-dependencies[] = openai, devel:devel_generate
+dependencies[] = openai
+dependencies[] = devel
