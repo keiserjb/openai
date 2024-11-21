@@ -147,7 +147,8 @@ function openai_fetch_available_models() {
   try {
 
     // Retrieve the API key using the Key module.
-    $apiKey = key_get_key_value(config_get('openai.settings', 'api_key'));
+    $openai_config = config('openai.settings');
+    $apiKey = $openai_config->get('api_key');
 
     // Ensure the API key is set.
     if (empty($apiKey)) {
