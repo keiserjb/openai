@@ -179,4 +179,3 @@ function openai_fetch_available_models() {
     return [];
   }
 }
-
