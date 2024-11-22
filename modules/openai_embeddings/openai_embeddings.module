@@ -99,12 +99,12 @@ function openai_embeddings_settings_form(array $form, array &$form_state) {
   $openai_config = config('openai.settings');
   $apiKey = key_get_key_value($openai_config->get('api_key'));
 
-    if (empty($apiKey)) {
-      form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
-      return $form;
-    }
+  if (empty($apiKey)) {
+    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
+    return $form;
+  }
 
-    $api = new OpenAIApi($apiKey);
+  $api = new OpenAIApi($apiKey);
 
   $form = array();
   $form['#config'] = 'openai_embeddings.settings';
@@ -207,9 +207,9 @@ function openai_embeddings_settings_form(array $form, array &$form_state) {
   $form['connections']['plugin_settings']['pinecone_settings']['pinecone_api_key'] = [
     '#type' => 'key_select',
     '#title' => t('API Key'),
+    '#default_value' => $config->get('pinecone_api_key'),
     '#options' => key_get_key_names_as_options(),
     '#key_filters' => ['type' => 'authentication'],
-    //'#default_value' => $config->get('pinecone_api_key'),
     '#description' => t('The API key for Pinecone.'),
   ];
 
@@ -217,9 +217,9 @@ function openai_embeddings_settings_form(array $form, array &$form_state) {
   $form['connections']['plugin_settings']['pinecone_settings']['pinecone_hostname'] = [
     '#type' => 'key_select',
     '#title' => t('Hostname'),
+    '#default_value' => $config->get('pinecone_hostname'),
     '#options' => key_get_key_names_as_options(),
     '#key_filters' => ['type' => 'authentication'],
-    '#default_value' => $config->get('pinecone_hostname'),
     '#description' => t('The hostname or URI for your Pinecone instance.'),
   ];
 
@@ -246,9 +246,9 @@ function openai_embeddings_settings_form(array $form, array &$form_state) {
   /* $form['connections']['plugin_settings']['milvus_settings']['milvus_token'] = [
     '#type' => 'key_select',
     '#title' => t('API Token'),
+    '#default_value' => $config->get('milvus_token'),
     '#options' => key_get_key_names_as_options(),
     '#key_filters' => ['type' => 'authentication'],
-    '#default_value' => $config->get('milvus_token'),
     '#description' => t('The API token for Milvus.'),
   ]; */
 
@@ -256,9 +256,9 @@ function openai_embeddings_settings_form(array $form, array &$form_state) {
   /* $form['connections']['plugin_settings']['milvus_settings']['milvus_hostname'] = [
     '#type' => 'key_select',
     '#title' => t('Hostname'),
+    '#default_value' => $config->get('milvus_hostname'),
     '#options' => key_get_key_names_as_options(),
     '#key_filters' => ['type' => 'authentication'],
-    '#default_value' => $config->get('milvus_hostname'),
     '#description' => t('The hostname or URI for your Milvus instance.'),
   ]; */
 
@@ -340,67 +340,60 @@ function openai_embeddings_search_form($form, &$form_state) {
  */
 function openai_embeddings_search_form_ajax_callback($form, &$form_state) {
   $query_text = $form_state['values']['search_input'];
-  $filter_by = $form_state['values']['filter_by'];
-  $score_threshold = $form_state['values']['score_threshold'];
   $namespace = $form_state['values']['namespace'];
 
   // Prepare the query text for embedding.
   $text = openai_embeddings_prepare_text($query_text, 1024);
-  $openai_response = openai_client_embed($text, 'text-embedding-ada-002');
+  $openai_response = openai_client_embed($text);
 
   $output = '<ul>';
 
   if ($openai_response) {
-      $embedding = $openai_response['data'][0]['embedding'];
-      $vector_client = openai_embeddings_get_vector_client('pinecone');
+    $embedding = $openai_response['data'][0]['embedding'];
 
-      // Perform the Pinecone query.
-      $query_options = [
-          'vector' => $embedding,
-          'top_k' => 8,
-          'collection' => $namespace,
-          'include_metadata' => TRUE,
-      ];
-      $vector_results = $vector_client->query($query_options);
+    // Dynamically retrieve the configured vector client.
+    $vector_client_type = config_get('openai_embeddings.settings')['connections']['vector_client_plugin'] ?? 'pinecone';
+    $vector_client = openai_embeddings_get_vector_client($vector_client_type);
 
-      if (!empty($vector_results['matches'])) {
-          foreach ($vector_results['matches'] as $match) {
-              $entity_type = $match['metadata']['entity_type'] ?? null;
-              $entity_id = $match['metadata']['entity_id'] ?? null;
+    // Perform the query with the vector client.
+    $query_options = [
+      'vector' => $embedding,
+      'top_k' => 8,
+      'collection' => $namespace,
+      'include_metadata' => TRUE,
+    ];
+    $vector_results = $vector_client->query($query_options);
 
-              // Check if metadata is missing.
-              if (!$entity_type || !$entity_id) {
-                  /* watchdog('openai_embeddings', 'Missing metadata in match: @match', [
-                      '@match' => print_r($match, TRUE),
-                  ], WATCHDOG_WARNING); */
-                  $output .= '<li>Match found but missing entity metadata.</li>';
-                  continue;
-              }
+    if (!empty($vector_results['matches'])) {
+      foreach ($vector_results['matches'] as $match) {
+        $entity_type = $match['metadata']['entity_type'] ?? null;
+        $entity_id = $match['metadata']['entity_id'] ?? null;
 
-              // Load the entity.
-              $entity = entity_load($entity_type, $entity_id);
-              if ($entity) {
-                  // Use a safe fallback for labels.
-                  $entity_label = method_exists($entity, 'label') ? $entity->label() : "Entity $entity_id";
-                  $output .= '<li>' . l($entity_label, "$entity_type/$entity_id") . ' had a score of ' . $match['score'] . '</li>';
-              } else {
-                  $output .= '<li>Entity with ID ' . $entity_id . ' could not be loaded.</li>';
-              }
+        if ($entity_type && $entity_id) {
+          $entity = entity_load($entity_type, $entity_id);
+          if ($entity) {
+            $entity_label = method_exists($entity, 'label') ? $entity->label() : "Entity $entity_id";
+            $output .= '<li>' . l($entity_label, "$entity_type/$entity_id") . ' had a score of ' . $match['score'] . '</li>';
+          } else {
+            $output .= '<li>Entity with ID ' . $entity_id . ' could not be loaded.</li>';
           }
-      } else {
-          $output .= '<li>No results found or below threshold.</li>';
+        } else {
+          $output .= '<li>Match found but missing entity metadata.</li>';
+        }
       }
+    } else {
+      $output .= '<li>No results found or below threshold.</li>';
+    }
   } else {
-      $output = '<p>Error retrieving results from OpenAI or Pinecone.</p>';
+    $output .= '<p>Error retrieving results from OpenAI or vector client.</p>';
   }
 
   $output .= '</ul>';
 
-  // Return an AJAX response to replace the results dynamically.
   return [
-      '#markup' => $output,
-      '#prefix' => '<div id="openai-response">',
-      '#suffix' => '</div>',
+    '#markup' => $output,
+    '#prefix' => '<div id="openai-response">',
+    '#suffix' => '</div>',
   ];
 }
 
@@ -409,8 +402,6 @@ function openai_embeddings_search_form_ajax_callback($form, &$form_state) {
  *
  * @param string $text
  *   The text to embed.
- * @param string $model
- *   The model to use (default: text-embedding-ada-002).
  *
  * @return array
  *   The embedding data.
@@ -418,12 +409,21 @@ function openai_embeddings_search_form_ajax_callback($form, &$form_state) {
  * @throws Exception
  *   If the API call fails.
  */
-function openai_client_embed($text, $model = 'text-embedding-ada-002') {
-  $api_key = config_get('openai.settings')['api_key'];
+function openai_client_embed($text) {
+  $config = config('openai_embeddings.settings');
+  $model = $config->get('model') ?? 'text-embedding-ada-002';
+
+  $openai_config = config('openai.settings');
+  $key_name = $openai_config->get('api_key');
+  $api_key = key_get_key_value($key_name);
+
+  if (!$api_key) {
+    throw new Exception('API key is missing or not retrievable from the Key module.');
+  }
+
   $endpoint = 'https://api.openai.com/v1/embeddings';
 
   try {
-    // Use Guzzle HTTP client for the API call.
     $client = new \GuzzleHttp\Client();
     $response = $client->post($endpoint, [
       'headers' => [
@@ -436,27 +436,14 @@ function openai_client_embed($text, $model = 'text-embedding-ada-002') {
       ],
     ]);
 
-    // Decode the response body into an array.
     $response_data = json_decode($response->getBody()->getContents(), TRUE);
 
-    // Check if decoding was successful and data exists.
     if (json_last_error() !== JSON_ERROR_NONE || !isset($response_data['data'][0]['embedding'])) {
       throw new \Exception('Failed to decode OpenAI API response or embedding data is missing.');
     }
 
-    // Log the decoded response for debugging.
-    /* watchdog('openai_embeddings', 'Decoded Response: @response', [
-      '@response' => print_r($response_data, TRUE),
-    ], WATCHDOG_DEBUG); */
-
-    // Return the decoded response data.
     return $response_data;
-  }
-  catch (\Exception $e) {
-    // Log the error and rethrow the exception.
-    /* watchdog('openai_embeddings', 'Error calling OpenAI API: @message', [
-      '@message' => $e->getMessage(),
-    ], WATCHDOG_ERROR); */
+  } catch (\Exception $e) {
     throw new Exception('OpenAI API call failed: ' . $e->getMessage());
   }
 }
@@ -531,12 +518,14 @@ function openai_embeddings_delete_confirm_form($form, &$form_state) {
  * Submit handler for the delete confirmation form.
  */
 function openai_embeddings_delete_confirm_form_submit($form, &$form_state) {
-  // Load database connection.
-  $database = backdrop_get_database();
+  // Get the database connection.
+  $database = Database::getConnection();
 
-  // Query to retrieve entity types.
-  $results = $database->query('SELECT DISTINCT entity_type FROM {openai_embeddings}');
-  $plugin_id = config_get('openai_embeddings.settings', 'vector_client_plugin');
+  // Query to retrieve distinct entity types.
+  $results = $database->query('SELECT DISTINCT entity_type FROM {openai_embeddings}')->fetchAll();
+
+  // Get the vector client plugin from settings.
+  $plugin_id = config_get('openai_embeddings.settings')['connections']['vector_client_plugin'] ?? 'pinecone';
   $vector_client = openai_embeddings_get_vector_client($plugin_id);
 
   // Perform deletion for each entity type.
@@ -550,6 +539,7 @@ function openai_embeddings_delete_confirm_form_submit($form, &$form_state) {
   backdrop_set_message(t('All items have been deleted in the vector database.'));
   $form_state['redirect'] = 'admin/config/openai/openai-embeddings/stats';
 }
+
 
 /**
  * Implements hook_node_insert().
@@ -827,7 +817,7 @@ function openai_embeddings_batch_finished($success, $results, $operations) {
     //watchdog('openai_embeddings', 'Batch process added @count items to the queue.', ['@count' => $added]);
   } else {
     backdrop_set_message(t('Batch process encountered an error.'), 'error');
-   // watchdog('openai_embeddings', 'Batch process encountered an error.', [], WATCHDOG_ERROR);
+    // watchdog('openai_embeddings', 'Batch process encountered an error.', [], WATCHDOG_ERROR);
   }
 }
 
@@ -856,7 +846,3 @@ function openai_embeddings_queue_existing_content() {
   //watchdog('openai_embeddings', '@count nodes added to the embedding queue.', ['@count' => $added]);
   backdrop_set_message(t('@count nodes have been added to the embedding queue.', ['@count' => $added]));
 }
-
-
-
-
