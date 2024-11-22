@@ -18,84 +18,84 @@ class EmbeddingQueueWorker {
       if (!$entity) {
         throw new Exception("Could not load entity with ID {$data['entity_id']}.");
       }
-  
+
       // Log the entity type.
-      /* watchdog('openai_embeddings', 'Processing entity ID: @id, Type: @type', [
+       watchdog('openai_embeddings', 'Processing entity ID: @id, Type: @type', [
         '@id' => $entity->nid,
         '@type' => $entity->type,
-      ], WATCHDOG_DEBUG); */
-  
+      ], WATCHDOG_DEBUG);
+
       // Get configuration.
       $config = config_get('openai_embeddings.settings');
       $stopwords = array_map('trim', explode(',', $config['stopwords'] ?? ''));
       $model = $config['model'] ?? 'text-embedding-ada-002';
       $plugin_id = $config['vector_client_plugin'] ?? NULL;
       $allowed_bundles = $config['content_types'] ?? [];
-  
+
       if (!$plugin_id) {
         throw new Exception('Vector client plugin ID is not configured.');
       }
-  
+
       // Skip entity if its bundle is not allowed.
       if (!in_array($entity->type, $allowed_bundles)) {
-        /* watchdog('openai_embeddings', 'Skipping entity ID: @id because its bundle (@bundle) is not allowed.', [
+         /*watchdog('openai_embeddings', 'Skipping entity ID: @id because its bundle (@bundle) is not allowed.', [
           '@id' => $entity->nid,
           '@bundle' => $entity->type,
-        ], WATCHDOG_INFO); */
+        ], WATCHDOG_INFO);*/
         return;
       }
-  
+
       // Load the vector client.
       $vector_client = openai_embeddings_get_vector_client($plugin_id);
-  
+
       // Supported field types.
       $supported_field_types = ['string', 'text', 'text_long', 'text_with_summary', 'text_textarea_with_summary'];
-  
+
       // Retrieve field definitions.
       $fields = field_info_instances('node', $entity->type);
-  
+
       foreach ($fields as $field_name => $field_info) {
         $field_type = $field_info['type'] ?? ($field_info['widget']['type'] ?? 'undefined');
-  
+
         // Check if the field type is supported.
         if (!in_array($field_type, $supported_field_types)) {
-          /* watchdog('openai_embeddings', 'Skipping unsupported field: @field_name, Type: @field_type', [
+           /*watchdog('openai_embeddings', 'Skipping unsupported field: @field_name, Type: @field_type', [
             '@field_name' => $field_name,
             '@field_type' => $field_type,
-          ], WATCHDOG_INFO); */
+          ], WATCHDOG_INFO);*/
           continue;
         }
-  
+
         // Retrieve field values.
         $field_items = field_get_items('node', $entity, $field_name);
         if (empty($field_items)) {
-          /* watchdog('openai_embeddings', 'Field @field_name has no items or is empty.', [
+          /*watchdog('openai_embeddings', 'Field @field_name has no items or is empty.', [
             '@field_name' => $field_name,
-          ], WATCHDOG_INFO); */
+          ], WATCHDOG_INFO);*/
           continue;
         }
-  
+
         foreach ($field_items as $delta => $item) {
           if (empty($item['value'])) {
             continue;
           }
-  
+
           // Prepare text and remove stopwords.
           $text = StringHelper::prepareText($item['value'], [], 8000);
           foreach ($stopwords as $word) {
             $text = $this->removeStopWord($word, $text);
           }
-  
+
           // Generate embedding via OpenAI.
           $response = openai_client_embed($text, $model);
           if (empty($response['data'][0]['embedding'])) {
             throw new Exception('Failed to generate embedding.');
           }
           $embedding = $response['data'][0]['embedding'];
-  
+
           // Dynamically determine the namespace based on entity type.
           $collection = $data['entity_type']; // Use the entity type directly.
-  
+
           // Prepare vector metadata.
           $unique_id = $this->generateUniqueId($entity, $field_name, $delta);
           $vectors = [
@@ -109,13 +109,13 @@ class EmbeddingQueueWorker {
               'field_delta' => $delta,
             ],
           ];
-  
+
           // Upsert into vector database.
           $vector_client->upsert([
             'vectors' => [$vectors],
             'collection' => $collection,
           ]);
-  
+
           // Update the local database.
           db_merge('openai_embeddings')
             ->key([
@@ -139,8 +139,8 @@ class EmbeddingQueueWorker {
       ], WATCHDOG_ERROR);
     }
   }
-  
-  
+
+
 
   /**
    * Generates a unique ID for the record in the vector database.

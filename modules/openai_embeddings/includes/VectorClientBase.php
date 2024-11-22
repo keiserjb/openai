@@ -48,8 +48,16 @@ abstract class VectorClientBase {
    *   The configuration value or NULL if not set.
    */
   public function getEmbeddingConfig(string $key) {
-    return $this->embeddingsConfig[$key] ?? NULL;
+    $value = $this->embeddingsConfig[$key] ?? NULL;
+
+    // If this key references a managed key, resolve its value.
+    if ($key === 'pinecone_api_key' || $key === 'pinecone_hostname') {
+      return key_get_key_value($value);
+    }
+
+    return $value;
   }
+
 
   /**
    * Initialize an HTTP client with appropriate headers and base URI.

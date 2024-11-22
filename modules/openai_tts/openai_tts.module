@@ -154,7 +154,6 @@ function openai_tts_form($form, &$form_state) {
  * Form submission handler for the OpenAI TTS form.
  */
 function openai_tts_form_submit($form, &$form_state) {
-  $openai_config = config('openai.settings');
   $apiKey = key_get_key_value(config('openai.settings')->get('api_key'));
   $api = new OpenAIApi($apiKey);
 
