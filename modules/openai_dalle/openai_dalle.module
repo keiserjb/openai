@@ -5,6 +5,8 @@
 * Permissions for the OpenAI DALL·E module.
 */
 
+use GuzzleHttp\Client as GuzzleClient;
+
 function openai_dalle_permission() {
   return [
     'access openai dalle' => [
@@ -57,9 +59,16 @@ function openai_dalle_form($form, &$form_state) {
   $form['model'] = [
     '#type' => 'select',
     '#title' => t('Model'),
-    '#options' => $models,
+    '#options' => [
+      'dall-e-2' => 'dall-e-2',
+      'dall-e-3' => 'dall-e-3',
+    ],
     '#default_value' => 'dall-e-3',
-    '#description' => t('The model to use to generate an image. See the <a href=":link">link</a> for more information.', ['@link' => 'https://platform.openai.com/docs/models/dall-e']),
+    '#description' => t('The model to use to generate an image.'),
+    '#ajax' => [
+      'callback' => 'openai_dalle_model_select_callback',
+      'wrapper' => 'size-wrapper',
+    ],
   ];
 
   $form['quality'] = [
@@ -82,13 +91,13 @@ function openai_dalle_form($form, &$form_state) {
     '#type' => 'select',
     '#title' => t('Size'),
     '#options' => [
-      '256x256' => '256x256',
-      '512x512' => '512x512',
-      '1024x1024' => '1024x1024',
+      '1024x1024' => '1024x1024', // Default options for 'dall-e-3'.
       '1792x1024' => '1792x1024',
       '1024x1792' => '1024x1792',
     ],
-    '#default_value' => '',
+    '#default_value' => '1024x1024', // Default value.
+    '#prefix' => '<div id="size-wrapper">',
+    '#suffix' => '</div>',
     '#description' => t('The size of the generated images.'),
   ];
 
@@ -116,7 +125,7 @@ function openai_dalle_form($form, &$form_state) {
       'b64_json' => 'b64_json',
     ],
     '#default_value' => 'url',
-    '#description' => t('The image format of the result. See the <a href=":link">link</a> for more information.', ['@link' => 'https://platform.openai.com/docs/api-reference/images/create#images-create-response_format']),
+    '#description' => t('The image format of the result. See the <a href="@link">link</a> for more information.', ['@link' => 'https://platform.openai.com/docs/api-reference/images/create#images-create-response_format']),
   ];
 
   $form['filename'] = [
@@ -158,6 +167,29 @@ function openai_dalle_form($form, &$form_state) {
   ];
 
   return $form;
+}
+
+function openai_dalle_model_select_callback($form, &$form_state) {
+  $selected_model = $form_state['values']['model'];
+
+  if ($selected_model === 'dall-e-2') {
+    $form['size']['#options'] = [
+      '256x256' => '256x256',
+      '512x512' => '512x512',
+      '1024x1024' => '1024x1024',
+    ];
+  } elseif ($selected_model === 'dall-e-3') {
+    $form['size']['#options'] = [
+      '1024x1024' => '1024x1024',
+      '1792x1024' => '1792x1024',
+      '1024x1792' => '1024x1792',
+    ];
+  }
+
+  // Ensure the default value is set to the first option in the updated list.
+  $form['size']['#default_value'] = array_key_first($form['size']['#options']);
+
+  return $form['size'];
 }
 
 /**
@@ -209,18 +241,11 @@ function openai_dalle_form_validate($form, &$form_state) {
  *   The modified form element.
  */
 function openai_dalle_get_response($form, &$form_state) {
-  $storage = $form_state['storage'];
-
-  if (empty($form_state['errors']) && !empty($storage['filepath'])) {
-    if ($storage['format'] === 'b64_json') {
-      $file_url = file_create_url($storage['filepath']);
-      $link = l($storage['filename'], $file_url);
-    } else {
-      $url = $storage['filepath'];
-      $link = l('DALL·E result', $url);
-    }
-
-    $form['file']['#markup'] = 'Download/view the image: ' . $link;
+  if (isset($form_state['storage']) && !empty($form_state['storage']['filepath'])) {
+    $file_url = $form_state['storage']['filepath'];
+    $form['file']['#markup'] = '<img src="' . $file_url . '" alt="' . t('Generated image') . '">';
+  } else {
+    $form['file']['#markup'] = t('No image generated yet.');
   }
 
   return $form['file'];
@@ -240,55 +265,94 @@ function openai_dalle_form_submit($form, &$form_state) {
 
   $api = new OpenAIApi($apiKey);
 
+  // Retrieve form values.
   $prompt = $form_state['values']['prompt'];
   $model = $form_state['values']['model'];
   $quality = $form_state['values']['quality'];
   $size = $form_state['values']['size'];
   $style = $form_state['values']['style'];
   $format = $form_state['values']['response_format'];
-  $filename = $form_state['values']['filename'];
+  $filename_base = $form_state['values']['filename'];
+
+  // Determine file scheme and create a unique filename.
+  $file_scheme = file_default_scheme();
+  $timestamp = REQUEST_TIME;
+  $unique_filename = $filename_base . '-' . $timestamp . '.png';
 
   try {
+    // Generate the image using the OpenAI API.
     $result = $api->images($model, $prompt, $size, $format, $quality, $style);
 
     if ($format === 'b64_json') {
-      $filename = $filename . '.png';
       $data = base64_decode($result);
 
-      // Save the data and create the file.
-      $file_uri = 'public://' . $filename;
+      if ($data === false) {
+        form_set_error('', t('Failed to decode the Base64 image data.'));
+        return;
+      }
+
+      // Save the binary data to the file system.
+      $file_uri = $file_scheme . '://' . $unique_filename;
       $file_save_result = file_unmanaged_save_data($data, $file_uri, FILE_EXISTS_REPLACE);
 
       if ($file_save_result) {
-        $file = file_save_data($data, $file_uri, FILE_EXISTS_REPLACE);
-        if ($file) {
-          $file->status = FILE_STATUS_PERMANENT;
-          file_save($file);
-          $filepath = file_create_url($file->uri);
-          $form_state['storage'] = [
-            'filename' => $file->filename,
-            'filepath' => $filepath,
-            'format' => $format,
-          ];
-        } else {
-          form_set_error('', t('File could not be saved.'));
-        }
+        // Create a managed file entity.
+        $file = entity_create('file', [
+          'uri' => $file_uri,
+          'filename' => $unique_filename,
+          'filemime' => 'image/png',
+          'status' => 1,
+          'uid' => $GLOBALS['user']->uid,
+          'timestamp' => $timestamp,
+        ]);
+
+        file_save($file);
+
+        $form_state['storage'] = [
+          'filename' => $file->filename,
+          'filepath' => file_create_url($file->uri),
+          'fid' => $file->fid,
+          'format' => $format,
+        ];
       } else {
-        form_set_error('', t('File could not be saved.'));
+        form_set_error('', t('Failed to save the image to the file system.'));
       }
     } else {
-      $form_state['storage'] = [
-        'filename' => 'DALL-E result',
-        'filepath' => $result,
-        'format' => $format,
-      ];
+      // Handle URL format response.
+      $client = new GuzzleHttp\Client();
+      $response = $client->get($result);
+
+      if ($response->getStatusCode() === 200) {
+        $file_uri = $file_scheme . '://' . $unique_filename;
+        file_unmanaged_save_data($response->getBody(), $file_uri, FILE_EXISTS_REPLACE);
+
+        $file = entity_create('file', [
+          'uri' => $file_uri,
+          'filename' => $unique_filename,
+          'filemime' => 'image/png',
+          'status' => 1,
+          'uid' => $GLOBALS['user']->uid,
+          'timestamp' => $timestamp,
+        ]);
+
+        file_save($file);
+
+        $form_state['storage'] = [
+          'filename' => $file->filename,
+          'filepath' => file_create_url($file->uri),
+          'fid' => $file->fid,
+          'format' => $format,
+        ];
+      } else {
+        form_set_error('', t('Failed to download the image from the URL.'));
+      }
     }
   } catch (Exception $e) {
     form_set_error('', t('Error generating image: @message', ['@message' => $e->getMessage()]));
   }
 
   $form_state['rebuild'] = TRUE;
+
+  // Ensure storage is set to avoid warnings.
+  $form_state['storage'] = $form_state['storage'] ?? [];
 }
-
-
-
