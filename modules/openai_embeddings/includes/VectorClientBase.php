@@ -1,5 +1,7 @@
 <?php
 
+use GuzzleHttp\Client as GuzzleClient;
+
 /**
  * Base class for vector clients in Backdrop CMS.
  */
@@ -23,66 +25,145 @@ abstract class VectorClientBase {
    * Constructor to load configurations.
    */
   public function __construct() {
-    // Load configuration once during class initialization.
     $this->embeddingsConfig = config_get('openai_embeddings.settings');
     $this->openaiConfig = config_get('openai.settings');
   }
 
   /**
-   * Get OpenAI API key.
+   * Retrieve the OpenAI API key.
    *
    * @return string|null
-   *   OpenAI API key, or NULL if not set.
+   *   The OpenAI API key or NULL if not set.
+   *
+   * @throws \Exception
+   *   If the key value cannot be resolved.
    */
   public function getOpenAIKey(): ?string {
-    return $this->openaiConfig['api_key'] ?? NULL;
-  }
+    $key = $this->openaiConfig['api_key'] ?? NULL;
 
-  /**
-   * Get Pinecone or Milvus configuration based on vector client settings.
-   *
-   * @param string $key
-   *   The configuration key to retrieve.
-   *
-   * @return mixed|null
-   *   The configuration value or NULL if not set.
-   */
-  public function getEmbeddingConfig(string $key) {
-    $value = $this->embeddingsConfig[$key] ?? NULL;
-
-    // If this key references a managed key, resolve its value.
-    if ($key === 'pinecone_api_key' || $key === 'pinecone_hostname') {
-      return key_get_key_value($value);
+    if ($key) {
+      $resolved = key_get_key_value($key);
+      if (!empty($resolved)) {
+        return $resolved;
+      }
+      throw new \Exception('The OpenAI API key could not be resolved using the Key module.');
     }
 
-    return $value;
+    return NULL;
   }
 
+  /**
+   * Resolve configuration values for vector client settings.
+   *
+   * @param string $key
+   *   The key in the configuration array.
+   * @param string $description
+   *   A description of the setting for debugging purposes.
+   * @param bool $resolve_key
+   *   Whether to use the Key module for resolution.
+   *
+   * @return string
+   *   The resolved configuration value.
+   *
+   * @throws \Exception
+   *   If the configuration is invalid or missing.
+   */
+  protected function resolveConfigValue(string $key, string $description, bool $resolve_key = FALSE): string {
+    $value = $this->embeddingsConfig[$key] ?? NULL;
+
+    // Log raw configuration value for debugging.
+    watchdog('openai_embeddings', "Step 1: Raw config for $key: @value", [
+      '@value' => $value ?? 'NULL',
+    ], WATCHDOG_DEBUG);
+
+    // Resolve key values if required.
+    if ($resolve_key && $value) {
+      $resolved = key_get_key_value($value);
+      if (!empty($resolved)) {
+        return trim($resolved);
+      }
+      throw new \Exception("The $description key could not be resolved using the Key module.");
+    }
+
+    // Validate the value.
+    if (empty($value) || !is_string($value)) {
+      throw new \Exception("Invalid or missing $description in configuration.");
+    }
+
+    return trim($value);
+  }
 
   /**
-   * Initialize an HTTP client with appropriate headers and base URI.
+   * Initialize an HTTP client with default options.
    *
    * @param array $options
    *   Additional options for the HTTP client.
    *
    * @return \GuzzleHttp\Client
-   *   The configured Guzzle HTTP client.
+   *   A configured Guzzle HTTP client.
    */
-  public function getHttpClient(array $options = []): \GuzzleHttp\Client {
-    // Default options can be extended by derived classes.
+  public function getHttpClient(array $options = []): GuzzleClient {
     $default_options = [
       'headers' => ['Content-Type' => 'application/json'],
     ];
-    return new \GuzzleHttp\Client(array_merge($default_options, $options));
+    return new GuzzleClient(array_merge($default_options, $options));
   }
 
   /**
-   * Abstract methods for child classes.
+   * Log payload data for debugging purposes.
+   *
+   * @param string $operation
+   *   The operation being performed (e.g., 'query', 'upsert').
+   * @param array $payload
+   *   The payload data to log.
+   */
+  protected function logPayload(string $operation, array $payload): void {
+    watchdog('openai_embeddings', "Payload for $operation: @payload", [
+      '@payload' => json_encode($payload, JSON_PRETTY_PRINT),
+    ], WATCHDOG_DEBUG);
+  }
+
+  /**
+   * Log response data for debugging purposes.
+   *
+   * @param string $operation
+   *   The operation being performed (e.g., 'query', 'upsert').
+   * @param mixed $response
+   *   The response data to log.
+   */
+  protected function logResponse(string $operation, $response): void {
+    watchdog('openai_embeddings', "Response from $operation: @response", [
+      '@response' => json_encode($response, JSON_PRETTY_PRINT),
+    ], WATCHDOG_DEBUG);
+  }
+
+  /**
+   * Handle exceptions and log errors.
+   *
+   * @param string $operation
+   *   The operation being performed (e.g., 'query', 'upsert').
+   * @param \Exception $e
+   *   The exception to handle.
+   *
+   * @throws \Exception
+   *   Re-throws the exception after logging it.
+   */
+  protected function handleError(string $operation, \Exception $e): void {
+    $message = $e instanceof GuzzleHttp\Exception\RequestException && $e->hasResponse()
+      ? $e->getResponse()->getBody()->getContents()
+      : $e->getMessage();
+
+    watchdog('openai_embeddings', "Error during $operation: @message", [
+      '@message' => $message,
+    ], WATCHDOG_ERROR);
+
+    throw $e;
+  }
+
+  /**
+   * Abstract methods to be implemented by child classes.
    */
   abstract public function query(array $parameters);
   abstract public function upsert(array $parameters);
   abstract public function stats();
 }
-
-
-

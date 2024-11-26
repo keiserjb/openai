@@ -1,19 +1,13 @@
 <?php
 
-class MilvusVectorClient {
+use GuzzleHttp\Client as GuzzleClient;
 
-  protected $httpClient;
-  protected $config;
+/**
+ * Milvus vector client class.
+ */
+class MilvusVectorClient extends VectorClientBase {
 
-  /**
-   * Constructor to set configuration.
-   *
-   * @param array $config
-   *   Configuration array.
-   */
-  public function __construct(array $config) {
-    $this->config = $config;
-  }
+  const API_VERSION = '/v1/vector';
 
   /**
    * Get the Milvus client.
@@ -21,42 +15,46 @@ class MilvusVectorClient {
    * @return \GuzzleHttp\Client
    *   The HTTP client.
    */
-  public function getClient(): \GuzzleHttp\Client {
-    if (!isset($this->httpClient)) {
-      $options = [
+  protected function getMilvusClient(): GuzzleClient {
+    try {
+      // Resolve the token and hostname from configuration.
+      $token = $this->resolveConfigValue('milvus_token', 'Milvus token', TRUE);
+      $hostname = $this->resolveConfigValue('milvus_hostname', 'Milvus hostname');
+
+      // Validate hostname format.
+      if (!filter_var($hostname, FILTER_VALIDATE_URL)) {
+        throw new \Exception("Invalid hostname format: $hostname");
+      }
+
+      // Trim and format the hostname.
+      $hostname = rtrim($hostname, '/');
+
+      // Log resolved values for debugging.
+      watchdog('openai_embeddings', "Milvus hostname resolved: @hostname", ['@hostname' => $hostname], WATCHDOG_DEBUG);
+
+      // Return a configured HTTP client.
+      return $this->getHttpClient([
         'headers' => [
+          'Authorization' => "Bearer $token",
           'Content-Type' => 'application/json',
-          'Authorization' => 'Bearer ' . $this->config['token'],
-          'Accept' => 'application/json',
         ],
-        'base_uri' => $this->config['hostname'],
-      ];
-      $this->httpClient = new \GuzzleHttp\Client($options);
+        'base_uri' => $hostname . self::API_VERSION,
+      ]);
+    } catch (\Exception $e) {
+      $this->handleError('client initialization', $e);
     }
-    return $this->httpClient;
   }
 
   /**
-   * Query the vector database.
-   *
-   * @param array $parameters
-   *   Parameters for the query.
-   *
-   * @return array
-   *   The response data.
+   * {@inheritdoc}
    */
   public function query(array $parameters): array {
-    if (empty($parameters['collection'])) {
-      throw new \Exception('Collection name is required by Milvus');
-    }
-    if (empty($parameters['vector'])) {
-      throw new \Exception('Vector to query is required by Milvus');
-    }
+    $client = $this->getMilvusClient();
 
     $payload = [
       'vector' => $parameters['vector'],
       'collectionName' => $parameters['collection'],
-      'limit' => $parameters['top_k'] ?? 5,
+      'limit' => $parameters['top_k'] ?? self::DEFAULT_TOP_K,
     ];
 
     if (!empty($parameters['outputFields'])) {
@@ -71,71 +69,52 @@ class MilvusVectorClient {
       $payload['filter'] = implode(' AND ', $filters);
     }
 
-    $response = $this->getClient()->post('/v1/vector/search', ['json' => $payload]);
-    return json_decode($response->getBody()->getContents(), TRUE);
+    $this->logPayload('query', $payload);
+
+    try {
+      $response = $client->post('/search', ['json' => $payload]);
+      $response_data = json_decode($response->getBody()->getContents(), TRUE);
+
+      $this->logResponse('query', $response_data);
+
+      return $response_data;
+    } catch (\Exception $e) {
+      $this->handleError('query', $e);
+    }
   }
 
   /**
-   * Insert or update vectors in Milvus.
-   *
-   * @param array $parameters
-   *   Parameters for the upsert operation.
+   * {@inheritdoc}
    */
   public function upsert(array $parameters): void {
-    if (empty($parameters['collection'])) {
-      throw new \Exception('Collection name is required by Milvus');
-    }
-    if (empty($parameters['vectors'])) {
-      throw new \Exception('Vectors are required by Milvus');
-    }
+    $client = $this->getMilvusClient();
 
-    $data = $parameters['vectors'];
-    $payload = [
-      'collectionName' => $parameters['collection'],
-      'data' => $data,
-    ];
-
-    $this->getClient()->post('/v1/vector/insert', ['json' => $payload]);
-  }
-
-  /**
-   * Fetch records from Milvus.
-   *
-   * @param array $parameters
-   *   Parameters for fetching records.
-   *
-   * @return array
-   *   The fetched records.
-   */
-  public function fetch(array $parameters): array {
-    if (empty($parameters['collection'])) {
-      throw new \Exception('Collection name is required by Milvus');
-    }
-    if (empty($parameters['source_ids'])) {
-      throw new \Exception('Source IDs to fetch are required by Milvus');
+    if (empty($parameters['collection']) || empty($parameters['vectors'])) {
+      throw new \Exception('Both collection name and vectors are required for upsert.');
     }
 
     $payload = [
       'collectionName' => $parameters['collection'],
-      'filter' => 'source_id in ["' . implode('", "', $parameters['source_ids']) . '"]',
+      'data' => $parameters['vectors'],
     ];
 
-    $response = $this->getClient()->post('/v1/vector/get', ['json' => $payload]);
-    return json_decode($response->getBody()->getContents(), TRUE);
+    $this->logPayload('upsert', $payload);
+
+    try {
+      $client->post('/insert', ['json' => $payload]);
+    } catch (\Exception $e) {
+      $this->handleError('upsert', $e);
+    }
   }
 
   /**
-   * Delete records in Milvus.
-   *
-   * @param array $parameters
-   *   Parameters for deleting records.
+   * {@inheritdoc}
    */
   public function delete(array $parameters): void {
-    if (empty($parameters['collection'])) {
-      throw new \Exception('Collection name is required by Milvus');
-    }
-    if (empty($parameters['source_ids'])) {
-      throw new \Exception('Source IDs to delete are required by Milvus');
+    $client = $this->getMilvusClient();
+
+    if (empty($parameters['collection']) || empty($parameters['source_ids'])) {
+      throw new \Exception('Both collection name and source IDs are required for deletion.');
     }
 
     $payload = [
@@ -143,44 +122,39 @@ class MilvusVectorClient {
       'filter' => 'source_id in ["' . implode('", "', $parameters['source_ids']) . '"]',
     ];
 
-    $this->getClient()->post('/v1/vector/delete', ['json' => $payload]);
+    $this->logPayload('delete', $payload);
+
+    try {
+      $client->post('/delete', ['json' => $payload]);
+    } catch (\Exception $e) {
+      $this->handleError('delete', $e);
+    }
   }
 
   /**
-   * Fetch statistics for Milvus.
-   *
-   * @return array
-   *   The stats array.
+   * {@inheritdoc}
    */
   public function stats(): array {
-    $response = $this->getClient()->get('/v1/vector/collections');
-    return json_decode($response->getBody()->getContents(), TRUE);
-  }
+    $client = $this->getMilvusClient();
 
-  /**
-   * Build stats table.
-   *
-   * @return array
-   *   Render array for the stats table.
-   */
-  public function buildStatsTable(): array {
-    $collections = $this->stats();
-    $rows = [];
+    try {
+      $response = $client->get('/collections');
+      $stats = json_decode($response->getBody()->getContents(), TRUE);
 
-    foreach ($collections as $collection) {
-      $rows[] = [
-        'Collection' => $collection['collectionName'],
-        'Vectors' => $collection['shardsNum'] ?? 'N/A',
-      ];
+      $this->logResponse('stats', $stats);
+
+      $rows = [];
+      foreach ($stats as $collection) {
+        $rows[] = [
+          'Collection' => $collection['collectionName'],
+          'Vectors' => $collection['shardsNum'] ?? 'N/A',
+        ];
+      }
+
+      return $rows;
+    } catch (\Exception $e) {
+      $this->handleError('stats', $e);
+      return [];
     }
-
-    return [
-      '#type' => 'table',
-      '#header' => [
-        t('Collection Name'),
-        t('Vector Count'),
-      ],
-      '#rows' => $rows,
-    ];
   }
 }
