@@ -248,8 +248,10 @@ function openai_devel_generate_content($options) {
     for ($i = 0; $i < $num_nodes; $i++) {
       try {
         // Include title length in the prompt for OpenAI.
-        $system_message = $system . " Generate unique content for type '$type'. The title should have approximately $title_length words.";
-        $unique_prompt = "Generate unique and relevant content for a '{$type}' node. The title should be $title_length words. Avoid using the word 'title' in the title. Ensure the content is engaging and contains several paragraphs. Incorporate specific details or examples to make it stand out. Make this one distinct from any others by focusing on a specific perspective, historical detail, or novel idea.";
+        $system_message = $system . " Generate unique content for type '$type'. The title should have approximately $title_length words and should not include the word 'title'.";
+        $unique_prompt = "Generate unique and relevant content for a '{$type}' node. The title should be $title_length words and must not include the word 'title'.
+            Ensure the content is engaging and contains several paragraphs. Incorporate specific details or examples to make it stand out.
+            Make this one distinct from any others by focusing on a specific perspective, historical detail, or novel idea.";
 
         $response = $api->chat(
           $model,
@@ -262,6 +264,7 @@ function openai_devel_generate_content($options) {
         );
 
         list($title, $body) = openai_devel_extract_title_and_body($response);
+
 
         // Set language for the node.
         $langcode = LANGUAGE_NONE;
@@ -334,27 +337,25 @@ function openai_devel_generate_content($options) {
  * Clean the body text by removing unnecessary artifacts.
  */
 function openai_devel_extract_title_and_body($response) {
+  // Split the response into lines.
   $lines = explode("\n", $response);
 
-  // Remove Markdown-style headers from the title.
-  $title = trim(array_shift($lines));
-  // Remove leading `#` or `*` characters from the title.
-  $title = preg_replace('/^[#*]+/', '', $title);
+  // Assume the first non-empty line is the title.
+  $title = '';
+  foreach ($lines as $line) {
+    $line = trim($line);
+    if (!empty($line)) {
+      $title = $line;
+      break;
+    }
+  }
 
-  // Remove trailing `#` or `*` characters from the title.
-  $title = preg_replace('/[#*]+$/', '', $title);
+  // Remove artifacts like "Title:" or "The title is".
+  $title = preg_replace('/\btitle\b/i', '', $title);
+  $title = preg_replace('/[:\-]+$/', '', $title); // Remove trailing punctuation.
 
-  $body = implode("\n", $lines);
+  // Rejoin the remaining lines as the body.
+  $body = implode("\n", array_slice($lines, 1));
 
   return [trim($title), trim($body)];
 }
-
-
-
-
-
-
-
-
-
-
