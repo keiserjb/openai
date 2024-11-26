@@ -5,4 +5,4 @@ package = OpenAI
 backdrop = 1.x
 configure = admin/devel/generate/content-gpt
 dependencies[] = openai
-dependencies[] = devel
+dependencies[] = devel_generate
