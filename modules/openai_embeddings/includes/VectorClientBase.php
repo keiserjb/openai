@@ -93,7 +93,6 @@ abstract class VectorClientBase {
     return trim($value);
   }
 
-
   /**
    * Initialize an HTTP client with default options.
    *

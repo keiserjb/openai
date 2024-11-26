@@ -346,7 +346,6 @@ function openai_embeddings_search_form_ajax_callback($form, &$form_state) {
 
     // Prepare the query text for embedding.
     $text = openai_embeddings_prepare_text($query_text, 1024);
-    dpm($text);
 
     // Initialize OpenAIApi instance.
     $openai_config = config('openai.settings');
