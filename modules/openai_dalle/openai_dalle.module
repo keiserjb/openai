@@ -142,7 +142,7 @@ function openai_dalle_form($form, &$form_state) {
   ];
 
   $form['response'] = [
-    '#markup' => 'The response will create a link to the image below.',
+    '#markup' => 'The response will display the generated image below and provide a link to download it.',
   ];
 
   $form['file'] = [
@@ -241,9 +241,27 @@ function openai_dalle_form_validate($form, &$form_state) {
  *   The modified form element.
  */
 function openai_dalle_get_response($form, &$form_state) {
-  if (isset($form_state['storage']) && !empty($form_state['storage']['filepath'])) {
-    $file_url = $form_state['storage']['filepath'];
-    $form['file']['#markup'] = '<img src="' . $file_url . '" alt="' . t('Generated image') . '">';
+  $storage = $form_state['storage'];
+
+  if (!empty($storage['fid'])) {
+    // Load the file entity using the file ID.
+    $file = file_load($storage['fid']);
+    if ($file) {
+      $file_url = file_create_url($file->uri);
+
+      // Generate the markup for displaying the image and providing the link.
+      $form['file']['#markup'] = t('
+        <div class="openai-dalle-result">
+          <p><strong>Generated Image:</strong></p>
+          <img src="@file_url" alt="Generated Image" style="max-width: 100%; border: 1px solid #ccc; padding: 10px; display: block;" />
+          <p><a href="@file_url" target="_blank" download>@filename</a></p>
+        </div>', [
+        '@file_url' => $file_url,
+        '@filename' => $file->filename,
+      ]);
+    } else {
+      $form['file']['#markup'] = t('The file could not be loaded.');
+    }
   } else {
     $form['file']['#markup'] = t('No image generated yet.');
   }
