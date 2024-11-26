@@ -24,10 +24,10 @@ any of the provided services.
 
 ## Included Submodules
 
-## **openai_audio**  
+### **openai_audio**  
 Adds capability to interact with the OpenAI audio (speech-to-text) endpoints.
 
-## **openai_chatgpt**  
+### **openai_chatgpt**  
 Enables interaction with the Chat endpoint via the ChatGPT API.
 
 ### **openai_ckeditor**  
