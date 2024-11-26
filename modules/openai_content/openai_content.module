@@ -524,7 +524,7 @@ function openai_content_entity_analyze_content($form, &$form_state) {
 
             foreach ($violated_categories as $category => $did_violate) {
               if ($did_violate) {
-                $content['results']['#items'][] = Unicode::ucfirst($category);
+                $content['results']['#items'][] = mb_ucfirst($category);
               }
             }
           }
@@ -553,21 +553,8 @@ function openai_content_entity_analyze_content($form, &$form_state) {
   return $form['openai_moderate']['response'];
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+function mb_ucfirst($string, $encoding = 'UTF-8') {
+  $firstChar = mb_substr($string, 0, 1, $encoding);
+  $rest = mb_substr($string, 1, null, $encoding);
+  return mb_strtoupper($firstChar, $encoding) . $rest;
+}
