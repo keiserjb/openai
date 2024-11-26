@@ -19,29 +19,33 @@ class EmbeddingQueueWorker {
         throw new Exception("Could not load entity with ID {$data['entity_id']}.");
       }
 
-      // Log the entity type.
-       watchdog('openai_embeddings', 'Processing entity ID: @id, Type: @type', [
-        '@id' => $entity->nid,
-        '@type' => $entity->type,
-      ], WATCHDOG_DEBUG);
-
       // Get configuration.
       $config = config_get('openai_embeddings.settings');
       $stopwords = array_map('trim', explode(',', $config['stopwords'] ?? ''));
       $model = $config['model'] ?? 'text-embedding-ada-002';
       $plugin_id = $config['vector_client_plugin'] ?? NULL;
-      $allowed_bundles = $config['content_types'] ?? [];
+
+      // Retrieve the API key from the Key module.
+      $openai_config = config('openai.settings');
+      $apiKey = key_get_key_value($openai_config->get('api_key'));
+      if (!$apiKey) {
+        throw new Exception('OpenAI API key is not configured or could not be retrieved.');
+      }
+
+      // Initialize OpenAIApi instance.
+      $openai_api = new OpenAIApi($apiKey);
 
       if (!$plugin_id) {
         throw new Exception('Vector client plugin ID is not configured.');
       }
 
       // Skip entity if its bundle is not allowed.
+      $allowed_bundles = $config['content_types'] ?? [];
       if (!in_array($entity->type, $allowed_bundles)) {
-         /*watchdog('openai_embeddings', 'Skipping entity ID: @id because its bundle (@bundle) is not allowed.', [
+        watchdog('openai_embeddings', 'Skipping entity ID: @id because its bundle (@bundle) is not allowed.', [
           '@id' => $entity->nid,
           '@bundle' => $entity->type,
-        ], WATCHDOG_INFO);*/
+        ], WATCHDOG_INFO);
         return;
       }
 
@@ -59,20 +63,17 @@ class EmbeddingQueueWorker {
 
         // Check if the field type is supported.
         if (!in_array($field_type, $supported_field_types)) {
-           /*watchdog('openai_embeddings', 'Skipping unsupported field: @field_name, Type: @field_type', [
+          watchdog('openai_embeddings', 'Skipping unsupported field: @field_name, Type: @field_type', [
             '@field_name' => $field_name,
             '@field_type' => $field_type,
-          ], WATCHDOG_INFO);*/
+          ], WATCHDOG_INFO);
           continue;
         }
 
         // Retrieve field values.
         $field_items = field_get_items('node', $entity, $field_name);
         if (empty($field_items)) {
-          /*watchdog('openai_embeddings', 'Field @field_name has no items or is empty.', [
-            '@field_name' => $field_name,
-          ], WATCHDOG_INFO);*/
-          continue;
+          continue; // Do not log empty fields to reduce noise.
         }
 
         foreach ($field_items as $delta => $item) {
@@ -81,17 +82,20 @@ class EmbeddingQueueWorker {
           }
 
           // Prepare text and remove stopwords.
-          $text = StringHelper::prepareText($item['value'], [], 8000);
+          $text = openai_embeddings_prepare_text($item['value'], 8000);
           foreach ($stopwords as $word) {
             $text = $this->removeStopWord($word, $text);
           }
 
-          // Generate embedding via OpenAI.
-          $response = openai_client_embed($text, $model);
-          if (empty($response['data'][0]['embedding'])) {
-            throw new Exception('Failed to generate embedding.');
+          // Generate embedding using OpenAIApi and model.
+          $embedding = $openai_api->embedding($text, $model);
+          if (empty($embedding)) {
+            watchdog('openai_embeddings', 'Failed to generate embedding for entity ID: @id, field: @field.', [
+              '@id' => $entity->nid,
+              '@field' => $field_name,
+            ], WATCHDOG_WARNING);
+            continue;
           }
-          $embedding = $response['data'][0]['embedding'];
 
           // Dynamically determine the namespace based on entity type.
           $collection = $data['entity_type']; // Use the entity type directly.
@@ -127,20 +131,17 @@ class EmbeddingQueueWorker {
             ])
             ->fields([
               'embedding' => json_encode(['data' => $embedding]),
-              'data' => json_encode(['usage' => $response['usage']]),
+              'data' => json_encode(['usage' => []]), // Update with actual usage data if needed.
             ])
             ->execute();
         }
       }
-    }
-    catch (Exception $e) {
+    } catch (Exception $e) {
       watchdog('openai_embeddings', 'Error processing queue item: @message', [
         '@message' => $e->getMessage(),
       ], WATCHDOG_ERROR);
     }
   }
-
-
 
   /**
    * Generates a unique ID for the record in the vector database.

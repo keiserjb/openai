@@ -1,7 +1,5 @@
 <?php
 
-require_once BACKDROP_ROOT . '/' . backdrop_get_path('module', 'openai') . '/includes/OpenAIApi.php';
-
 /**
  * Implements hook_config_info().
  */
@@ -339,20 +337,40 @@ function openai_embeddings_search_form($form, &$form_state) {
  * AJAX callback function for the search form.
  */
 function openai_embeddings_search_form_ajax_callback($form, &$form_state) {
-  $query_text = $form_state['values']['search_input'];
-  $namespace = $form_state['values']['namespace'];
+  try {
+    // Retrieve form values.
+    $query_text = $form_state['values']['search_input'];
+    $namespace = $form_state['values']['namespace'];
+    $filter_by = $form_state['values']['filter_by'] ?? NULL;
+    $score_threshold = $form_state['values']['score_threshold'] ?? 0.8;
 
-  // Prepare the query text for embedding.
-  $text = openai_embeddings_prepare_text($query_text, 1024);
-  $openai_response = openai_client_embed($text);
+    // Prepare the query text for embedding.
+    $text = openai_embeddings_prepare_text($query_text, 1024);
 
-  $output = '<ul>';
+    // Initialize OpenAIApi instance.
+    $openai_config = config('openai.settings');
+    $api_key_name = $openai_config->get('api_key');
+    $api_key = key_get_key_value($api_key_name);
 
-  if ($openai_response) {
-    $embedding = $openai_response['data'][0]['embedding'];
+    if (!$api_key) {
+      throw new Exception('OpenAI API key is missing or not retrievable from the Key module.');
+    }
 
-    // Dynamically retrieve the configured vector client.
-    $vector_client_type = config_get('openai_embeddings.settings')['connections']['vector_client_plugin'] ?? 'pinecone';
+    $openai_api = new OpenAIApi($api_key);
+
+    // Embed the query text.
+    $config = config('openai_embeddings.settings');
+    $model = $config->get('model') ?? 'text-embedding-ada-002';
+
+    // Embed the query text.
+    $embedding = $openai_api->embedding($text, $model);
+
+    if (empty($embedding)) {
+      throw new Exception('Failed to retrieve embedding data from OpenAI.');
+    }
+
+    // Initialize the vector client.
+    $vector_client_type = $config->get('vector_client_plugin') ?? 'pinecone';
     $vector_client = openai_embeddings_get_vector_client($vector_client_type);
 
     // Perform the query with the vector client.
@@ -360,14 +378,28 @@ function openai_embeddings_search_form_ajax_callback($form, &$form_state) {
       'vector' => $embedding,
       'top_k' => 8,
       'collection' => $namespace,
+      'filter' => ['entity_type' => $filter_by],
       'include_metadata' => TRUE,
     ];
+
     $vector_results = $vector_client->query($query_options);
 
+    // Parse results and prepare output.
+    $output = '<ul>';
     if (!empty($vector_results['matches'])) {
+      $tracked = [];
       foreach ($vector_results['matches'] as $match) {
-        $entity_type = $match['metadata']['entity_type'] ?? null;
-        $entity_id = $match['metadata']['entity_id'] ?? null;
+        if (isset($tracked[$match['metadata']['entity_type']]) &&
+          in_array($match['metadata']['entity_id'], $tracked[$match['metadata']['entity_type']])) {
+          continue;
+        }
+
+        if ($match['score'] < $score_threshold) {
+          continue;
+        }
+
+        $entity_type = $match['metadata']['entity_type'] ?? NULL;
+        $entity_id = $match['metadata']['entity_id'] ?? NULL;
 
         if ($entity_type && $entity_id) {
           $entity = entity_load($entity_type, $entity_id);
@@ -380,71 +412,30 @@ function openai_embeddings_search_form_ajax_callback($form, &$form_state) {
         } else {
           $output .= '<li>Match found but missing entity metadata.</li>';
         }
+
+        $tracked[$entity_type][] = $entity_id;
       }
     } else {
       $output .= '<li>No results found or below threshold.</li>';
     }
-  } else {
-    $output .= '<p>Error retrieving results from OpenAI or vector client.</p>';
-  }
+    $output .= '</ul>';
 
-  $output .= '</ul>';
-
-  return [
-    '#markup' => $output,
-    '#prefix' => '<div id="openai-response">',
-    '#suffix' => '</div>',
-  ];
-}
-
-/**
- * OpenAI client function to perform text embedding.
- *
- * @param string $text
- *   The text to embed.
- *
- * @return array
- *   The embedding data.
- *
- * @throws Exception
- *   If the API call fails.
- */
-function openai_client_embed($text) {
-  $config = config('openai_embeddings.settings');
-  $model = $config->get('model') ?? 'text-embedding-ada-002';
-
-  $openai_config = config('openai.settings');
-  $key_name = $openai_config->get('api_key');
-  $api_key = key_get_key_value($key_name);
-
-  if (!$api_key) {
-    throw new Exception('API key is missing or not retrievable from the Key module.');
-  }
-
-  $endpoint = 'https://api.openai.com/v1/embeddings';
-
-  try {
-    $client = new \GuzzleHttp\Client();
-    $response = $client->post($endpoint, [
-      'headers' => [
-        'Authorization' => "Bearer {$api_key}",
-        'Content-Type' => 'application/json',
-      ],
-      'json' => [
-        'model' => $model,
-        'input' => $text,
-      ],
-    ]);
-
-    $response_data = json_decode($response->getBody()->getContents(), TRUE);
-
-    if (json_last_error() !== JSON_ERROR_NONE || !isset($response_data['data'][0]['embedding'])) {
-      throw new \Exception('Failed to decode OpenAI API response or embedding data is missing.');
-    }
-
-    return $response_data;
+    // Return the response.
+    return [
+      '#markup' => $output,
+      '#prefix' => '<div id="openai-response">',
+      '#suffix' => '</div>',
+    ];
   } catch (\Exception $e) {
-    throw new Exception('OpenAI API call failed: ' . $e->getMessage());
+    watchdog('openai_embeddings', 'Error in search form AJAX callback: @error', [
+      '@error' => $e->getMessage(),
+    ], WATCHDOG_ERROR);
+
+    return [
+      '#markup' => '<p>Error: ' . $e->getMessage() . '</p>',
+      '#prefix' => '<div id="openai-response">',
+      '#suffix' => '</div>',
+    ];
   }
 }
 

@@ -1,12 +1,49 @@
 <?php
 
-use GuzzleHttp\Exception\RequestException;
-use Psr\Http\Message\ResponseInterface;
+use GuzzleHttp\Client as GuzzleClient;
 
 /**
  * Pinecone vector client class.
  */
 class PineconeVectorClient extends VectorClientBase {
+
+  const DEFAULT_TOP_K = 5;
+
+  /**
+   * Resolve a configuration value from settings.
+   *
+   * @param string $key
+   *   The key in the configuration array.
+   * @param string $description
+   *   A description of the setting for debugging.
+   * @param bool $resolve_key
+   *   Whether to use key_get_key_value() to resolve the value (for keys).
+   *
+   * @return string
+   *   The resolved and validated value.
+   *
+   * @throws \Exception
+   *   If the configuration is invalid or missing.
+   */
+  protected function resolveConfigValue(string $key, string $description, bool $resolve_key = FALSE): string {
+    // Fetch the configuration value.
+    $value = config_get('openai_embeddings.settings')[$key] ?? NULL;
+
+    // Resolve using Key module if necessary.
+    if ($resolve_key && $value) {
+      $value = key_get_key_value($value);
+    }
+
+    // Validate the value.
+    if (empty($value) || !is_string($value)) {
+      watchdog('openai_embeddings', "Invalid or missing $description for key $key. Value: @value", [
+        '@value' => $value ?? 'NULL',
+      ], WATCHDOG_ERROR);
+      throw new \Exception("Invalid or missing $description.");
+    }
+
+    return trim($value);
+  }
 
   /**
    * Initialize a Pinecone-specific HTTP client.
@@ -14,175 +51,193 @@ class PineconeVectorClient extends VectorClientBase {
    * @return \GuzzleHttp\Client
    *   The configured HTTP client for Pinecone.
    */
-  protected function getPineconeClient(): \GuzzleHttp\Client {
-    // Retrieve Pinecone API key and hostname from configuration.
-    $api_key = $this->getEmbeddingConfig('pinecone_api_key');
-    $hostname = $this->getEmbeddingConfig('pinecone_hostname');
+  protected function getPineconeClient(): GuzzleClient {
+    try {
+      // Resolve Pinecone API key and hostname.
+      $api_key = $this->resolveConfigValue('pinecone_api_key', 'Pinecone API key', TRUE);
+      $hostname = $this->resolveConfigValue('pinecone_hostname', 'Pinecone hostname', TRUE);
 
-    // If the Key module is used, resolve the values.
-    if (is_array($api_key)) {
-      $api_key = key_get_key_value($api_key);
-    }
-    if (is_array($hostname)) {
-      $hostname = key_get_key_value($hostname);
-    }
+      // Ensure hostname format.
+      $hostname = rtrim($hostname, '/');
+      if (!filter_var($hostname, FILTER_VALIDATE_URL)) {
+        throw new \Exception("Invalid hostname format: $hostname");
+      }
 
-    // Validate and sanitize the values.
-    if (empty($api_key) || !is_string($api_key)) {
-      throw new \Exception('Invalid or missing Pinecone API key. Please check your configuration.');
-    }
-    if (empty($hostname) || !is_string($hostname)) {
-      throw new \Exception('Invalid or missing Pinecone hostname. Please check your configuration.');
-    }
+      // Log resolved values for debugging.
+      watchdog('openai_embeddings', "Pinecone hostname resolved: @hostname", ['@hostname' => $hostname], WATCHDOG_DEBUG);
 
-    // Trim and sanitize the hostname and API key.
-    $api_key = trim($api_key);
-    $hostname = rtrim(trim($hostname), '/');
-
-    // Return a configured HTTP client.
-    return $this->getHttpClient([
-      'headers' => [
-        'API-Key' => $api_key,
-      ],
-      'base_uri' => $hostname,
-    ]);
+      // Return configured client.
+      return $this->getHttpClient([
+        'headers' => ['API-Key' => $api_key],
+        'base_uri' => $hostname,
+      ]);
+    } catch (\Exception $e) {
+      watchdog('openai_embeddings', 'Error resolving Pinecone client: @message', [
+        '@message' => $e->getMessage(),
+      ], WATCHDOG_ERROR);
+      throw $e;
+    }
   }
 
   /**
-   * {@inheritdoc}
+   * Log the payload for debugging purposes.
+   *
+   * @param string $action
+   *   The action being logged (e.g., 'query', 'upsert').
+   * @param array $payload
+   *   The payload data.
+   */
+  protected function logPayload(string $action, array $payload): void {
+    watchdog('openai_embeddings', "Pinecone $action payload: @payload", [
+      '@payload' => json_encode($payload, JSON_PRETTY_PRINT),
+    ], WATCHDOG_DEBUG);
+  }
+
+  /**
+   * Log the response for debugging purposes.
+   *
+   * @param string $action
+   *   The action being logged (e.g., 'query', 'upsert').
+   * @param array $response
+   *   The response data.
+   */
+  protected function logResponse(string $operation, $response): void {
+    watchdog('openai_embeddings', "Pinecone $operation response: @response", [
+      '@response' => print_r($response, TRUE),
+    ], WATCHDOG_DEBUG);
+  }
+
+  /**
+   * Handle and log errors for debugging purposes.
+   *
+   * @param string $action
+   *   The action that triggered the error.
+   * @param \Exception $e
+   *   The exception to handle.
+   *
+   * @throws \Exception
+   *   The rethrown exception after logging.
+   */
+  protected function handleError(string $action, \Exception $e): void {
+    watchdog('openai_embeddings', "Error during Pinecone $action: @message", [
+      '@message' => $e->getMessage(),
+    ], WATCHDOG_ERROR);
+    throw $e;
+  }
+
+  /**
+   * Perform a query operation.
+   *
+   * @param array $parameters
+   *   The query parameters.
+   *
+   * @return array
+   *   The query results.
    */
   public function query(array $parameters) {
     $client = $this->getPineconeClient();
 
     $payload = [
-        'vector' => $parameters['vector'],
-        'topK' => $parameters['top_k'] ?? 5,
-        'includeMetadata' => true, // Ensure metadata is requested
+      'vector' => $parameters['vector'],
+      'topK' => $parameters['top_k'] ?? self::DEFAULT_TOP_K,
+      'includeMetadata' => true,
     ];
 
     if (!empty($parameters['collection'])) {
-        $payload['namespace'] = $parameters['collection'];
+      $payload['namespace'] = $parameters['collection'];
     }
 
-    /* watchdog('openai_embeddings', 'Pinecone query payload: @payload', [
-        '@payload' => json_encode($payload),
-    ], WATCHDOG_DEBUG); */
+    $this->logPayload('query', $payload);
 
     try {
-        $response = $client->post('/query', ['json' => $payload]);
-        $response_data = json_decode($response->getBody()->getContents(), TRUE);
+      $response = $client->post('/query', ['json' => $payload]);
+      $response_data = json_decode($response->getBody()->getContents(), TRUE);
 
-        // Log response for debugging
-        /* watchdog('openai_embeddings', 'Pinecone query response: @response', [
-            '@response' => print_r($response_data, TRUE),
-        ], WATCHDOG_DEBUG); */
+      $this->logResponse('query', $response_data);
 
-        return $response_data;
+      return $response_data;
     } catch (\Exception $e) {
-        watchdog('openai_embeddings', 'Error querying Pinecone: @message', ['@message' => $e->getMessage()], WATCHDOG_ERROR);
-        throw $e;
+      $this->handleError('query', $e);
     }
   }
 
   /**
-   * {@inheritdoc}
+   * Perform an upsert operation.
+   *
+   * @param array $parameters
+   *   The upsert parameters.
+   *
+   * @return \Psr\Http\Message\ResponseInterface|null
+   *   The response object or NULL if an error occurs.
    */
   public function upsert(array $parameters) {
     $client = $this->getPineconeClient();
 
     $payload = [
-        'vectors' => $parameters['vectors'],
+      'vectors' => $parameters['vectors'],
     ];
 
     if (!empty($parameters['collection'])) {
-        $payload['namespace'] = $parameters['collection'];
+      $payload['namespace'] = $parameters['collection'];
     }
 
-    // Log the payload being sent for upsert.
-     watchdog('openai_embeddings', 'Pinecone upsert payload: @payload', [
-        '@payload' => json_encode($payload),
-    ], WATCHDOG_DEBUG);
+    $this->logPayload('upsert', $payload);
 
     try {
-        $response = $client->post('/vectors/upsert', ['json' => $payload]);
-        /* watchdog('openai_embeddings', 'Pinecone upsert response: @response', [
-            '@response' => $response->getBody()->getContents(),
-        ], WATCHDOG_DEBUG); */
-        return $response;
-    } catch (RequestException $e) {
-        watchdog('openai_embeddings', 'Error during Pinecone upsert: @message', ['@message' => $e->getMessage()], WATCHDOG_ERROR);
-        throw $e;
-    } catch (Exception $e) {
-       watchdog('openai_embeddings', 'Unexpected error during Pinecone upsert: @message', ['@message' => $e->getMessage()], WATCHDOG_ERROR);
-        throw $e;
+      $response = $client->post('/vectors/upsert', ['json' => $payload]);
+      $this->logResponse('upsert', json_decode($response->getBody()->getContents(), TRUE));
+      return $response;
+    } catch (\Exception $e) {
+      $this->handleError('upsert', $e);
     }
-}
+  }
 
   /**
- * {@inheritdoc}
- */
-public function stats(): array {
-  try {
+   * Fetch stats from Pinecone.
+   *
+   * @return array
+   *   The stats response.
+   */
+  public function stats(): array {
+    try {
       $client = $this->getPineconeClient();
       $response = $client->post('/describe_index_stats');
       $stats = json_decode($response->getBody()->getContents(), TRUE);
 
-      // Log the full stats response.
-      /* watchdog('openai_embeddings', 'Pinecone stats response: @response', [
-          '@response' => print_r($stats, TRUE),
-      ], WATCHDOG_DEBUG); */
+      $this->logResponse('stats', $stats);
 
       $rows = [];
 
       if (!empty($stats['namespaces'])) {
-          foreach ($stats['namespaces'] as $namespace => $data) {
-              $rows[] = [
-                  'Namespace' => $namespace ?: t('No namespace'),
-                  'Vector Count' => $data['vectorCount'] ?? 0,
-              ];
-          }
-      } else {
-         // watchdog('openai_embeddings', 'No namespaces found in Pinecone stats.', [], WATCHDOG_INFO);
+        foreach ($stats['namespaces'] as $namespace => $data) {
+          $rows[] = [
+            'Namespace' => $namespace ?: t('No namespace'),
+            'Vector Count' => $data['vectorCount'] ?? 0,
+          ];
+        }
       }
 
       return $rows;
-  } catch (RequestException $e) {
-      watchdog('openai_embeddings', 'Error fetching Pinecone stats: @message', [
-          '@message' => $e->getMessage(),
-      ], WATCHDOG_ERROR);
+    } catch (\Exception $e) {
+      $this->handleError('stats', $e);
       return [];
-  } catch (Exception $e) {
-      watchdog('openai_embeddings', 'Unexpected error in Pinecone stats: @message', [
-          '@message' => $e->getMessage(),
-      ], WATCHDOG_ERROR);
-      return [];
+    }
   }
-}
 
   /**
    * Delete records in Pinecone.
    *
    * @param array $parameters
-   *   An array with at least key 'source_ids'. The key
-   *   'collection' is required if not using the Pinecone free Starter plan.
+   *   The delete parameters.
    *
-   * @return \Psr\Http\Message\ResponseInterface
-   *   The response object.
-   *
-   * @throws \Exception
-   *   If required parameters are missing or an error occurs.
+   * @return \Psr\Http\Message\ResponseInterface|null
+   *   The response object or NULL if an error occurs.
    */
-  public function delete(array $parameters): ResponseInterface {
-    // Ensure necessary parameters are provided.
+  public function delete(array $parameters): ?ResponseInterface {
     if (empty($parameters['source_ids']) && empty($parameters['filter'])) {
-      throw new \Exception('Either "source_ids" to delete or a "filter" is required for Pinecone deletion.');
+      throw new \Exception('Either "source_ids" or "filter" is required for Pinecone deletion.');
     }
 
-    if (!empty($parameters['deleteAll'])) {
-      throw new \Exception('"deleteAll" must be handled by the deleteAll() method.');
-    }
-
-    // Prepare the payload for deletion.
     $payload = [];
     if (!empty($parameters['source_ids'])) {
       $payload['ids'] = $parameters['source_ids'];
@@ -194,89 +249,47 @@ public function stats(): array {
       $payload['filter'] = $parameters['filter'];
     }
 
+    $this->logPayload('delete', $payload);
+
     try {
-      // Execute the delete request.
-      return $this->getClient()->post('/vectors/delete', ['json' => $payload]);
-    } catch (RequestException $e) {
-      watchdog('openai_embeddings', 'Error during Pinecone delete: @message', ['@message' => $e->getMessage()], WATCHDOG_ERROR);
-      throw $e;
+      $client = $this->getPineconeClient();
+      return $client->post('/vectors/delete', ['json' => $payload]);
+    } catch (\Exception $e) {
+      $this->handleError('delete', $e);
+      return NULL;
     }
   }
-  
+
   /**
    * Delete all records in Pinecone.
    *
    * @param array $parameters
-   *   An array with at least the key 'collection'. Full deletion
-   *   is not supported in the Pinecone free Starter plan.
-   *
-   * @throws \Exception
-   *   If required parameters are missing or an error occurs.
+   *   The delete all parameters.
    */
   public function deleteAll(array $parameters): void {
-    // Use the configuration method provided by the VectorClientBase class.
-    $disable_namespace = $this->getEmbeddingConfig('disable_namespace');
+    $disable_namespace = config_get('openai_embeddings.settings')['pinecone_disable_namespace'] ?? NULL;
 
-    // Validate the Pinecone plan and required parameters.
     if (!empty($disable_namespace)) {
-      watchdog('openai_embeddings', 'Pinecone free starter plan does not support Delete All.', [], WATCHDOG_WARNING);
-      throw new \Exception('Pinecone free starter plan does not support full namespace deletion.');
+      watchdog('openai_embeddings', 'Namespace deletion is disabled for the current Pinecone plan.', [], WATCHDOG_WARNING);
+      throw new \Exception('Namespace deletion is not allowed for this Pinecone configuration.');
     }
+
     if (empty($parameters['collection'])) {
-      throw new \Exception('Namespace (collection) is required for deleteAll in Pinecone.');
+      throw new \Exception('A namespace (collection) is required to perform deleteAll in Pinecone.');
     }
 
-    // Retrieve Pinecone API key and hostname from configuration.
-    $api_key = $this->getEmbeddingConfig('pinecone_api_key');
-    $hostname = $this->getEmbeddingConfig('pinecone_hostname');
-
-    // If the Key module is used, resolve the values.
-    if (is_array($api_key)) {
-      $api_key = key_get_key_value($api_key);
-    }
-    if (is_array($hostname)) {
-      $hostname = key_get_key_value($hostname);
-    }
-
-    // Validate the resolved values.
-    if (empty($api_key) || !is_string($api_key)) {
-      throw new \Exception('Invalid or missing Pinecone API key. Please check your configuration.');
-    }
-    if (empty($hostname) || !is_string($hostname)) {
-      throw new \Exception('Invalid or missing Pinecone hostname. Please check your configuration.');
-    }
-
-    // Trim and sanitize the hostname and API key.
-    $api_key = trim($api_key);
-    $hostname = rtrim(trim($hostname), '/');
-
-    // Prepare the payload for full deletion.
     $payload = [
       'deleteAll' => TRUE,
       'namespace' => $parameters['collection'],
     ];
 
-    try {
-      // Create a Guzzle client with the resolved configuration.
-      $client = $this->getHttpClient([
-        'headers' => [
-          'API-Key' => $api_key,
-        ],
-        'base_uri' => $hostname,
-      ]);
+    $this->logPayload('deleteAll', $payload);
 
-      // Execute the deleteAll request.
+    try {
+      $client = $this->getPineconeClient();
       $client->post('/vectors/delete', ['json' => $payload]);
-    } catch (RequestException $e) {
-      watchdog('openai_embeddings', 'Error during Pinecone deleteAll: @message', ['@message' => $e->getMessage()], WATCHDOG_ERROR);
-      throw $e;
     } catch (\Exception $e) {
-      watchdog('openai_embeddings', 'Unexpected error during Pinecone deleteAll: @message', ['@message' => $e->getMessage()], WATCHDOG_ERROR);
-      throw $e;
+      $this->handleError('deleteAll', $e);
     }
   }
-
-
-
 }
-
