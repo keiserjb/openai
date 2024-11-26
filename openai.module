@@ -23,6 +23,43 @@ function openai_autoload_info() {
 }
 
 /**
+ * Implements hook_init().
+ */
+function openai_init() {
+  // Check if the current path is an admin path.
+  if (path_is_admin(current_path())) {
+    // Safely retrieve the API key configuration.
+    $api_key_config = config('openai.settings')->get('api_key');
+
+    // Check if the Key module is enabled.
+    if (module_exists('key')) {
+      // Validate the API key if a configuration value exists.
+      $api_key = !empty($api_key_config) ? key_get_key_value($api_key_config) : NULL;
+
+      if (empty($api_key)) {
+        $message = t('You have not provided an OpenAI API key yet. This is required for its functionality to work. Please obtain an API key from <a href="@account" target="_blank">your OpenAI account</a> and add it to the <a href="@settings">OpenAI settings configuration here</a>.',
+          [
+            '@account' => 'https://platform.openai.com/',
+            '@settings' => url('admin/config/openai/settings'),
+          ]
+        );
+        backdrop_set_message($message, 'error');
+      }
+    }
+    else {
+      // Key module is not enabled, so the OpenAI module cannot work.
+      $message = t('The Key module is not enabled. The OpenAI module requires the Key module to securely manage API keys. Please enable it from the <a href="@modules">modules page</a>.',
+        [
+          '@modules' => url('admin/modules'),
+        ]
+      );
+      backdrop_set_message($message, 'error');
+    }
+  }
+}
+
+
+/**
  * Implements hook_menu().
  */
 function openai_menu() {
@@ -65,6 +102,13 @@ function openai_settings_form($form, &$form_state) {
   $form = [];
   $form['#config'] = 'openai.settings';
 
+  // Fetch available keys from the Key module.
+  $available_keys = key_get_key_names_as_options();
+
+  // Default to all keys if no specific key is set.
+  $default_api_key = config_get('openai.settings', 'api_key') ?: '';
+  $default_api_org = config_get('openai.settings', 'api_org') ?: '';
+
   // Collapsible fieldset for API settings.
   $form['api_settings'] = [
     '#type' => 'fieldset',
@@ -76,21 +120,21 @@ function openai_settings_form($form, &$form_state) {
   $form['api_settings']['api_key'] = [
     '#type' => 'key_select',
     '#title' => t('OpenAI API Key'),
-    '#default_value' => config_get('openai.settings', 'api_key'),
-    '#options' => key_get_key_names_as_options(),
+    '#default_value' => $default_api_key,
+    '#options' => $available_keys,
     '#key_filters' => ['type' => 'authentication'],
     '#description' => t(
       'Select the API key to use for accessing OpenAI services. Keys are managed through the <a href="/admin/config/system/keys">Key module</a>.'
     ),
-    '#required' => TRUE,
+    '#required' => FALSE,
   ];
 
   // Organization ID field (optional).
   $form['api_settings']['api_org'] = [
     '#type' => 'key_select',
     '#title' => t('Organization ID'),
-    '#default_value' => config_get('openai.settings', 'api_org'),
-    '#options' => key_get_key_names_as_options(),
+    '#default_value' => $default_api_org,
+    '#options' => $available_keys,
     '#key_filters' => ['type' => 'authentication'],
     '#description' => t(
       'The organization ID on your OpenAI account. This is required for some OpenAI services to work correctly.'
@@ -104,24 +148,32 @@ function openai_settings_form($form, &$form_state) {
     '#submit' => ['openai_settings_form_submit'],
   ];
 
-  // Fetch available models from OpenAI.
-  $models = openai_fetch_available_models();
+  // Fetch available models only if the API key is configured.
+  if (!empty($default_api_key)) {
+    $models = openai_fetch_available_models($default_api_key);
 
-  if (!empty($models)) {
-    $model_list = '<ul>';
-    foreach ($models as $model) {
-      $model_list .= '<li>' . check_plain($model) . '</li>';
+    if (!empty($models)) {
+      $model_list = '<ul>';
+      foreach ($models as $model) {
+        $model_list .= '<li>' . check_plain($model) . '</li>';
+      }
+      $model_list .= '</ul>';
+      $form['models'] = [
+        '#type' => 'markup',
+        '#markup' => t('<h3>Available Models</h3>' . $model_list),
+      ];
     }
-    $model_list .= '</ul>';
-    $form['models'] = [
-      '#type' => 'markup',
-      '#markup' => t('<h3>Available Models</h3>' . $model_list),
-    ];
+    else {
+      $form['models'] = [
+        '#type' => 'markup',
+        '#markup' => t('Failed to fetch models or no models available.'),
+      ];
+    }
   }
   else {
     $form['models'] = [
       '#type' => 'markup',
-      '#markup' => t('Failed to fetch models or no models available.'),
+      '#markup' => t('Configure your API key to view available models.'),
     ];
   }
 
@@ -179,4 +231,3 @@ function openai_fetch_available_models() {
     return [];
   }
 }
-
