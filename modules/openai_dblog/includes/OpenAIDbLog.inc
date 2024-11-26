@@ -6,7 +6,15 @@ class OpenAIDbLog {
 
   public function __construct() {
     $config = config_get('openai.settings');
-    $this->api = new OpenAIApi($config['api_key']);
+
+    // Get the key value using the key module.
+    $api_key = key_get_key_value($config['api_key']);
+
+    if (empty($api_key)) {
+      throw new Exception(t('The OpenAI API key is not set or is invalid. Please configure it in the OpenAI settings.'));
+    }
+
+    $this->api = new OpenAIApi($api_key);
   }
 
   public function getOpenAIExplanation($dblog) {
