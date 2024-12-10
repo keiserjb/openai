@@ -16,6 +16,10 @@ AI tech leveraging OpenAI API services in Backdrop CMS.
 You are required to provide an OpenAI key before you can use
 any of the provided services.
 
+## Documentation
+
+Please review and contribute to documentation for this module in our [wiki](https://github.com/backdrop-contrib/openai/wiki). 
+
 ## Installation
 
 - Install this module using the official [Backdrop CMS instructions](https://backdropcms.org/user-guide/modules).
