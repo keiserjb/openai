@@ -40,7 +40,7 @@ function openai_alt_image_field_process($element, &$form_state, $form) {
         'data-field-name' => $field_name,
         'data-delta' => $delta,
       ],
-      '#weight' => 50, // Ensure the button appears after the alt field.
+      '#weight' => -1.5, // Ensure the button appears after the alt field.
     ];
   }
 
