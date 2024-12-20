@@ -181,30 +181,33 @@ function openai_chatgpt_form_submit($form, &$form_state) {
 
   $text = $form_state['values']['text'];
   $system = $form_state['values']['system'];
-  $model = $form_state
-  ['values']['model'];
+  $model = $form_state['values']['model'];
   $temperature = $form_state['values']['temperature'];
   $max_tokens = $form_state['values']['max_tokens'];
 
   // Now pass the API key to the constructor
   $api = new OpenAIApi($apiKey);
 
-  $storage = $form_state['storage'];
+  // Ensure storage is initialized
+  if (!isset($form_state['storage']) || !is_array($form_state['storage'])) {
+    $form_state['storage'] = [];
+  }
 
-  if (!empty($storage['messages'])) {
-    $messages = $storage['messages'];
+  if (!empty($form_state['storage']['messages'])) {
+    $messages = $form_state['storage']['messages'];
     $messages[] = ['role' => 'user', 'content' => trim($text)];
   } else {
     $messages = [
       ['role' => 'system', 'content' => trim($system)],
-      ['role' => 'user', 'content' => trim($text)]
+      ['role' => 'user', 'content' => trim($text)],
     ];
   }
 
   $result = $api->chat($model, $messages, $temperature, $max_tokens);
   $messages[] = ['role' => 'assistant', 'content' => $result];
-  $form_state['storage'] = ['messages' => $messages];
+  $form_state['storage']['messages'] = $messages;
   $form_state['rebuild'] = TRUE;
 }
+
 
 
