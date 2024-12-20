@@ -31,7 +31,7 @@ function openai_alt_menu() {
 }
 
 /**
- * Build the configuration form for AI Image Alt Text.
+ * Build the configuration form for OpenAI Alt Text.
  *
  * @return array
  *   The configuration form.
@@ -59,7 +59,7 @@ function openai_alt_settings_form(array $form, array &$form_state) {
   // Prompt for generating alt text.
   $form['prompt'] = [
     '#type' => 'textarea',
-    '#title' => t('Alt text generation prompt'),
+    '#title' => t('OpenAI Alt text generation prompt'),
     '#default_value' => $prompt,
     '#description' => t('Prompt used for generating the alt text.'),
     '#required' => TRUE,

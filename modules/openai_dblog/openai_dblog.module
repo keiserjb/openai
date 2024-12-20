@@ -45,11 +45,8 @@ function openai_dblog_settings_form($form, &$form_state) {
   // Load the OpenAI dblog settings.
   $config = config_get('openai_dblog.settings');
 
-  // Load OpenAI settings and fetch the API key.
-  $openai_config = config('openai.settings');
-  // Load the OpenAI API key directly from the Key module.
+  // Load OpenAI API key from the Key module.
   $apiKey = key_get_key_value(config('openai.settings')->get('api_key'));
-
 
   // Validate the API key.
   if (empty($apiKey)) {
@@ -64,14 +61,21 @@ function openai_dblog_settings_form($form, &$form_state) {
   $levels = watchdog_severity_levels();
   $options = [];
   foreach ($levels as $key => $label) {
-    $options[$key] = $label;
+    $options[$label] = $label; // Use the name of the level as both key and label.
+  }
+
+  // Prepare default values for the levels.
+  $selected_levels = $config['levels'] ?? [];
+  $default_levels = [];
+  foreach ($options as $key => $label) {
+    $default_levels[$key] = in_array($key, $selected_levels) ? $key : 0;
   }
 
   $form['levels'] = [
     '#type' => 'checkboxes',
     '#title' => t('Log level(s) to analyze'),
     '#options' => $options,
-    '#default_value' => isset($config['levels']) ? $config['levels'] : [],
+    '#default_value' => $default_levels,
     '#description' => t('Select which log levels should be analyzed when viewed. Non-error levels like notice and debug may cause wasted API usage.'),
   ];
 
@@ -96,7 +100,7 @@ function openai_dblog_settings_form($form, &$form_state) {
     '#type' => 'select',
     '#title' => t('Model to use'),
     '#options' => $model_options,
-    '#default_value' => isset($config['model']) ? $config['model'] : '',
+    '#default_value' => $config['model'] ?? '',
     '#description' => t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/models/overview']),
   ];
 
@@ -115,14 +119,19 @@ function openai_dblog_settings_form($form, &$form_state) {
   return $form;
 }
 
-
 /**
  * Form submission handler for openai_dblog_settings_form.
  */
 function openai_dblog_settings_form_submit($form, &$form_state) {
+  // Get the selected levels by filtering the form values.
   $selected_levels = array_filter($form_state['values']['levels']);
-  config_set('openai_dblog.settings', 'levels', $selected_levels);
+
+  // Save the selected levels as names.
+  config_set('openai_dblog.settings', 'levels', array_keys($selected_levels));
+
+  // Save the selected model.
   config_set('openai_dblog.settings', 'model', $form_state['values']['model']);
+
   backdrop_set_message(t('The configuration options have been saved.'));
 }
 

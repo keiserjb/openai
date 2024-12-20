@@ -1,9 +1,9 @@
 <?php return array(
     'root' => array(
         'name' => 'backdrop/openai',
-        'pretty_version' => 'dev-1.x-1.x',
-        'version' => 'dev-1.x-1.x',
-        'reference' => 'b9bda37a54827a06008c1bae9f8d512873449612',
+        'pretty_version' => 'dev-master',
+        'version' => 'dev-master',
+        'reference' => '270293306b399ffce3188e21c89d435402f5e3a0',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -11,9 +11,9 @@
     ),
     'versions' => array(
         'backdrop/openai' => array(
-            'pretty_version' => 'dev-1.x-1.x',
-            'version' => 'dev-1.x-1.x',
-            'reference' => 'b9bda37a54827a06008c1bae9f8d512873449612',
+            'pretty_version' => 'dev-master',
+            'version' => 'dev-master',
+            'reference' => '270293306b399ffce3188e21c89d435402f5e3a0',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

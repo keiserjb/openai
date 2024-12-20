@@ -11,8 +11,6 @@ intelligence products that powers applications like ChatGPT, GPT-3, GitHub
 CoPilot, and more. Our goal is to find ways of augmenting and adding assistive
 AI tech leveraging OpenAI API services in Backdrop CMS.
 
-The OpenAI module uses the [OpenAI PHP client](https://github.com/openai-php/client) which Requires [PHP 8.1+](https://php.net/releases/).
-
 ## Requirements
 
 You are required to provide an OpenAI key before you can use
@@ -20,7 +18,7 @@ any of the provided services.
 
 ## Documentation
 
-Please review and contribute to documentation for this module in our [wiki](https://github.com/backdrop-contrib/openai/wiki).
+Please review and contribute to documentation for this module in our [wiki](https://github.com/backdrop-contrib/openai/wiki). 
 
 ## Installation
 
@@ -30,34 +28,34 @@ Please review and contribute to documentation for this module in our [wiki](http
 
 ## Included Submodules
 
-### **openai_audio**
+### **openai_audio**  
 Adds capability to interact with the OpenAI audio (speech-to-text) endpoints.
 
-### **openai_chatgpt**
+### **openai_chatgpt**  
 Enables interaction with the Chat endpoint via the ChatGPT API.
 
-### **openai_ckeditor**
+### **openai_ckeditor**  
 Provides a button for CKEditor 5 to send a prompt to OpenAI and receive generated text back.
 
-### **openai_content**
+### **openai_content**  
 Adds assistive tools for different areas of the content editing process. This includes functionality to adjust the tone of the content, summarize body text, suggest taxonomy terms for nodes, and check content for [moderation violations](https://platform.openai.com/docs/guides/moderation/overview).
 
-### **openai_dalle**
+### **openai_dalle**  
 Adds capability to interact with the OpenAI DALL·E (image generation) endpoint, supporting both the new DALL·E 3 model and DALL·E 2 model.
 
-### **openai_devel**
+### **openai_devel**  
 Adds GPT content generation capability to Devel Generate. This provides Devel a way of generating realistic content (not lorem ipsum) using GPT and ChatGPT models. Users can generate sample content from the Drupal UI or via Drush. This is useful for filling out your site with realistic content for client demonstrations, layout, theming, or QA.
 
-### **openai_dblog**
+### **openai_dblog**  
 Demonstrates log analysis using OpenAI to find potential solutions or explanations for error logs. Responses from OpenAI are saved and persist for common error messages, allowing you to review them.
 
-### **openai_prompt**
+### **openai_prompt**  
 Adds an area in the admin interface to explore OpenAI text generation capabilities and ask it (prompt) for whatever you'd like.
 
-### **openai_embeddings**
+### **openai_embeddings**  
 Analyzes nodes and generates vectors and text embeddings of your nodes, taxonomy, media, and paragraph entities from OpenAI. Responses from OpenAI are saved and could augment search, ranking, automatically suggest taxonomy terms for content, and [improve search relevancy without expensive search backends. Content personalization and recommendation](https://www.pinecone.io/) may also be possible with this approach.
 
-### **openai_tts**
+### **openai_tts**  
 Adds capability to interact with the OpenAI TTS (text-to-speech) endpoints.
 
 ## Issues

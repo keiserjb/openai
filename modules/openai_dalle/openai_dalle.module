@@ -350,3 +350,4 @@ function openai_dalle_form_submit($form, &$form_state) {
 
   $form_state['rebuild'] = TRUE;
 }
+
