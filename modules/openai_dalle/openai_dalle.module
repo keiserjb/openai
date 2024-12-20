@@ -59,10 +59,7 @@ function openai_dalle_form($form, &$form_state) {
   $form['model'] = [
     '#type' => 'select',
     '#title' => t('Model'),
-    '#options' => [
-      'dall-e-2' => 'dall-e-2',
-      'dall-e-3' => 'dall-e-3',
-    ],
+    '#options' => $models,
     '#default_value' => 'dall-e-3',
     '#description' => t('The model to use to generate an image.'),
     '#ajax' => [
@@ -292,7 +289,6 @@ function openai_dalle_form_submit($form, &$form_state) {
   $format = $form_state['values']['response_format'];
   $filename_base = $form_state['values']['filename'];
 
-  // Determine file scheme and create a unique filename.
   $file_scheme = file_default_scheme();
   $timestamp = REQUEST_TIME;
   $unique_filename = $filename_base . '-' . $timestamp . '.png';
@@ -309,22 +305,11 @@ function openai_dalle_form_submit($form, &$form_state) {
         return;
       }
 
-      // Save the binary data to the file system.
-      $file_uri = $file_scheme . '://' . $unique_filename;
-      $file_save_result = file_unmanaged_save_data($data, $file_uri, FILE_EXISTS_REPLACE);
+      $file = file_save_data($data, $file_scheme . '://' . $unique_filename, FILE_EXISTS_REPLACE);
 
-      if ($file_save_result) {
-        // Create a managed file entity.
-        $file = entity_create('file', [
-          'uri' => $file_uri,
-          'filename' => $unique_filename,
-          'filemime' => 'image/png',
-          'status' => 1,
-          'uid' => $GLOBALS['user']->uid,
-          'timestamp' => $timestamp,
-        ]);
-
-        file_save($file);
+      if ($file) {
+        // Add file usage to ensure it appears in the media library.
+        file_usage_add($file, 'openai_dalle', 'module', $file->fid);
 
         $form_state['storage'] = [
           'filename' => $file->filename,
@@ -336,31 +321,25 @@ function openai_dalle_form_submit($form, &$form_state) {
         form_set_error('', t('Failed to save the image to the file system.'));
       }
     } else {
-      // Handle URL format response.
       $client = new GuzzleHttp\Client();
       $response = $client->get($result);
 
       if ($response->getStatusCode() === 200) {
-        $file_uri = $file_scheme . '://' . $unique_filename;
-        file_unmanaged_save_data($response->getBody(), $file_uri, FILE_EXISTS_REPLACE);
+        $file = file_save_data($response->getBody(), $file_scheme . '://' . $unique_filename, FILE_EXISTS_REPLACE);
 
-        $file = entity_create('file', [
-          'uri' => $file_uri,
-          'filename' => $unique_filename,
-          'filemime' => 'image/png',
-          'status' => 1,
-          'uid' => $GLOBALS['user']->uid,
-          'timestamp' => $timestamp,
-        ]);
+        if ($file) {
+          // Add file usage to ensure it appears in the media library.
+          file_usage_add($file, 'openai_dalle', 'module', $file->fid);
 
-        file_save($file);
-
-        $form_state['storage'] = [
-          'filename' => $file->filename,
-          'filepath' => file_create_url($file->uri),
-          'fid' => $file->fid,
-          'format' => $format,
-        ];
+          $form_state['storage'] = [
+            'filename' => $file->filename,
+            'filepath' => file_create_url($file->uri),
+            'fid' => $file->fid,
+            'format' => $format,
+          ];
+        } else {
+          form_set_error('', t('Failed to save the image to the file system.'));
+        }
       } else {
         form_set_error('', t('Failed to download the image from the URL.'));
       }
@@ -370,7 +349,4 @@ function openai_dalle_form_submit($form, &$form_state) {
   }
 
   $form_state['rebuild'] = TRUE;
-
-  // Ensure storage is set to avoid warnings.
-  $form_state['storage'] = $form_state['storage'] ?? [];
 }
