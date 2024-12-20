@@ -1,6 +1,92 @@
 <?php
 
 /**
+ * Implements hook_config_info().
+ */
+function openai_alt_config_info() {
+  return [
+    'openai_alt.settings' => [
+      'label' => t('OpenAI Alt Settings'),
+      'group' => t('Configuration'),
+    ],
+  ];
+}
+
+/**
+ * Implements hook_menu().
+ */
+function openai_alt_menu() {
+  $items = [];
+
+  $items['admin/config/openai/openai-alt'] = [
+    'title' => 'OpenAI Alt Text Generation',
+    'description' => 'Provides the possibility to fill out the alt text of an image field using OpenAI.',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => ['openai_alt_settings_form'],
+    'access arguments' => ['administer site configuration'],
+    'parent' => 'admin/config/openai',
+  ];
+
+  return $items;
+}
+
+/**
+ * Build the configuration form for OpenAI Alt Text.
+ *
+ * @return array
+ *   The configuration form.
+ */
+function openai_alt_settings_form(array $form, array &$form_state) {
+  // Get the configuration object to load values.
+  $config = config('openai_alt.settings');
+
+  $openai_config = config('openai.settings');
+  $apiKey = key_get_key_value($openai_config->get('api_key'));
+
+  if (empty($apiKey)) {
+    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
+    return $form;
+  }
+
+  $api = new OpenAIApi($apiKey);
+
+  $form = array();
+  $form['#config'] = 'openai_alt.settings';
+
+  // Retrieve configuration values.
+  $prompt = $config->get('prompt');
+
+  // Prompt for generating alt text.
+  $form['prompt'] = [
+    '#type' => 'textarea',
+    '#title' => t('OpenAI Alt text generation prompt'),
+    '#default_value' => $prompt,
+    '#description' => t('Prompt used for generating the alt text.'),
+    '#required' => TRUE,
+    '#rows' => 15, // Adjust the height of the textarea.
+    '#cols' => 80, // Adjust the width of the textarea.
+    '#attributes' => [
+      'style' => 'white-space: pre-wrap;', // Ensure newlines and spaces are preserved.
+    ],
+  ];
+
+  // Model section
+
+  $models = $api->filterModels(['gpt-4o|gpt-4-turbo|vision']);
+
+  $form['model'] = [
+    '#type' => 'select',
+    '#title' => t('Model to use'),
+    '#options' => $models,
+    '#default_value' => $config->get('model'),
+    '#required' => TRUE,
+    '#description' => t('AI model to use for generating the alt text.'),
+  ];
+
+  return system_settings_form($form);
+}
+
+/**
  * Implements hook_element_info_alter().
  *
  * Alter the image field widget to include a "Generate Alt Text" button.

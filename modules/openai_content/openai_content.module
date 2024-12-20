@@ -1,4 +1,275 @@
 <?php
+
+/**
+ * Implements hook_config_info().
+ */
+function openai_content_config_info() {
+  return [
+    'openai_content.settings' => [
+      'label' => t('OpenAI Content Settings'),
+      'group' => t('Configuration'),
+    ],
+  ];
+}
+
+/**
+ * Implements hook_menu().
+ */
+function openai_content_menu() {
+  $items = [];
+
+  $items['admin/config/openai/openai-content'] = [
+    'title' => 'OpenAI Content settings',
+    'description' => 'Settings for content suggestions using OpenAI',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => ['openai_content_settings_form'],
+    'access arguments' => ['administer site configuration'],
+    'parent' => 'admin/config/openai',
+  ];
+
+  return $items;
+}
+
+/**
+ * Build the configuration form for OpenAI Content.
+ *
+ * @return array
+ *   The configuration form.
+ */
+function openai_content_settings_form($form, &$form_state) {
+  // Get the configuration object to load values.
+  $config = config('openai_content.settings');
+
+  $openai_config = config('openai.settings');
+  $apiKey = key_get_key_value($openai_config->get('api_key'));
+
+  if (empty($apiKey)) {
+    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
+    return $form;
+  }
+
+  $api = new OpenAIApi($apiKey);
+  $models = $api->filterModels(['gpt']);
+
+  $form = array();
+  $form['#config'] = 'openai_content.settings';
+
+  $form['introduction'] = [
+    '#type' => 'html_tag',
+    '#tag' => 'p',
+    '#children' => t('Below is a list of the available plugins you can enable or disable for analyzing your content.'),
+  ];
+
+  $form['features'] = [
+    '#type' => 'fieldset',
+    '#title' => t('Available Features'),
+  ];
+
+  $form['features']['text_analysis'] = [
+    '#type' => 'checkbox',
+    '#title' => t('Enable Text Analysis'),
+    '#default_value' => $config->get('text_analysis'),
+    '#description' => t('Allows analyzing the text for policy violations.'),
+  ];
+
+  $form['features']['tone_adjustment'] = [
+    '#type' => 'checkbox',
+    '#title' => t('Enable Tone Adjustment'),
+    '#default_value' => $config->get('tone_adjustment'),
+    '#description' => t('Allows adjusting the tone of the text to match specific audiences.'),
+  ];
+
+  // Tone Adjustment settings section, always visible for simplicity.
+  $form['features']['tone_adjustment_settings'] = [
+    '#type' => 'fieldset',
+    '#title' => t('Tone Adjustment Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  ];
+
+  $form['features']['tone_adjustment_settings']['tone_adjustment_prompt'] = [
+    '#type' => 'textarea',
+    '#title' => t('Prompt for Tone Adjustment'),
+    '#default_value' => $config->get('tone_adjustment_prompt') ?? 'Change the tone of the following text to be {{ tone }} using the same language as the input text.',
+    '#description' => t('The prompt used for adjusting the tone of the text. Use {{ tone }} as a placeholder for the selected tone.'),
+  ];
+
+  $form['features']['tone_adjustment_settings']['tone_adjustment_model'] = [
+    '#type' => 'select',
+    '#title' => t('Model for Tone Adjustment'),
+    '#options' => $models,
+    '#default_value' => $config->get('tone_adjustment_model') ?? 'gpt-3.5-turbo',
+    '#description' => t('Select the model to use for tone adjustment.'),
+  ];
+
+  $form['features']['tone_adjustment_settings']['tone_adjustment_temperature'] = [
+    '#type' => 'number',
+    '#title' => t('Temperature'),
+    '#default_value' => $config->get('tone_adjustment_temperature') ?? 0.7,
+    '#step' => 0.1,
+    '#min' => 0,
+    '#max' => 1,
+    '#description' => t('Controls randomness. Lower values make the model more focused, higher values make it more creative.'),
+  ];
+
+  $form['features']['tone_adjustment_settings']['tone_adjustment_max_tokens'] = [
+    '#type' => 'number',
+    '#title' => t('Max Tokens'),
+    '#default_value' => $config->get('tone_adjustment_max_tokens') ?? 2048,
+    '#description' => t('The maximum number of tokens to include in the output.'),
+  ];
+
+
+  $form['features']['summarization'] = [
+    '#type' => 'checkbox',
+    '#title' => t('Enable Summarization'),
+    '#default_value' => $config->get('summarization'),
+    '#description' => t('Allows summarizing the text content.'),
+  ];
+
+  // Summarization settings section, always visible for simplicity.
+  $form['features']['summarization_settings'] = [
+    '#type' => 'fieldset',
+    '#title' => t('Summarization Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  ];
+
+  $form['features']['summarization_settings']['summarization_prompt'] = [
+    '#type' => 'textarea',
+    '#title' => t('Prompt for Summarization'),
+    '#default_value' => $config->get('summarization_prompt') ?? 'Create a detailed summary of the following text in less than 130 words.',
+    '#description' => t('The prompt used for generating text summaries.'),
+  ];
+
+  $form['features']['summarization_settings']['summarization_model'] = [
+    '#type' => 'select',
+    '#title' => t('Model for Summarization'),
+    '#options' => $models,
+    '#default_value' => $config->get('summarization_model') ?? 'gpt-3.5-turbo',
+    '#description' => t('Select the model to use for summarization.'),
+  ];
+
+  $form['features']['summarization_settings']['summarization_temperature'] = [
+    '#type' => 'number',
+    '#title' => t('Temperature'),
+    '#default_value' => $config->get('summarization_temperature') ?? 0.7,
+    '#step' => 0.1,
+    '#min' => 0,
+    '#max' => 1,
+    '#description' => t('Controls randomness. Lower values make the model more focused, higher values make it more creative.'),
+  ];
+
+  $form['features']['summarization_settings']['summarization_max_tokens'] = [
+    '#type' => 'number',
+    '#title' => t('Max Tokens'),
+    '#default_value' => $config->get('summarization_max_tokens') ?? 2048,
+    '#description' => t('The maximum number of tokens to include in the output.'),
+  ];
+
+  $form['features']['title_suggestion'] = [
+    '#type' => 'checkbox',
+    '#title' => t('Enable Title Suggestion'),
+    '#default_value' => $config->get('title_suggestion'),
+    '#description' => t('Allows suggesting SEO-friendly titles based on the text content.'),
+  ];
+
+  // Title suggestion settings section, always visible for simplicity.
+  $form['features']['title_settings'] = [
+    '#type' => 'fieldset',
+    '#title' => t('Title Suggestion Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  ];
+
+  $form['features']['title_settings']['title_prompt'] = [
+    '#type' => 'textarea',
+    '#title' => t('Prompt for Title Suggestion'),
+    '#default_value' => $config->get('title_prompt') ?? 'Suggest an SEO-friendly title for the following content in 10 words or less.',
+    '#description' => t('The prompt used for generating title suggestions.'),
+  ];
+
+  $form['features']['title_settings']['title_model'] = [
+    '#type' => 'select',
+    '#title' => t('Model for Title Suggestion'),
+    '#options' => $models,
+    '#default_value' => $config->get('title_model') ?? 'gpt-3.5-turbo',
+    '#description' => t('Select the model to use for title suggestions.'),
+  ];
+
+  $form['features']['title_settings']['title_temperature'] = [
+    '#type' => 'number',
+    '#title' => t('Temperature'),
+    '#default_value' => $config->get('title_temperature') ?? 0.4,
+    '#step' => 0.1,
+    '#min' => 0,
+    '#max' => 1,
+    '#description' => t('Controls randomness. Lower values make the model more focused, higher values make it more creative.'),
+  ];
+
+  $form['features']['title_settings']['title_max_tokens'] = [
+    '#type' => 'number',
+    '#title' => t('Max Tokens'),
+    '#default_value' => $config->get('title_max_tokens') ?? 2048,
+    '#description' => t('The maximum number of tokens to include in the output.'),
+  ];
+
+
+  // Taxonomy settings section, visible only if taxonomy suggestion is enabled.
+  $form['features']['taxonomy_suggestion'] = [
+    '#type' => 'checkbox',
+    '#title' => t('Enable Taxonomy Suggestion'),
+    '#default_value' => $config->get('taxonomy_suggestion'),
+    '#description' => t('Allows suggesting taxonomy terms based on the text content.'),
+  ];
+
+  // Add the collapsible settings fieldset under the checkbox.
+  $form['features']['taxonomy_settings'] = [
+    '#type' => 'fieldset',
+    '#title' => t('Taxonomy Suggestion Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  ];
+
+  // Add taxonomy prompt field.
+  $form['features']['taxonomy_settings']['taxonomy_prompt'] = [
+    '#type' => 'textarea',
+    '#title' => t('Prompt for Taxonomy Suggestion'),
+    '#default_value' => $config->get('taxonomy_prompt') ?? 'Suggest five words to classify the following text.',
+    '#description' => t('The prompt used for generating taxonomy suggestions.'),
+  ];
+
+  // Add taxonomy model selection.
+  $form['features']['taxonomy_settings']['taxonomy_model'] = [
+    '#type' => 'select',
+    '#title' => t('Model for Taxonomy Suggestion'),
+    '#options' => $models,
+    '#default_value' => $config->get('taxonomy_model') ?? 'gpt-3.5-turbo',
+    '#description' => t('Select the model to use for taxonomy suggestions.'),
+  ];
+
+  // Add taxonomy temperature setting.
+  $form['features']['taxonomy_settings']['taxonomy_temperature'] = [
+    '#type' => 'number',
+    '#title' => t('Temperature'),
+    '#default_value' => $config->get('taxonomy_temperature') ?? 0.4,
+    '#step' => 0.1,
+    '#min' => 0,
+    '#max' => 1,
+    '#description' => t('Controls randomness. Lower values make the model more focused, higher values make it more creative.'),
+  ];
+
+  // Add taxonomy max tokens setting.
+  $form['features']['taxonomy_settings']['taxonomy_max_tokens'] = [
+    '#type' => 'number',
+    '#title' => t('Max Tokens'),
+    '#default_value' => $config->get('taxonomy_max_tokens') ?? 2048,
+    '#description' => t('The maximum number of tokens to include in the output.'),
+  ];
+
+  return system_settings_form($form);
+}
+
 /**
  * @file
  * Permissions for the OpenAI Content module.
@@ -17,193 +288,118 @@ function openai_content_permission() {
  */
 function openai_content_form_node_form_alter(&$form, &$form_state, $form_id) {
   global $user;
+
   if (user_access('access openai content tools')) {
     $entity = $form['#node'];
     $options = _openai_content_get_all_text_with_summary_fields($entity);
     $options = array_intersect_key($options, $form);
+    $config = config('openai_content.settings');
 
-    $form['openai_moderate'] = [
-      '#type' => 'fieldset',
-      '#title' => t('Analyze text'),
-      '#collapsible' => TRUE,
-      '#collapsed' => TRUE,
-      '#group' => 'additional_settings',
-    ];
-
-    $form['openai_moderate']['target_field'] = [
-      '#type' => 'select',
-      '#title' => t('Choose field'),
-      '#description' => t('Select what field you would like to analyze.'),
-      '#options' => $options,
-    ];
-
-    $form['openai_moderate']['response'] = [
-      '#type' => 'markup',
-      '#markup' => t('OpenAI can analyze content and tell you what <a href=":link" target="_blank">content policies it may violate</a>. This is beneficial if your audience are certain demographics and sensitive to certain categories. Note that this is only a useful guide.', ['@link' => 'https://platform.openai.com/docs/guides/moderation/overview']),
-      '#prefix' => '<div id="openai-moderate-response">',
-      '#suffix' => '</div>',
-    ];
-
-    $form['openai_moderate']['do_moderate'] = [
-      '#type' => 'button',
-      '#value' => t('Analyze'),
-      '#limit_validation_errors' => [],
-      '#ajax' => [
-        'callback' => 'openai_content_entity_analyze_content',
-        'wrapper' => 'openai-moderate-response',
-        'effect' => 'fade',
+    // Define the features and their configurations.
+    $features = [
+      'text_analysis' => [
+        'fieldset' => 'openai_moderate',
+        'title' => t('Analyze text'),
+        'description' => t('OpenAI can analyze content for policy violations.'),
+        'ajax_callback' => 'openai_content_entity_analyze_content',
+        'button_text' => t('Analyze'),
+        'response_wrapper' => 'openai-moderate-response',
+      ],
+      'tone_adjustment' => [
+        'fieldset' => 'openai_tone_edit',
+        'title' => t('Adjust content tone'),
+        'description' => t('Have OpenAI check your content and adjust the tone for different audiences.'),
+        'ajax_callback' => 'openai_content_entity_adjust_tone',
+        'button_text' => t('Adjust tone'),
+        'response_wrapper' => 'openai-tone-edit-response',
+        'extra_fields' => [
+          'tone' => [
+            '#type' => 'select',
+            '#title' => t('Choose tone'),
+            '#description' => t('Adjust/reword the body content to match the target audience.'),
+            '#options' => [
+              'friendly' => t('Friendly'),
+              'professional' => t('Professional'),
+              'helpful' => t('Helpful'),
+              'high_school' => t('High school level reader'),
+              'college' => t('College level reader'),
+              'explain_5' => t('Explain like I\'m 5'),
+            ],
+          ],
+        ],
+      ],
+      'summarization' => [
+        'fieldset' => 'openai_summarize',
+        'title' => t('Summarize text'),
+        'description' => t('Create a summary from the selected field.'),
+        'ajax_callback' => 'openai_content_entity_field_summarize',
+        'button_text' => t('Summarize'),
+        'response_wrapper' => 'openai-summarize-response',
+      ],
+      'title_suggestion' => [
+        'fieldset' => 'openai_suggest_title',
+        'title' => t('Suggest content title'),
+        'description' => t('Suggest an SEO-friendly title based on the text content.'),
+        'ajax_callback' => 'openai_content_suggest_title',
+        'button_text' => t('Suggest title'),
+        'response_wrapper' => 'openai-suggest-title-response',
+      ],
+      'taxonomy_suggestion' => [
+        'fieldset' => 'openai_suggest',
+        'title' => t('Suggest taxonomy'),
+        'description' => t('Suggest taxonomy terms based on the text content.'),
+        'ajax_callback' => 'openai_content_entity_suggest_taxonomy',
+        'button_text' => t('Suggest taxonomy'),
+        'response_wrapper' => 'openai-suggest-response',
       ],
     ];
 
-    $form['openai_tone_edit'] = [
-      '#type' => 'fieldset',
-      '#title' => t('Adjust content tone'),
-      '#collapsible' => TRUE,
-      '#collapsed' => TRUE,
-      '#group' => 'additional_settings',
-    ];
+    // Add functionality based on enabled settings.
+    foreach ($features as $key => $feature) {
+      if ($config->get($key)) {
+        $fieldset = $feature['fieldset'];
 
-    $form['openai_tone_edit']['message'] = [
-      '#markup' => t('Have OpenAI check your content and adjust the tone of it for different reader audiences for you.'),
-    ];
+        $form[$fieldset] = [
+          '#type' => 'fieldset',
+          '#title' => $feature['title'],
+          '#collapsible' => TRUE,
+          '#collapsed' => TRUE,
+          '#group' => 'additional_settings',
+        ];
 
-    $form['openai_tone_edit']['target_field'] = [
-      '#type' => 'select',
-      '#title' => t('Choose field'),
-      '#description' => t('Select what field you would like to change the tone of.'),
-      '#options' => $options,
-    ];
+        $form[$fieldset]['target_field'] = [
+          '#type' => 'select',
+          '#title' => t('Choose field'),
+          '#description' => $feature['description'],
+          '#options' => $options,
+        ];
 
-    $form['openai_tone_edit']['tone'] = [
-      '#type' => 'select',
-      '#title' => t('Choose tone'),
-      '#description' => t('Selecting one of the options will adjust/reword the body content to be appropriate for the target audience.'),
-      '#options' => [
-        'friendly' => t('Friendly'),
-        'professional' => t('Professional'),
-        'helpful' => t('Helpful'),
-        'easier for a high school educated reader' => t('High school level reader'),
-        'easier for a college educated reader' => t('College level reader'),
-        'explained to a five year old' => t('Explain like I\'m 5'),
-      ],
-    ];
+        // Add extra fields if defined.
+        if (!empty($feature['extra_fields'])) {
+          foreach ($feature['extra_fields'] as $field_key => $field) {
+            $form[$fieldset][$field_key] = $field;
+          }
+        }
 
-    $form['openai_tone_edit']['response'] = [
-      '#type' => 'markup',
-      '#markup' => '',
-      '#prefix' => '<br /><div id="openai-tone-edit-response">',
-      '#suffix' => '</div>',
-    ];
+        $form[$fieldset]['response'] = [
+          '#type' => 'markup',
+          '#markup' => '',
+          '#prefix' => "<div id=\"{$feature['response_wrapper']}\">",
+          '#suffix' => '</div>',
+        ];
 
-    $form['openai_tone_edit']['edit'] = [
-      '#type' => 'button',
-      '#value' => t('Adjust tone'),
-      '#limit_validation_errors' => [],
-      '#ajax' => [
-        'callback' => 'openai_content_entity_adjust_tone',
-        'wrapper' => 'openai-tone-edit-response',
-        'effect' => 'fade',
-      ],
-    ];
-
-    $form['openai_summarize'] = [
-      '#type' => 'fieldset',
-      '#title' => t('Summarize text'),
-      '#collapsible' => TRUE,
-      '#collapsed' => TRUE,
-      '#group' => 'additional_settings',
-    ];
-
-    $form['openai_summarize']['target_field'] = [
-      '#type' => 'select',
-      '#title' => t('Choose field'),
-      '#description' => t('Select what field you would like to create a summary from.'),
-      '#options' => $options,
-    ];
-
-    $form['openai_summarize']['response'] = [
-      '#type' => 'markup',
-      '#markup' => '',
-      '#prefix' => '<div id="openai-summarize-response">',
-      '#suffix' => '</div>',
-    ];
-
-    $form['openai_summarize']['do_summarize'] = [
-      '#type' => 'button',
-      '#value' => t('Summarize'),
-      '#limit_validation_errors' => [],
-      '#ajax' => [
-        'callback' => 'openai_content_entity_field_summarize',
-        'wrapper' => 'openai-summarize-response',
-        'effect' => 'fade',
-      ],
-    ];
-
-    $form['openai_suggest_title'] = [
-      '#type' => 'fieldset',
-      '#title' => t('Suggest content title'),
-      '#collapsible' => TRUE,
-      '#collapsed' => TRUE,
-      '#group' => 'additional_settings',
-    ];
-
-    $form['openai_suggest_title']['target_field'] = [
-      '#type' => 'select',
-      '#title' => t('Choose field'),
-      '#description' => t('Select what field you would like to use.'),
-      '#options' => $options,
-    ];
-
-    $form['openai_suggest_title']['response'] = [
-      '#type' => 'markup',
-      '#markup' => '',
-      '#prefix' => '<div id="openai-suggest-title-response">',
-      '#suffix' => '</div>',
-    ];
-
-    $form['openai_suggest_title']['do_suggest_title'] = [
-      '#type' => 'button',
-      '#value' => t('Suggest title'),
-      '#limit_validation_errors' => [],
-      '#ajax' => [
-        'callback' => 'openai_content_suggest_title',
-        'wrapper' => 'openai-suggest-title-response',
-        'effect' => 'fade',
-      ],
-    ];
-
-    $form['openai_suggest'] = [
-      '#type' => 'fieldset',
-      '#title' => t('Suggest taxonomy'),
-      '#collapsible' => TRUE,
-      '#collapsed' => TRUE,
-      '#group' => 'additional_settings',
-    ];
-
-    $form['openai_suggest']['target_field'] = [
-      '#type' => 'select',
-      '#title' => t('Choose field'),
-      '#description' => t('Select what field you would like to suggest taxonomy from.'),
-      '#options' => $options,
-    ];
-
-    $form['openai_suggest']['response'] = [
-      '#type' => 'markup',
-      '#markup' => '',
-      '#prefix' => '<div id="openai-suggest-response">',
-      '#suffix' => '</div>',
-    ];
-
-    $form['openai_suggest']['do_suggest'] = [
-      '#type' => 'button',
-      '#value' => t('Suggest taxonomy'),
-      '#limit_validation_errors' => [],
-      '#ajax' => [
-        'callback' => 'openai_content_entity_suggest_taxonomy',
-        'wrapper' => 'openai-suggest-response',
-        'effect' => 'fade',
-      ],
-    ];
+        $form[$fieldset]['do_action'] = [
+          '#type' => 'button',
+          '#value' => $feature['button_text'],
+          '#limit_validation_errors' => [],
+          '#ajax' => [
+            'callback' => $feature['ajax_callback'],
+            'wrapper' => $feature['response_wrapper'],
+            'effect' => 'fade',
+          ],
+        ];
+      }
+    }
   }
 }
 
@@ -248,6 +444,7 @@ function _openai_content_get_all_text_with_summary_fields($entity) {
  */
 function openai_content_entity_adjust_tone($form, &$form_state) {
   $openai_config = config('openai.settings');
+  $content_config = config('openai_content.settings');
   $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (isset($form_state['values']['target_field'])) {
@@ -259,16 +456,24 @@ function openai_content_entity_adjust_tone($form, &$form_state) {
 
       if (!empty($target_field_value)) {
         $client = new OpenAIApi($apiKey);
-        $truncated_value = StringHelper::prepareText($target_field_value, [], 3900);
+
+        // Fetch settings for tone adjustment.
+        $model = $content_config->get('tone_adjustment_model') ?? 'gpt-3.5-turbo';
+        $temperature = $content_config->get('tone_adjustment_temperature') ?? 0.7;
+        $max_tokens = $content_config->get('tone_adjustment_max_tokens') ?? 2048;
+        $prompt = $content_config->get('tone_adjustment_prompt') ?? 'Change the tone of the following text to be {{ tone }} using the same language as the input text.';
+
+        // Replace the {{ tone }} placeholder in the prompt.
+        $final_prompt = str_replace('{{ tone }}', $tone, $prompt) . "\r\n\"" . StringHelper::prepareText($target_field_value, [], 3900) . "\"";
 
         try {
           $response = $client->chat(
-            'gpt-3.5-turbo',
+            $model,
             [
-              ['role' => 'user', 'content' => 'Change the tone of the following text to be ' . $tone . ' using the same language as the following text:\r\n"' . $truncated_value . '"']
+              ['role' => 'user', 'content' => $final_prompt]
             ],
-            0.7,
-            2048
+            $temperature,
+            $max_tokens
           );
 
           // Check if the response is a string and handle accordingly
@@ -309,6 +514,7 @@ function openai_content_entity_adjust_tone($form, &$form_state) {
  */
 function openai_content_entity_field_summarize($form, &$form_state) {
   $openai_config = config('openai.settings');
+  $content_config = config('openai_content.settings');
   $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (isset($form_state['values']['target_field'])) {
@@ -319,16 +525,24 @@ function openai_content_entity_field_summarize($form, &$form_state) {
 
       if (!empty($target_field_value)) {
         $client = new OpenAIApi($apiKey);
-        $truncated_value = StringHelper::prepareText($target_field_value, [], 3900);
+
+        // Fetch settings for summarization.
+        $model = $content_config->get('summarization_model') ?? 'gpt-3.5-turbo';
+        $temperature = $content_config->get('summarization_temperature') ?? 0.7;
+        $max_tokens = $content_config->get('summarization_max_tokens') ?? 2048;
+        $prompt = $content_config->get('summarization_prompt') ?? 'Create a detailed summary of the following text in less than 130 words.';
+
+        // Prepare the prompt by injecting the field value.
+        $final_prompt = $prompt . "\r\n\"" . StringHelper::prepareText($target_field_value, [], 3900) . "\"";
 
         try {
           $response = $client->chat(
-            'gpt-3.5-turbo',
+            $model,
             [
-              ['role' => 'user', 'content' => 'Create a detailed summary of the following text in less than 130 words using the same language as the following text:\r\n"' . $truncated_value . '"']
+              ['role' => 'user', 'content' => $final_prompt]
             ],
-            0.7,
-            2048
+            $temperature,
+            $max_tokens
           );
 
           // Check if the response is a string and handle accordingly
@@ -369,6 +583,7 @@ function openai_content_entity_field_summarize($form, &$form_state) {
  */
 function openai_content_suggest_title($form, &$form_state) {
   $openai_config = config('openai.settings');
+  $content_config = config('openai_content.settings');
   $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (isset($form_state['values']['target_field'])) {
@@ -379,16 +594,24 @@ function openai_content_suggest_title($form, &$form_state) {
 
       if (!empty($target_field_value)) {
         $client = new OpenAIApi($apiKey);
-        $truncated_value = StringHelper::prepareText($target_field_value, [], 3900);
+
+        // Fetch settings for title suggestion.
+        $model = $content_config->get('title_model') ?? 'gpt-3.5-turbo';
+        $temperature = $content_config->get('title_temperature') ?? 0.4;
+        $max_tokens = $content_config->get('title_max_tokens') ?? 2048;
+        $prompt = $content_config->get('title_prompt') ?? 'Suggest an SEO-friendly title for the following content in 10 words or less.';
+
+        // Prepare the prompt by injecting the field value.
+        $final_prompt = $prompt . "\r\n\"" . StringHelper::prepareText($target_field_value, [], 3900) . "\"";
 
         try {
           $response = $client->chat(
-            'gpt-3.5-turbo',
+            $model,
             [
-              ['role' => 'user', 'content' => 'Suggest an SEO friendly title for this page based off of the following content in 10 words or less, in the same language as the input:\r\n"' . $truncated_value . '"']
+              ['role' => 'user', 'content' => $final_prompt]
             ],
-            0.4,
-            2048
+            $temperature,
+            $max_tokens
           );
 
           // Check if the response is a string and handle accordingly
@@ -416,7 +639,6 @@ function openai_content_suggest_title($form, &$form_state) {
   return $form['openai_suggest_title']['response'];
 }
 
-
 /**
  * The AJAX callback for suggesting taxonomy.
  *
@@ -430,6 +652,8 @@ function openai_content_suggest_title($form, &$form_state) {
  */
 function openai_content_entity_suggest_taxonomy($form, &$form_state) {
   $openai_config = config('openai.settings');
+  $content_config = config('openai_content.settings');
+
   $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (isset($form_state['values']['target_field'])) {
@@ -442,17 +666,23 @@ function openai_content_entity_suggest_taxonomy($form, &$form_state) {
         $client = new OpenAIApi($apiKey);
         $truncated_value = StringHelper::prepareText($target_field_value, [], 3900);
 
+        // Get settings from the configuration.
+        $prompt = $content_config->get('taxonomy_prompt') ?? 'Suggest five words to classify the following text.';
+        $model = $content_config->get('taxonomy_model') ?? 'gpt-3.5-turbo';
+        $temperature = $content_config->get('taxonomy_temperature') ?? 0.4;
+        $max_tokens = $content_config->get('taxonomy_max_tokens') ?? 2048;
+
         try {
           $response = $client->chat(
-            'gpt-3.5-turbo',
+            $model,
             [
-              ['role' => 'user', 'content' => 'Suggest five words to classify the following text using the same language as the input text. The words must be nouns or adjectives in a comma delimited list:\r\n"' . $truncated_value . '"']
+              ['role' => 'user', 'content' => $prompt . "\r\n\"" . $truncated_value . "\""],
             ],
-            0.4,
-            2048
+            $temperature,
+            $max_tokens
           );
 
-          // Check if the response is a string and handle accordingly
+          // Check if the response is a string and handle accordingly.
           if (is_string($response)) {
             $text = trim($response);
           } else {
