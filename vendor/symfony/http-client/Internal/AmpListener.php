@@ -26,16 +26,13 @@ use Symfony\Component\HttpClient\Exception\TransportException;
 class AmpListener implements EventListener
 {
     private array $info;
+    private array $pinSha256;
+    private \Closure $onProgress;
+    /** @var resource|null */
+    private $handle;
 
-    /**
-     * @param resource|null $handle
-     */
-    public function __construct(
-        array &$info,
-        private array $pinSha256,
-        private \Closure $onProgress,
-        private &$handle,
-    ) {
+    public function __construct(array &$info, array $pinSha256, \Closure $onProgress, &$handle)
+    {
         $info += [
             'connect_time' => 0.0,
             'pretransfer_time' => 0.0,
@@ -47,6 +44,9 @@ class AmpListener implements EventListener
         ];
 
         $this->info = &$info;
+        $this->pinSha256 = $pinSha256;
+        $this->onProgress = $onProgress;
+        $this->handle = &$handle;
     }
 
     public function startRequest(Request $request): Promise
@@ -81,12 +81,12 @@ class AmpListener implements EventListener
     public function startSendingRequest(Request $request, Stream $stream): Promise
     {
         $host = $stream->getRemoteAddress()->getHost();
+        $this->info['primary_ip'] = $host;
 
         if (str_contains($host, ':')) {
             $host = '['.$host.']';
         }
 
-        $this->info['primary_ip'] = $host;
         $this->info['primary_port'] = $stream->getRemoteAddress()->getPort();
         $this->info['pretransfer_time'] = microtime(true) - $this->info['start_time'];
         $this->info['debug'] .= sprintf("* Connected to %s (%s) port %d\n", $request->getUri()->getHost(), $host, $this->info['primary_port']);
