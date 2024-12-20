@@ -55,11 +55,11 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface, 
             $content = false;
         }
 
-        $options['on_progress'] = function (int $dlNow, int $dlSize, array $info, ?\Closure $resolve = null) use (&$traceInfo, $onProgress) {
+        $options['on_progress'] = function (int $dlNow, int $dlSize, array $info) use (&$traceInfo, $onProgress) {
             $traceInfo = $info;
 
             if (null !== $onProgress) {
-                $onProgress($dlNow, $dlSize, $info, $resolve);
+                $onProgress($dlNow, $dlSize, $info);
             }
         };
 
@@ -89,13 +89,8 @@ final class TraceableHttpClient implements HttpClientInterface, ResetInterface, 
         $this->tracedRequests->exchangeArray([]);
     }
 
-    /**
-     * @deprecated since Symfony 7.1, configure the logger on the wrapped HTTP client directly instead
-     */
     public function setLogger(LoggerInterface $logger): void
     {
-        trigger_deprecation('symfony/http-client', '7.1', 'Configure the logger on the wrapped HTTP client directly instead.');
-
         if ($this->client instanceof LoggerAwareInterface) {
             $this->client->setLogger($logger);
         }
