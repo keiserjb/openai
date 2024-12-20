@@ -3,4 +3,5 @@ type = module
 description = Provides alt text generation using OpenAI.
 backdrop = 1.x
 package = OpenAI
+configure = admin/config/openai/openai-alt
 dependencies[] = openai
