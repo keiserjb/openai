@@ -1,97 +1,12 @@
 <?php
 
 /**
- * Implements hook_config_info().
- */
-function openai_alt_config_info() {
-  return [
-    'openai_alt.settings' => [
-      'label' => t('OpenAI Alt Settings'),
-      'group' => t('Configuration'),
-    ],
-  ];
-}
-
-/**
- * Implements hook_menu().
- */
-function openai_alt_menu() {
-  $items = [];
-
-  $items['admin/config/openai/openai-alt'] = [
-    'title' => 'OpenAI Alt Text Generation',
-    'description' => 'Provides the possibility to fill out the alt text of an image field using OpenAI.',
-    'page callback' => 'backdrop_get_form',
-    'page arguments' => ['openai_alt_settings_form'],
-    'access arguments' => ['administer site configuration'],
-    'parent' => 'admin/config/openai',
-  ];
-
-  return $items;
-}
-
-/**
- * Build the configuration form for OpenAI Alt Text.
- *
- * @return array
- *   The configuration form.
- */
-function openai_alt_settings_form(array $form, array &$form_state) {
-  // Get the configuration object to load values.
-  $config = config('openai_alt.settings');
-
-  $openai_config = config('openai.settings');
-  $apiKey = key_get_key_value($openai_config->get('api_key'));
-
-  if (empty($apiKey)) {
-    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
-    return $form;
-  }
-
-  $api = new OpenAIApi($apiKey);
-
-  $form = array();
-  $form['#config'] = 'openai_alt.settings';
-
-  // Retrieve configuration values.
-  $prompt = $config->get('prompt');
-
-  // Prompt for generating alt text.
-  $form['prompt'] = [
-    '#type' => 'textarea',
-    '#title' => t('OpenAI Alt text generation prompt'),
-    '#default_value' => $prompt,
-    '#description' => t('Prompt used for generating the alt text.'),
-    '#required' => TRUE,
-    '#rows' => 15, // Adjust the height of the textarea.
-    '#cols' => 80, // Adjust the width of the textarea.
-    '#attributes' => [
-      'style' => 'white-space: pre-wrap;', // Ensure newlines and spaces are preserved.
-    ],
-  ];
-
-  // Model section
-
-  $models = $api->filterModels(['gpt-4o|gpt-4-turbo|vision']);
-
-  $form['model'] = [
-    '#type' => 'select',
-    '#title' => t('Model to use'),
-    '#options' => $models,
-    '#default_value' => $config->get('model'),
-    '#required' => TRUE,
-    '#description' => t('AI model to use for generating the alt text.'),
-  ];
-
-  return system_settings_form($form);
-}
-
-/**
  * Implements hook_element_info_alter().
  *
  * Alter the image field widget to include a "Generate Alt Text" button.
  */
-function openai_alt_element_info_alter(&$types) {
+function openai_alt_element_info_alter(&$types)
+{
   if (isset($types['managed_file'])) {
     $types['managed_file']['#process'][] = 'openai_alt_image_field_process';
   }
@@ -100,7 +15,8 @@ function openai_alt_element_info_alter(&$types) {
 /**
  * Process function to wrap the alt text field and add the AI button.
  */
-function openai_alt_image_field_process($element, &$form_state, $form) {
+function openai_alt_image_field_process($element, &$form_state, $form)
+{
   if (isset($element['#value']['alt'])) {
     $field_name = $element['#field_name'] ?? 'unknown_field';
     $delta = $element['#delta'] ?? 0;
@@ -136,9 +52,33 @@ function openai_alt_image_field_process($element, &$form_state, $form) {
 /**
  * Implements hook_form_alter().
  */
-function openai_alt_form_alter(&$form, &$form_state, $form_id) {
+function openai_alt_form_alter(&$form, &$form_state, $form_id)
+{
   if ($form_id == 'filter_format_editor_image_form') {
-    // Ensure the 'alt' field exists.
+    // Add weights for existing fields.
+    if (isset($form['image'])) {
+      $form['image']['fid']['#weight'] = 0; // File upload field.
+      $form['image']['src']['#weight'] = 1; // Image source field.
+    }
+    if (isset($form['alt'])) {
+      $form['alt']['#weight'] = 2; // Alternative text field.
+    }
+    if (isset($form['size'])) {
+      $form['size']['#weight'] = 4; // Image size wrapper.
+      $form['size']['width']['#weight'] = 5; // Width field.
+      $form['size']['height']['#weight'] = 6; // Height field.
+    }
+    if (isset($form['align'])) {
+      $form['align']['#weight'] = 7; // Alignment field.
+    }
+    if (isset($form['caption'])) {
+      $form['caption']['#weight'] = 8; // Caption checkbox.
+    }
+    if (isset($form['actions'])) {
+      $form['actions']['submit']['#weight'] = 8; // Submit button.
+    }
+
+    // Ensure the 'alt' field exists before adding the Generate with AI button.
     if (isset($form['alt'])) {
       // Add a unique ID to the `alt` field for AJAX targeting.
       $form['alt']['#prefix'] = '<div id="edit-alt-wrapper">';
@@ -155,6 +95,7 @@ function openai_alt_form_alter(&$form, &$form_state, $form_id) {
         '#attributes' => [
           'class' => ['ckeditor-ai-generate-button'],
         ],
+        '#weight' => 3, // Place the button right after the alt field.
       ];
     }
   }
@@ -164,7 +105,8 @@ function openai_alt_form_alter(&$form, &$form_state, $form_id) {
 /**
  * AJAX callback to generate alt text in CKEditor modal.
  */
-function openai_alt_generate_alt_text_for_ckeditor($form, &$form_state) {
+function openai_alt_generate_alt_text_for_ckeditor($form, &$form_state)
+{
   // Retrieve the file ID (`fid`) from the form.
   $fid = $form['image']['fid']['#value']['fid'] ?? NULL;
 
@@ -206,12 +148,10 @@ function openai_alt_generate_alt_text_for_ckeditor($form, &$form_state) {
           ajax_command_replace('#edit-alt-wrapper', backdrop_render($form['alt'])),
         ],
       ];
-    }
-    else {
+    } else {
       backdrop_set_message(t('Failed to generate alt text. Please try again.'), 'error');
     }
-  }
-  catch (Exception $e) {
+  } catch (Exception $e) {
     // Log the error and notify the user.
     watchdog('openai_alt', 'Error generating alt text: @error', ['@error' => $e->getMessage()], WATCHDOG_ERROR);
     return [
@@ -237,7 +177,8 @@ function openai_alt_generate_alt_text_for_ckeditor($form, &$form_state) {
 /**
  * AJAX callback for generating alt text using OpenAI.
  */
-function openai_alt_generate_alt_text_ajax($form, &$form_state) {
+function openai_alt_generate_alt_text_ajax($form, &$form_state)
+{
   $triggering_element = $form_state['triggering_element'];
   $fid = $triggering_element['#attributes']['data-file-id'] ?? NULL;
   $field_name = $triggering_element['#attributes']['data-field-name'] ?? NULL;
@@ -261,7 +202,7 @@ function openai_alt_generate_alt_text_ajax($form, &$form_state) {
     return;
   }
 
- // dpm($file);
+  // dpm($file);
 
   $file_uri = $file->uri;
 
@@ -273,7 +214,7 @@ function openai_alt_generate_alt_text_ajax($form, &$form_state) {
   // Get the OpenAIApi instance and describe the image.
   $openai_api = openai_alt_get_openai_api();
   $generated_alt_text = $openai_api->describeImage($file_uri);
-  //dpm($generated_alt_text);
+  dpm($generated_alt_text);
 
   // Update the alt text value.
   $form[$field_name]['und'][$delta]['alt']['#value'] = $generated_alt_text;
@@ -295,7 +236,8 @@ function openai_alt_generate_alt_text_ajax($form, &$form_state) {
  * @return OpenAIApi
  *   The OpenAI API instance.
  */
-function openai_alt_get_openai_api() {
+function openai_alt_get_openai_api()
+{
   static $openai_api;
   if (!$openai_api) {
     $api_key = key_get_key_value(config('openai.settings')->get('api_key'));
