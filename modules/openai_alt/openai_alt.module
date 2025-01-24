@@ -214,7 +214,7 @@ function openai_alt_generate_alt_text_ajax($form, &$form_state)
   // Get the OpenAIApi instance and describe the image.
   $openai_api = openai_alt_get_openai_api();
   $generated_alt_text = $openai_api->describeImage($file_uri);
-  dpm($generated_alt_text);
+  //dpm($generated_alt_text);
 
   // Update the alt text value.
   $form[$field_name]['und'][$delta]['alt']['#value'] = $generated_alt_text;
