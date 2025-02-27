@@ -57,22 +57,34 @@ class PineconeVectorClient extends VectorClientBase {
       $api_key = $this->resolveConfigValue('pinecone_api_key', 'Pinecone API key', TRUE);
       $hostname = $this->resolveConfigValue('pinecone_hostname', 'Pinecone hostname', TRUE);
 
+      // Log API key and hostname
+      watchdog('openai_embeddings', '🔍 Pinecone API Key: @api_key', ['@api_key' => $api_key], WATCHDOG_DEBUG);
+      watchdog('openai_embeddings', '🔍 Pinecone Hostname: @hostname', ['@hostname' => $hostname], WATCHDOG_DEBUG);
+
       // Ensure hostname format.
       $hostname = rtrim($hostname, '/');
       if (!filter_var($hostname, FILTER_VALIDATE_URL)) {
         throw new \Exception("Invalid hostname format: $hostname");
       }
 
-      // Log resolved values for debugging.
-      watchdog('openai_embeddings', "Pinecone hostname resolved: @hostname", ['@hostname' => $hostname], WATCHDOG_DEBUG);
+      watchdog('openai_embeddings', '✅ Pinecone hostname validated: @hostname', ['@hostname' => $hostname], WATCHDOG_DEBUG);
 
-      // Return configured client.
-      return $this->getHttpClient([
+      // Attempt to get the HTTP client
+      $client = $this->getHttpClient([
         'headers' => ['API-Key' => $api_key],
         'base_uri' => $hostname,
       ]);
+
+      // Validate that the client is a GuzzleClient instance
+      if (!$client instanceof GuzzleClient) {
+        watchdog('openai_embeddings', '❌ getHttpClient() did not return a GuzzleClient instance!', [], WATCHDOG_ERROR);
+        throw new \Exception('Invalid HTTP client returned.');
+      }
+
+      watchdog('openai_embeddings', '✅ Successfully initialized Pinecone HTTP client.', [], WATCHDOG_DEBUG);
+      return $client;
     } catch (\Exception $e) {
-      watchdog('openai_embeddings', 'Error resolving Pinecone client: @message', [
+      watchdog('openai_embeddings', '❌ Error resolving Pinecone client: @message', [
         '@message' => $e->getMessage(),
       ], WATCHDOG_ERROR);
       throw $e;
@@ -171,26 +183,39 @@ class PineconeVectorClient extends VectorClientBase {
    *   The response object or NULL if an error occurs.
    */
   public function upsert(array $parameters) {
-    $client = $this->getPineconeClient();
+    //dpm($parameters['namespace']);
+    if (empty($parameters['vectors'])) {
+      throw new \Exception('Vectors to insert or update are required by Pinecone');
+    }
 
+    // ✅ Log and debug payload BEFORE sending to Pinecone.
     $payload = [
       'vectors' => $parameters['vectors'],
     ];
 
-    if (!empty($parameters['collection'])) {
-      $payload['namespace'] = $parameters['collection'];
+    if (empty($parameters['collection'])) {
+      $payload['collection'] = $parameters['namespace'];
     }
+    //dpm($payload);
+    watchdog('openai_embeddings', '📌 Pinecone Upsert Payload: <pre>@payload</pre>', [
+      '@payload' => print_r($payload, TRUE),
+    ], WATCHDOG_DEBUG);
 
-    $this->logPayload('upsert', $payload);
+    $client = $this->getPineconeClient();
+    $response = $client->post('/vectors/upsert', [
+      'json' => $payload,
+    ]);
 
-    try {
-      $response = $client->post('/vectors/upsert', ['json' => $payload]);
-      $this->logResponse('upsert', json_decode($response->getBody()->getContents(), TRUE));
-      return $response;
-    } catch (\Exception $e) {
-      $this->handleError('upsert', $e);
-    }
+    // ✅ Debug response from Pinecone.
+    $response_data = json_decode($response->getBody()->getContents(), TRUE);
+    //dpm($response_data);
+    watchdog('openai_embeddings', '📌 Pinecone Upsert Response: <pre>@response</pre>', [
+      '@response' => print_r($response_data, TRUE),
+    ], WATCHDOG_DEBUG);
+
+    return $response;
   }
+
 
   /**
    * Fetch stats from Pinecone.
@@ -253,10 +278,17 @@ class PineconeVectorClient extends VectorClientBase {
 
     try {
       $client = $this->getPineconeClient();
-      return $client->post('/vectors/delete', ['json' => $payload]);
+      $response = $client->post('/vectors/delete', ['json' => $payload]);
+
+      // ✅ Ensure the response is a valid ResponseInterface
+      if ($response instanceof ResponseInterface) {
+        return $response;
+      } else {
+        throw new \Exception('Unexpected response type from Pinecone delete request.');
+      }
     } catch (\Exception $e) {
       $this->handleError('delete', $e);
-      return NULL;
+      return null;
     }
   }
 

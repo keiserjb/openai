@@ -27,7 +27,7 @@ class OpenAIApi {
     $this->client = $this->initializeClient($apiKey);
 
     // Initialize the logger
-    $this->logger = $logger ?: watchdog('openai', 'There was an issue obtaining a response from OpenAI.');
+    $this->logger = $logger ?: watchdog('openai', 'There was an issue obtaining a response from OpenAI construct.');
   }
 
   private function initializeClient($apiKey) {
@@ -68,7 +68,8 @@ class OpenAIApi {
         continue;
       }
 
-      if (!preg_match('/^(gpt|text|tts|whisper|dall-e)/i', $model['id'])) {
+      if (!preg_match('/^(gpt|text|tts|whisper|dall-e|o1)/i',
+        $model['id'])) {
         continue;
       }
 
@@ -108,16 +109,6 @@ class OpenAIApi {
       }
     }
     return $models;
-  }
-
-  /**
-   * Get the latest embedding model.
-   *
-   * @return string
-   *   The embedding model in OpenAI.
-   */
-  public function embeddingModel(): string {
-    return 'text-embedding-ada-002';
   }
 
   /**
@@ -176,7 +167,7 @@ class OpenAIApi {
         return trim($result['choices'][0]['text']);
       }
     } catch (TransporterException | \Exception $e) {
-      watchdog('openai', 'There was an issue obtaining a response from OpenAI. The error was @error.', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
+      watchdog('openai', 'There was an issue obtaining a response from OpenAI completions. The error was @error.', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
     }
   }
 
@@ -234,7 +225,7 @@ class OpenAIApi {
         return trim($result['choices'][0]['message']['content']);
       }
     } catch (TransporterException | \Exception $e) {
-      watchdog('openai', 'There was an issue obtaining a response from OpenAI. The error was @error.', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
+      watchdog('openai', 'There was an issue obtaining a response from OpenAI chat. The error was @error.', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
       return '';
     }
   }
@@ -276,7 +267,7 @@ class OpenAIApi {
       $response = $response->toArray();
       return $response['data'][0][$response_format];
     } catch (TransporterException | \Exception $e) {
-      watchdog('openai', 'There was an issue obtaining a response from OpenAI. The error was @error.', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
+      watchdog('openai', 'There was an issue obtaining a response from OpenAI Images. The error was @error.', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
       return '';
     }
   }
@@ -305,7 +296,7 @@ class OpenAIApi {
         'response_format' => $response_format,
       ]);
     } catch (TransporterException | \Exception $e) {
-      watchdog('openai', 'There was an issue obtaining a response from OpenAI. The error was @error.', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
+      watchdog('openai', 'There was an issue obtaining a response from OpenAI textToSpeech. The error was @error.', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
       return '';
     }
   }
@@ -341,7 +332,7 @@ class OpenAIApi {
       $result = $response->toArray();
       return $result['text'];
     } catch (TransporterException | \Exception $e) {
-      watchdog('openai', 'There was an issue obtaining a response from OpenAI. The error was @error.', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
+      watchdog('openai', 'There was an issue obtaining a response from OpenAI speechToText. The error was @error.', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
       return '';
     }
   }
@@ -359,14 +350,14 @@ class OpenAIApi {
     try {
       $response = $this->client->moderations()->create(
         [
-          'model' => 'text-moderation-latest',
+          'model' => 'omni-moderation-latest',
           'input' => trim($input),
         ],
       );
 
       return $response->toArray();
     } catch (TransporterException | \Exception $e) {
-      watchdog('openai', 'There was an issue obtaining a response from OpenAI. The error was @error.', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
+      watchdog('openai', 'There was an issue obtaining a response from OpenAI moderation. The error was @error.', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
       return [];
     }
   }
@@ -375,23 +366,33 @@ class OpenAIApi {
    * Generate a text embedding from an input.
    *
    * @param string $input
-   *   The input to check.
+   *   The input text to embed.
+   * @param string $model
+   *   The model to use for embedding.
    *
    * @return array
    *   The text embedding vector value from OpenAI.
+   *
+   * @throws \InvalidArgumentException
+   *   Thrown if no model is provided.
    */
-  public function embedding(string $input): array {
+  public function embedding(string $input, string $model): array {
+    if (empty($model)) {
+      throw new \InvalidArgumentException('A model must be provided for generating embeddings.');
+    }
+
     try {
       $response = $this->client->embeddings()->create([
-        'model' => 'text-embedding-ada-002',
+        'model' => $model,  // Model is now strictly passed
         'input' => $input,
       ]);
 
       $result = $response->toArray();
-
       return $result['data'][0]['embedding'];
     } catch (TransporterException | \Exception $e) {
-      watchdog('openai', 'There was an issue obtaining a response from OpenAI. The error was @error.', array('@error' => $e->getMessage()), WATCHDOG_ERROR);
+      watchdog('openai', 'There was an issue obtaining a response from OpenAI embedding. The error was @error.', [
+        '@error' => $e->getMessage(),
+      ], WATCHDOG_ERROR);
       return [];
     }
   }
@@ -421,7 +422,6 @@ class OpenAIApi {
     if ($sendImageData) {
       $imageData = base64_encode(file_get_contents($imageUrl));
       $imageUrl = "data:image/jpeg;base64,{$imageData}";
-      watchdog('openai_alt', 'Image data prepared for OpenAI: @url', ['@url' => $imageUrl], WATCHDOG_INFO);
     }
 
     try {
@@ -440,7 +440,6 @@ class OpenAIApi {
       ]);
 
       $result = $response->toArray();
-      watchdog('openai_alt', 'OpenAI response: @response', ['@response' => print_r($result, TRUE)], WATCHDOG_INFO);
 
       return isset($result["choices"][0]["message"]["content"])
         ? trim($result["choices"][0]["message"]["content"])
