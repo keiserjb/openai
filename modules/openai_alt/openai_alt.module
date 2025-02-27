@@ -175,26 +175,23 @@ function openai_alt_image_field_process($element, &$form_state, $form) {
   if (isset($element['#value']['alt'])) {
     $field_name = $element['#field_name'] ?? 'unknown_field';
     $delta = $element['#delta'] ?? 0;
-    $wrapper_id = 'ai-alt-field-wrapper-' . $field_name . '-' . $delta;
-    // Wrap the alt text field.
-    $element['#prefix'] = '<div id="' . $wrapper_id . '" class="ai-alt-field-wrapper">';
-    $element['#suffix'] = '</div>';
 
     // Retrieve settings.
     $hide_button = config_get('openai_alt.settings', 'hide_button');
     $autogenerate = config_get('openai_alt.settings', 'autogenerate');
 
     // Debug: Check if the setting is retrieved correctly.
-    watchdog('openai_alt', 'Autogenerate setting: @autogenerate', ['@autogenerate' => $autogenerate]);
+    //watchdog('openai_alt', 'Autogenerate setting: @autogenerate',
+    // ['@autogenerate' => $autogenerate]);
 
     // Add the "Generate Alt Text" button only if it's not hidden.
-    if (empty($hide_button)) {
+    if (empty($hide_button) && !isset($element['ai_alt_text_generation'])) {
       $element['ai_alt_text_generation'] = [
         '#type' => 'button',
         '#value' => t('Generate Alt Text'),
         '#ajax' => [
           'callback' => 'openai_alt_generate_alt_text_ajax',
-          'wrapper' => $wrapper_id,
+          'wrapper' => $element['#id'], // Target the existing alt field.
         ],
         '#attributes' => [
           'class' => ['ai-alt-text-generation', 'button--primary'],
@@ -202,13 +199,13 @@ function openai_alt_image_field_process($element, &$form_state, $form) {
           'data-field-name' => $field_name,
           'data-delta' => $delta,
         ],
-        '#weight' => -1.5,
+        '#weight' => 1,
       ];
     }
 
     // If autogenerate is enabled, attach JavaScript.
     if (!empty($autogenerate)) {
-      watchdog('openai_alt', 'Attaching autogenerate JavaScript.', []);
+      //watchdog('openai_alt', 'Attaching autogenerate JavaScript.', []);
 
       $element['#attached']['js'][] = [
         'data' => [
@@ -216,7 +213,7 @@ function openai_alt_image_field_process($element, &$form_state, $form) {
             'fid' => $element['#value']['fid'] ?? NULL,
             'field_name' => $field_name,
             'delta' => $delta,
-            'wrapper_id' => $wrapper_id,
+            'target_id' => $element['#id'], // Use existing field ID for targeting.
           ],
         ],
         'type' => 'setting',
@@ -284,12 +281,14 @@ function openai_alt_form_alter(&$form, &$form_state, $form_id) {
 
       // If autogenerate is enabled, attach JS to trigger after image upload/selection.
       if (!empty($autogenerate)) {
-        watchdog('openai_alt', 'Attaching autogenerate JavaScript for CKEditor.', []);
+        //watchdog('openai_alt', 'Attaching autogenerate JavaScript for
+        // CKEditor.', []);
 
         $uploaded_fid = $form_state['values']['fid'] ?? NULL;
 
         if ($uploaded_fid) {
-          watchdog('openai_alt', 'Detected uploaded image with fid: @fid', ['@fid' => $uploaded_fid]);
+          //watchdog('openai_alt', 'Detected uploaded image with fid: @fid',
+          // ['@fid' => $uploaded_fid]);
 
           // Pass FID to JS settings.
           $form['#attached']['js'][] = [
@@ -489,14 +488,8 @@ function openai_alt_generate_alt_text_ajax($form, &$form_state) {
   $style = image_style_load($style_name);
   if ($style && !file_exists($styled_uri)) {
     watchdog('openai_alt', "⚠️ Derivative missing, generating: @styled_uri", ['@styled_uri' => $styled_uri]);
-
-    // Generate the derivative image.
     image_style_create_derivative($style, $file->uri, $styled_uri);
-
-    // Wait a short time to allow file generation.
     sleep(1);
-
-    // Check again if the derivative exists.
     if (!file_exists($styled_uri)) {
       watchdog('openai_alt', "❌ Derivative still missing after generation attempt.", []);
     }
@@ -511,7 +504,6 @@ function openai_alt_generate_alt_text_ajax($form, &$form_state) {
   $openai_api = openai_alt_get_openai_api();
   $generated_alt_text = $openai_api->describeImage($file_uri);
 
-  // Log the generated alt text.
   watchdog('openai_alt', '📝 Generated Alt Text: @text', ['@text' => $generated_alt_text]);
 
   if (!$generated_alt_text) {
@@ -524,15 +516,13 @@ function openai_alt_generate_alt_text_ajax($form, &$form_state) {
     ];
   }
 
-  // Update the alt text field.
-  $form[$field_name]['und'][$delta]['alt']['#value'] = $generated_alt_text;
+  // **✅ Fix: Directly update the input field's value**
+  $selector = "input[name='{$field_name}[und][{$delta}][alt]']";
 
-  // Return the updated field.
-  $wrapper_id = 'ai-alt-field-wrapper-' . $field_name . '-' . $delta;
   return [
     '#type' => 'ajax',
     '#commands' => [
-      ajax_command_replace('#' . $wrapper_id, backdrop_render($form[$field_name]['und'][$delta])),
+      ajax_command_invoke($selector, 'val', [$generated_alt_text]), // Set value instead of replacing field
     ],
   ];
 }
@@ -541,7 +531,7 @@ function openai_alt_generate_alt_text_ajax($form, &$form_state) {
  * Handles AJAX requests to generate alt text.
  */
 function openai_alt_generate_alt_text_callback() {
-  watchdog('openai_alt', '🔥 Autogenerate triggered.');
+  //watchdog('openai_alt', '🔥 Autogenerate triggered.');
 
   // Get POST data
   $fid = $_POST['fid'] ?? NULL;
@@ -549,14 +539,14 @@ function openai_alt_generate_alt_text_callback() {
   $delta = $_POST['delta'] ?? NULL;
 
   // Log received data
-  watchdog('openai_alt', '📩 Data received - fid: @fid, field: @field, delta: @delta', [
+  /*watchdog('openai_alt', '📩 Data received - fid: @fid, field: @field, delta: @delta', [
     '@fid' => $fid,
     '@field' => $field_name,
     '@delta' => $delta,
-  ]);
+  ]);*/
 
   if (!$fid || !$field_name || $delta === NULL) {
-    watchdog('openai_alt', '❌ Missing parameters in AJAX request.');
+    //('openai_alt', '❌ Missing parameters in AJAX request.');
     return ['status' => 'error', 'message' => 'Invalid request.'];
   }
 
