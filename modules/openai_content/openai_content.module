@@ -50,8 +50,6 @@ function openai_content_settings_form($form, &$form_state) {
 
   $api = new OpenAIApi($apiKey);
   $models = $api->filterModels(['gpt']);
-  $moderationModels = $api->filterModels(['moderation']);
-  dpm($moderationModels);
 
   $form = array();
   $form['#config'] = 'openai_content.settings';
