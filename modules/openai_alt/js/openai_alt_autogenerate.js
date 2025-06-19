@@ -1,7 +1,8 @@
 (function ($) {
   $(document).ready(function () {
+
     /**
-     * Wrap ALT fields in a container if not already done.
+     * 1) Wrap ALT fields in a container if not already done.
      */
     function wrapAltTextFields() {
       $("input[name$='[alt]']").each(function () {
@@ -13,69 +14,69 @@
     }
 
     /**
-     * Generate alt text for each item that was flagged in Backdrop.settings.openaiAlt.
-     * (We only add items with empty alt in the PHP code, so we won't overwrite existing alt.)
+     * 2) For each entry in Backdrop.settings.openaiAlt, generate alt text if needed.
+     *    We only add items in the PHP if alt == '', so each item is auto-generated once.
      */
     function triggerAutoGenerationForAll() {
       if (Backdrop.settings.openaiAlt) {
         $.each(Backdrop.settings.openaiAlt, function (key, item) {
-          // item = { fid, field_name, delta, target_id, ... }
+          // item is { fid, field_name, delta, target_id } for each image
           if (item.fid && item.field_name !== undefined && item.delta !== undefined) {
-            generateAltText(item.fid, item.field_name, item.delta);
+            generateAltText(item.fid, item.field_name, item.delta, key);
           }
         });
       }
     }
 
     /**
-     * Helper: Actually call the endpoint, then place alt text in the correct input.
+     * 3) Helper: Fire an AJAX request to get alt text, then store it in the correct <input>.
+     *    After success, remove that item from openaiAlt so it’s not re-run.
      */
-    function generateAltText(fid, fieldName, delta) {
+    function generateAltText(fid, fieldName, delta, key) {
       $.ajax({
         url: Backdrop.settings.basePath + "openai-alt/generate-alt-text",
         type: "POST",
         data: { fid: fid, field_name: fieldName, delta: delta },
         success: function (response) {
           if (response.status === "success" && response.alt_text) {
-            // 1) Insert the result into the <input> for this field/delta.
             var selector = "input[name='" + fieldName + "[und][" + delta + "][alt]']";
-            $(selector).val(response.alt_text).trigger("change");
+            $(selector).val(response.alt_text).trigger('change');
 
-            // 2) Remove this item from openaiAlt so it won't auto-regenerate again.
-            var key = fieldName + ":" + delta;
-            if (Backdrop.settings.openaiAlt && Backdrop.settings.openaiAlt[key]) {
+            // Remove from openaiAlt so we don’t re-run
+            if (Backdrop.settings.openaiAlt[key]) {
               delete Backdrop.settings.openaiAlt[key];
             }
           }
+        },
+        error: function (xhr, status, error) {
+          console.error("❌ AJAX request failed:", status, error);
         }
       });
     }
 
     /**
-     * After any AJAX that includes "file/ajax" (i.e. new image added),
-     * wait a moment, then try generating alt text for newly added items.
+     * 4) On AJAX complete, if a new image was added, the form might reattach auto-generate.
+     *    So we re-run triggerAutoGenerationForAll to catch newly empty alt fields only.
      */
     $(document).ajaxComplete(function (event, xhr, settings) {
+      // If a file was uploaded
       if (settings.url.includes("file/ajax")) {
         setTimeout(triggerAutoGenerationForAll, 500);
       }
     });
 
     /**
-     * Optional: If you remove an image, you might want to remove
-     * that item from openaiAlt. Only do so if you have data attributes
-     * for the remove button. Otherwise, leaving them won't matter
-     * because we only run alt generation for items with an empty alt
-     * (and that item is gone entirely anyway).
+     * 5) Optionally, handle remove button if you want to clear openaiAlt for that item.
+     *    You can do so if your remove button includes data-field-name, data-delta, etc.
      */
     $(document).on("click", ".file-remove-button", function () {
-      // For a multi-value field, you might parse the delta from $(this).data('delta').
-      // For now, we can just do:
-      //   Backdrop.settings.openaiAlt = null;
-      // But that nixes *all* items. So be careful.
+      // If you have data attributes, parse them, then remove from openaiAlt if you wish.
+      // For now, do nothing or the simplest approach might be:
+      //   Backdrop.settings.openaiAlt = {};
+      // But that would remove all items, so be careful.
     });
 
-    // On page load, wrap all existing ALT fields, then generate for any that need it.
+    // **Run initial setup**
     wrapAltTextFields();
     triggerAutoGenerationForAll();
   });

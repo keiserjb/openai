@@ -167,4 +167,11 @@ abstract class VectorClientBase {
   abstract public function query(array $parameters);
   abstract public function upsert(array $parameters);
   abstract public function stats();
+  /**
+   * Create collection (if needed).
+   */
+  public function createCollection($collection, $dimension, $metricType = 'COSINE', $database = 'default') {
+    // Delegate to MilvusV2's createCollection method
+    return $this->milvus->createCollection($collection, $database, $dimension, $metricType);
+  }
 }

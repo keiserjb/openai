@@ -5,5 +5,5 @@ backdrop = 1.x
 package = OpenAI
 configure = admin/config/openai/openai-alt
 dependencies[] = openai
-dpendencies[] = image_effects
+dependencies[] = image_effects
 dependencies[] = image_effects_coloractions

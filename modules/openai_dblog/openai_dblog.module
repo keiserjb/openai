@@ -27,12 +27,12 @@ function openai_dblog_menu() {
   $items = [];
 
   $items['admin/config/openai/openai-dblog/settings'] = [
-    'title' => 'Log analyzer settings',
+    'title' => 'OpenAI Error Log Analyzer',
     'description' => 'Manage OpenAI log analyzer settings.',
     'page callback' => 'backdrop_get_form',
     'page arguments' => ['openai_dblog_settings_form'],
     'access arguments' => ['administer site configuration'],
-    'parent' => 'admin/config/openai',
+    'weight' => -5,
   ];
 
   return $items;

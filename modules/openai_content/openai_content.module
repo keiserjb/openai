@@ -19,12 +19,12 @@ function openai_content_menu() {
   $items = [];
 
   $items['admin/config/openai/openai-content'] = [
-    'title' => 'OpenAI Content settings',
+    'title' => 'OpenAI Content Editing Tools',
     'description' => 'Settings for content suggestions using OpenAI',
     'page callback' => 'backdrop_get_form',
     'page arguments' => ['openai_content_settings_form'],
     'access arguments' => ['administer site configuration'],
-    'parent' => 'admin/config/openai',
+    'weight' => -7,
   ];
 
   return $items;

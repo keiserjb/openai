@@ -111,6 +111,12 @@ function openai_embeddings_settings_form(array $form, array &$form_state) {
   $content_types = node_type_get_types();  // Retrieve all content types
   $vocabularies = taxonomy_get_vocabularies();
 
+  // Retrieve paragraph bundles if the Paragraphs module is enabled
+  $paragraph_bundles = [];
+  if (module_exists('paragraphs')) {
+    $paragraph_bundles = field_info_bundles('paragraphs_item');
+  }
+
   // Create the content types checkboxes
   $content_type_options = [];
   foreach ($content_types as $type => $info) {
@@ -121,6 +127,12 @@ function openai_embeddings_settings_form(array $form, array &$form_state) {
   $vocabulary_options = [];
   foreach ($vocabularies as $vocabulary) {
     $vocabulary_options[$vocabulary->machine_name] = $vocabulary->name;
+  }
+
+  // Create paragraph bundle checkboxes
+  $paragraph_bundle_options = [];
+  foreach ($paragraph_bundles as $bundle_name => $bundle_info) {
+    $paragraph_bundle_options[$bundle_name] = $bundle_info['label'];
   }
 
   // Add the 'content_types' fieldset
@@ -144,6 +156,17 @@ function openai_embeddings_settings_form(array $form, array &$form_state) {
     '#options' => $vocabulary_options,
     '#default_value' => $config->get('taxonomy_vocabularies') ?? [],  // Default to previously saved value
   );
+
+  // Paragraph bundles section (only show if Paragraphs module is enabled)
+  if (!empty($paragraph_bundle_options)) {
+    $form['entity_analysis']['paragraph_bundles'] = array(
+      '#type' => 'checkboxes',
+      '#title' => t('Select paragraph bundles to analyze'),
+      '#options' => $paragraph_bundle_options,
+      '#default_value' => $config->get('paragraph_bundles') ?? [],
+      '#description' => t('Text fields in these paragraph bundles will be analyzed and embedded.'),
+    );
+  }
 
   // Stopwords section
   $stopwords = $config->get('stopwords');
@@ -175,11 +198,11 @@ function openai_embeddings_settings_form(array $form, array &$form_state) {
   // Content type options for the dropdown
   $plugin_options = [
     'pinecone' => t('Pinecone'),
-    //'milvus' => t('Milvus'),
+    'milvus' => t('Milvus'),
   ];
 
   // Default selected plugin
-  $selected_plugin = $config->get('connections.vector_client_plugin') ?? 'pinecone';
+  $selected_plugin = $config->get('vector_client_plugin') ?? 'pinecone';
 
   // Add a field to select the vector client plugin (Pinecone or Milvus)
   $form['connections']['vector_client_plugin'] = [
@@ -188,6 +211,8 @@ function openai_embeddings_settings_form(array $form, array &$form_state) {
     '#options' => $plugin_options,
     '#default_value' => $selected_plugin,
     '#required' => TRUE,
+    '#description' => t('Select the vector database client to use.'),
+
   ];
 
   // Pinecone settings (conditionally visible based on plugin selection)
@@ -230,7 +255,7 @@ function openai_embeddings_settings_form(array $form, array &$form_state) {
   ];
 
   // Milvus settings (conditionally visible based on plugin selection)
-  /* $form['connections']['plugin_settings']['milvus_settings'] = [
+  $form['connections']['plugin_settings']['milvus_settings'] = [
     '#type' => 'fieldset',
     '#title' => t('Milvus Configuration'),
     '#states' => [
@@ -238,27 +263,33 @@ function openai_embeddings_settings_form(array $form, array &$form_state) {
         ':input[name="vector_client_plugin"]' => ['value' => 'milvus'],
       ],
     ],
-  ]; */
+  ];
 
-  // Milvus API Token
-  /* $form['connections']['plugin_settings']['milvus_settings']['milvus_token'] = [
+  // Local Milvus Server URL
+  $form['connections']['plugin_settings']['milvus_settings']['milvus_server'] = [
+    '#type' => 'textfield',
+    '#title' => t('Server'),
+    '#default_value' => $config->get('milvus_server'),
+    '#description' => t('The server to connect to. If you use Zilliz Cloud, this can be found under "Public Endpoint" on your dashboard. If you installed Milvus locally within DDEV using the provided ddev docker compose, this is "http://milvus".'),
+  ];
+  // Local Milvus Port
+  $form['connections']['plugin_settings']['milvus_settings']['milvus_port'] = [
+    '#type' => 'textfield',
+    '#title' => t('Port'),
+    '#default_value' => $config->get('milvus_port'),
+    '#description' => t('The server port to connect to. If you use Zilliz Cloud, this is "443". If you installed Milvus locally within DDEV using the provided ddev docker compose, this is "19530".'),
+  ];
+
+  // Milvus API Token (for remote installations)
+  $form['connections']['plugin_settings']['milvus_settings']['remote_settings']['milvus_token'] = [
     '#type' => 'key_select',
-    '#title' => t('API Token'),
+    '#title' => t('API Key/Authentication'),
     '#default_value' => $config->get('milvus_token'),
     '#options' => key_get_key_names_as_options(),
+    '#empty_option' => t('- None -'),
     '#key_filters' => ['type' => 'authentication'],
-    '#description' => t('The API token for Milvus.'),
-  ]; */
-
-  // Milvus Hostname
-  /* $form['connections']['plugin_settings']['milvus_settings']['milvus_hostname'] = [
-    '#type' => 'key_select',
-    '#title' => t('Hostname'),
-    '#default_value' => $config->get('milvus_hostname'),
-    '#options' => key_get_key_names_as_options(),
-    '#key_filters' => ['type' => 'authentication'],
-    '#description' => t('The hostname or URI for your Milvus instance.'),
-  ]; */
+    '#description' => t('Choose an available key. If the desired key is not listed, create a new key. The API key to use for authentication in Zilliz. If you are using Milvus, you also create a key with "username:password". This is optional if your Milvus Vector Database is installed within your hosting environment (e.g. when using via DDEV).'),
+  ];
 
   // Return the system settings form
   return system_settings_form($form);
@@ -338,93 +369,150 @@ function openai_embeddings_search_form($form, &$form_state) {
  */
 function openai_embeddings_search_form_ajax_callback($form, &$form_state) {
   try {
-    // Retrieve form values.
-    $query_text = $form_state['values']['search_input'];
-    $namespace = $form_state['values']['namespace'];
-    $filter_by = $form_state['values']['filter_by'] ?? NULL;
+    // 1. Get query data.
+    $query_text    = trim($form_state['values']['search_input']);
+    $namespace     = trim($form_state['values']['namespace']);
+    $filter_by     = $form_state['values']['filter_by'] ?? NULL;
     $score_threshold = $form_state['values']['score_threshold'] ?? 0.8;
+    $text          = openai_embeddings_prepare_text($query_text, 1024);
 
-    // Prepare the query text for embedding.
-    $text = openai_embeddings_prepare_text($query_text, 1024);
-
-    // Initialize OpenAIApi instance.
+    // 2. Get OpenAI embed.
     $openai_config = config('openai.settings');
-    $api_key_name = $openai_config->get('api_key');
-    $api_key = key_get_key_value($api_key_name);
-
-    if (!$api_key) {
-      throw new Exception('OpenAI API key is missing or not retrievable from the Key module.');
-    }
-
+    $api_key = key_get_key_value($openai_config->get('api_key'));
+    if (!$api_key) throw new Exception('OpenAI API key missing.');
     $openai_api = new OpenAIApi($api_key);
 
-    // Embed the query text.
     $config = config('openai_embeddings.settings');
-    $model = $config->get('model');
-
-    if (!$model) {
-      throw new \Exception('No model is configured for embeddings.');
-    }
-
-    // Embed the query text.
+    $model  = $config->get('model');
+    if (!$model) throw new Exception('No model configured for embeddings.');
     $embedding = $openai_api->embedding($text, $model);
+    if (empty($embedding)) throw new Exception('Failed to retrieve embedding.');
 
-    if (empty($embedding)) {
-      throw new Exception('Failed to retrieve embedding data from OpenAI.');
+    // 3. Init vector client
+    $vector_client = openai_embeddings_get_vector_client();
+
+    $results = [];
+    $is_pinecone = ($vector_client instanceof PineconeVectorClient);
+    $is_milvus   = ($vector_client instanceof MilvusVectorClient);
+
+    // 4. Query vectors (exactly once, with results properly unpacked)
+    if ($is_pinecone) {
+      $query_options = [
+        'vector' => $embedding,
+        'top_k' => 8,
+        'collection' => $namespace,
+        'filter' => ['entity_type' => $filter_by],
+        'include_metadata' => TRUE,
+      ];
+      $vector_results = $vector_client->query($query_options);
+      $results = $vector_results['matches'] ?? [];
     }
+    elseif ($is_milvus) {
+      $collection = $namespace ?: 'node';
+      $outputFields = [
+        'content',
+        'entity_id',
+        'entity_type',
+        'field_name',
+        'field_delta',
+        'bundle',
+        'backdrop_entity_id',
+        'backdrop_long_id',
+        'nid'
+      ];
+      $database = 'default';
+      $top_k = 8;
 
-    // Initialize the vector client.
-    $vector_client_type = $config->get('vector_client_plugin') ?? 'pinecone';
-    $vector_client = openai_embeddings_get_vector_client($vector_client_type);
+      // This line does the search
+      $milvus_result = $vector_client->search($collection, $embedding, $top_k, $outputFields, $database, '');
 
-    // Perform the query with the vector client.
-    $query_options = [
-      'vector' => $embedding,
-      'top_k' => 8,
-      'collection' => $namespace,
-      'filter' => ['entity_type' => $filter_by],
-      'include_metadata' => TRUE,
-    ];
+      foreach ($milvus_result as $match) {
+        // Extract entity type and ID using various possible formats
+        $entity_type = NULL;
+        $entity_id = NULL;
 
-    $vector_results = $vector_client->query($query_options);
-
-    // Parse results and prepare output.
-    $output = '<ul>';
-    if (!empty($vector_results['matches'])) {
-      $tracked = [];
-      foreach ($vector_results['matches'] as $match) {
-        if (isset($tracked[$match['metadata']['entity_type']]) &&
-          in_array($match['metadata']['entity_id'], $tracked[$match['metadata']['entity_type']])) {
-          continue;
+        // Try Milvus native format first
+        if (isset($match['entity_type'], $match['entity_id'])) {
+          $entity_type = $match['entity_type'];
+          $entity_id = $match['entity_id'];
         }
-
-        if ($match['score'] < $score_threshold) {
-          continue;
+        // Try Zilliz backdrop_entity_id format
+        elseif (isset($match['backdrop_entity_id']) &&
+                preg_match('/^entity:([^\/]+)\/(\d+)/', $match['backdrop_entity_id'], $matches)) {
+          $entity_type = $matches[1];
+          $entity_id = $matches[2];
         }
-
-        $entity_type = $match['metadata']['entity_type'] ?? NULL;
-        $entity_id = $match['metadata']['entity_id'] ?? NULL;
+        // Try direct nid as fallback (assuming node type)
+        elseif (isset($match['nid'])) {
+          $entity_type = 'node';
+          $entity_id = $match['nid'];
+        }
 
         if ($entity_type && $entity_id) {
-          $entity = entity_load($entity_type, $entity_id);
-          if ($entity) {
-            $entity_label = method_exists($entity, 'label') ? $entity->label() : "Entity $entity_id";
-            $output .= '<li>' . l($entity_label, "$entity_type/$entity_id") . ' had a score of ' . $match['score'] . '</li>';
-          } else {
-            $output .= '<li>Entity with ID ' . $entity_id . ' could not be loaded.</li>';
-          }
-        } else {
-          $output .= '<li>Match found but missing entity metadata.</li>';
+          $results[] = [
+            'score' => $match['distance'],
+            'metadata' => [
+              'entity_type' => $entity_type,
+              'entity_id' => $entity_id,
+              'bundle' => $match['bundle'] ?? '',
+              'field_name' => $match['field_name'] ?? '',
+              'field_delta' => $match['field_delta'] ?? 0,
+            ],
+            'content' => $match['content'],
+          ];
         }
-
-        $tracked[$entity_type][] = $entity_id;
       }
-    } else {
-      $output .= '<li>No results found or below threshold.</li>';
     }
+    else {
+      throw new Exception('Unknown or unsupported vector client type.');
+    }
+
+    // 5. Render the output as before
+    $output = '<ul>';
+    $tracked = [];
+    foreach ($results as $match) {
+      $entity_type = $match['metadata']['entity_type'] ?? NULL;
+      $entity_id   = $match['metadata']['entity_id'] ?? NULL;
+      $score       = $match['score'] ?? 0;
+
+      // Prevent duplicates
+      if ($entity_type && $entity_id && isset($tracked[$entity_type]) && in_array($entity_id, $tracked[$entity_type])) continue;
+      if ($score < $score_threshold) continue;
+
+      // Entity label and link
+      $entity_label = "Entity $entity_id";
+      $target_url = "$entity_type/$entity_id";
+      if ($entity_type === 'paragraphs_item' && isset($match['metadata']['parent_entity_type'], $match['metadata']['parent_entity_id'])) {
+        $parent_type = $match['metadata']['parent_entity_type'];
+        $parent_id   = $match['metadata']['parent_entity_id'];
+        $target_url  = "$parent_type/$parent_id";
+        $parent_entity = entity_load($parent_type, $parent_id);
+        if ($parent_entity && method_exists($parent_entity, 'title')) $entity_label = $parent_entity->title;
+        elseif ($parent_entity && method_exists($parent_entity, 'label')) $entity_label = $parent_entity->label();
+      }
+      elseif ($entity_type === 'taxonomy_term') {
+        $target_url = "taxonomy/term/$entity_id";
+        $term = taxonomy_term_load($entity_id);
+        if ($term && !empty($term->name)) $entity_label = $term->name;
+      }
+      else {
+        $entity = entity_load($entity_type, $entity_id);
+        if ($entity && method_exists($entity, 'title')) $entity_label = $entity->title;
+        elseif ($entity && method_exists($entity, 'label')) $entity_label = $entity->label();
+      }
+
+      // Optional: content snippet
+      $content_snippet = '';
+      if (!empty($match['content'])) {
+        $content_snippet = '<br><small>' . check_plain(substr(strip_tags($match['content']), 0, 200)) . '</small>';
+      }
+      $score_display = isset($match['score']) ? ' (score: ' . round($match['score'], 3) . ')' : '';
+      $output .= '<li>' . l($entity_label, $target_url) . $score_display . $content_snippet . '</li>';
+      $tracked[$entity_type][] = $entity_id;
+    }
+    if (empty($tracked)) $output .= '<li>No results found or below threshold.</li>';
     $output .= '</ul>';
 
-    // Return the response.
     return [
       '#markup' => $output,
       '#prefix' => '<div id="openai-response">',
@@ -434,9 +522,8 @@ function openai_embeddings_search_form_ajax_callback($form, &$form_state) {
     watchdog('openai_embeddings', 'Error in search form AJAX callback: @error', [
       '@error' => $e->getMessage(),
     ], WATCHDOG_ERROR);
-
     return [
-      '#markup' => '<p>Error: ' . $e->getMessage() . '</p>',
+      '#markup' => '<p>Error: ' . check_plain($e->getMessage()) . '</p>',
       '#prefix' => '<div id="openai-response">',
       '#suffix' => '</div>',
     ];
@@ -459,21 +546,23 @@ function openai_embeddings_prepare_text($text, $max_length) {
   return substr($sanitized_text, 0, $max_length);
 }
 
-function openai_embeddings_get_vector_client($type = NULL) {
+function openai_embeddings_get_vector_client($type = NULL, $options = []) {
   $config = config_get('openai_embeddings.settings');
 
   // If no type is provided, fetch the default from configuration.
   if (!$type) {
-    $type = $config['default_vector_client'] ?? 'pinecone';
+    $type = $config['vector_client_plugin'];
   }
+
+  // Merge config with options (options win).
+  $vector_config = array_merge($config, $options);
 
   if ($type === 'pinecone') {
-    return new PineconeVectorClient($config);
+    return new PineconeVectorClient($vector_config);
   }
   elseif ($type === 'milvus') {
-    return new MilvusVectorClient($config);
+    return new MilvusVectorClient($vector_config);
   }
-
   throw new Exception('Unknown vector client type: ' . $type);
 }
 
@@ -537,6 +626,35 @@ function openai_embeddings_delete_confirm_form_submit($form, &$form_state) {
 
 
 /**
+ * Tests the Milvus connection and lists available collections.
+ *
+ * @return array
+ *   Connection test results.
+ */
+function openai_embeddings_test_milvus_connection() {
+  $config = config('openai_embeddings.settings');
+  $plugin_id = $config->get('vector_client_plugin');
+
+  if ($plugin_id != 'milvus') {
+    return [
+      'success' => false,
+      'message' => 'Current vector client plugin is not set to Milvus. Current plugin: ' . $plugin_id,
+    ];
+  }
+
+  $vector_client = openai_embeddings_get_vector_client($plugin_id);
+
+  if (method_exists($vector_client, 'testConnection')) {
+    return $vector_client->testConnection();
+  }
+
+  return [
+    'success' => false,
+    'message' => 'Test connection method not available in the vector client.',
+  ];
+}
+
+/**
  * Implements hook_node_insert().
  */
 function openai_embeddings_node_insert($node) {
@@ -560,7 +678,7 @@ function openai_embeddings_node_delete($node) {
     $vector_client = openai_embeddings_get_vector_client($plugin_id);
 
     try {
-      // Query for records in the `openai_embeddings` table for this node.
+      // Query for records in the openai_embeddings table for this node.
       $query = db_select('openai_embeddings', 'e')
         ->fields('e', ['entity_id', 'entity_type', 'field_name'])
         ->condition('entity_id', $node->nid)
@@ -584,7 +702,7 @@ function openai_embeddings_node_delete($node) {
     }
   }
 
-  // Delete records from the local `openai_embeddings` table.
+  // Delete records from the local openai_embeddings table.
   try {
     db_delete('openai_embeddings')
       ->condition('entity_id', $node->nid)
@@ -593,6 +711,71 @@ function openai_embeddings_node_delete($node) {
   }
   catch (Exception $e) {
     watchdog('openai_embeddings', 'Error trying to delete record(s) in the local database.', [], WATCHDOG_ERROR);
+  }
+
+  // If node has paragraph fields, delete paragraph embeddings
+  $fields = field_info_instances('node', $node->type);
+  foreach ($fields as $field_name => $field_info) {
+    $field = field_info_field($field_name);
+    if ($field['type'] === 'paragraphs') {
+      $items = field_get_items('node', $node, $field_name);
+      if (!empty($items)) {
+        foreach ($items as $item) {
+          if (!empty($item['value'])) {
+            openai_embeddings_delete_paragraph_embeddings($item['value']);
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Delete embeddings for a paragraph.
+ *
+ * @param int $paragraph_id
+ *   The paragraph entity ID.
+ */
+function openai_embeddings_delete_paragraph_embeddings($paragraph_id) {
+  // Get the plugin ID for the vector client from settings.
+  $plugin_id = config_get('openai_embeddings.settings', 'vector_client_plugin');
+  if ($plugin_id) {
+    $vector_client = openai_embeddings_get_vector_client($plugin_id);
+
+    try {
+      // Query for records in the openai_embeddings table for this paragraph.
+      $query = db_select('openai_embeddings', 'e')
+        ->fields('e', ['entity_id', 'entity_type', 'field_name', 'bundle'])
+        ->condition('entity_id', $paragraph_id)
+        ->condition('entity_type', 'paragraphs_item');
+      $records = $query->execute();
+
+      // Delete records in the vector client.
+      foreach ($records as $record) {
+        $vector_client->deleteAll([
+          'collection' => $record->entity_type . ':' . $record->field_name,
+          'filter' => [
+            'entity_id' => $paragraph_id,
+            'entity_type' => 'paragraphs_item',
+            'bundle' => $record->bundle,
+          ],
+        ]);
+      }
+    }
+    catch (Exception $e) {
+      watchdog('openai_embeddings', 'Error trying to delete paragraph record(s) in the vector database.', [], WATCHDOG_ERROR);
+    }
+  }
+
+  // Delete records from the local openai_embeddings table.
+  try {
+    db_delete('openai_embeddings')
+      ->condition('entity_id', $paragraph_id)
+      ->condition('entity_type', 'paragraphs_item')
+      ->execute();
+  }
+  catch (Exception $e) {
+    watchdog('openai_embeddings', 'Error trying to delete paragraph record(s) in the local database.', [], WATCHDOG_ERROR);
   }
 }
 
@@ -688,22 +871,26 @@ function openai_embeddings_vector_database_stats() {
  * Page callback to queue existing content.
  */
 function openai_embeddings_add_to_queue_page() {
-  // Fetch all published nodes.
+  $config = config('openai_embeddings.settings');
+
+  $enabled_vocabularies = $config->get('taxonomy_vocabularies') ?? [];
+  $enabled_paragraph_bundles = $config->get('paragraph_bundles') ?? [];
+
+  $queue = BackdropQueue::get('embedding_queue');
+  $queued_count = 0;
+  $feedback = '';
+
+  // 1. Queue nodes (existing behavior).
   $query = db_select('node', 'n')
     ->fields('n', ['nid', 'type'])
     ->condition('status', 1);
   $results = $query->execute();
 
-  // Get the queue object for the embedding queue.
-  $queue = BackdropQueue::get('embedding_queue');
-  $queued_count = 0;
-  $feedback = '';
-
-  // Queue each node and log progress.
   foreach ($results as $record) {
     $item = [
       'entity_id' => $record->nid,
       'entity_type' => 'node',
+      'bundle' => $record->type,
     ];
     if ($queue->createItem($item)) {
       $feedback .= t('Queued node ID @id for embedding.<br>', ['@id' => $record->nid]);
@@ -711,14 +898,52 @@ function openai_embeddings_add_to_queue_page() {
     }
   }
 
-  // Provide feedback to the user.
-  $feedback .= t('<strong>[success]</strong> @count nodes have been queued for embedding.', ['@count' => $queued_count]);
+  // 2. Queue taxonomy terms.
+  $query = db_select('taxonomy_term_data', 't')
+    ->fields('t', ['tid']);
+  $results = $query->execute();
 
-  // Return the feedback.
+  foreach ($results as $record) {
+    $item = [
+      'entity_id' => $record->tid,
+      'entity_type' => 'taxonomy_term',
+      'bundle' => 'taxonomy_term', // Backdrop doesn't distinguish by vocabulary in the table.
+    ];
+    if ($queue->createItem($item)) {
+      $feedback .= t('Queued taxonomy term ID @id for embedding.<br>', ['@id' => $record->tid]);
+      $queued_count++;
+    }
+  }
+
+  // 3. Queue paragraphs if paragraph bundles are enabled.
+  if (!empty($enabled_paragraph_bundles)) {
+    $query = db_select('paragraphs_item', 'p')
+      ->fields('p', ['item_id', 'bundle']);
+    $results = $query->execute();
+
+    foreach ($results as $record) {
+      if (!empty($enabled_paragraph_bundles[$record->bundle])) {
+        $item = [
+          'entity_id' => $record->item_id,
+          'entity_type' => 'paragraphs_item',
+          'bundle' => $record->bundle,
+        ];
+        if ($queue->createItem($item)) {
+          $feedback .= t('Queued paragraph ID @id for embedding.<br>', ['@id' => $record->item_id]);
+          $queued_count++;
+        }
+      }
+    }
+  }
+
+  // Feedback to user.
+  $feedback .= t('<strong>[success]</strong> @count items have been queued for embedding.', ['@count' => $queued_count]);
+
   return [
     '#markup' => $feedback,
   ];
 }
+
 
 
 /**
@@ -840,4 +1065,56 @@ function openai_embeddings_queue_existing_content() {
 
   //watchdog('openai_embeddings', '@count nodes added to the embedding queue.', ['@count' => $added]);
   backdrop_set_message(t('@count nodes have been added to the embedding queue.', ['@count' => $added]));
+}
+
+/**
+ * Helper function to get field text value based on field type.
+ *
+ * @param string $entity_type
+ *   The entity type.
+ * @param object $entity
+ *   The entity object.
+ * @param string $field_name
+ *   The field name.
+ * @param array $field_info
+ *   Field instance info.
+ *
+ * @return array
+ *   Array of text values from the field.
+ */
+function openai_embeddings_get_field_text_values($entity_type, $entity, $field_name, $field_info) {
+  $text_values = [];
+  $field_items = field_get_items($entity_type, $entity, $field_name);
+
+  if (empty($field_items)) {
+    return $text_values;
+  }
+
+  $field_type = $field_info['type'] ?? '';
+  $widget_type = $field_info['widget']['type'] ?? '';
+  $field_info_field = field_info_field($field_name);
+
+  foreach ($field_items as $delta => $item) {
+    // Handle taxonomy fields
+    if ($widget_type === 'taxonomy_autocomplete' || $field_info_field['type'] === 'taxonomy_term_reference') {
+      if (!empty($item['tid'])) {
+        $term = taxonomy_term_load($item['tid']);
+        if ($term) {
+          $text_values[$delta] = [
+            'value' => $term->name,
+            'format' => 'plain_text',
+          ];
+        }
+      }
+    }
+    // Handle standard text fields
+    elseif (!empty($item['value'])) {
+      $text_values[$delta] = [
+        'value' => $item['value'],
+        'format' => $item['format'] ?? 'plain_text',
+      ];
+    }
+  }
+
+  return $text_values;
 }

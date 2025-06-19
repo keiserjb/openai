@@ -81,8 +81,7 @@ function openai_menu() {
     'page callback' => 'backdrop_get_form',
     'page arguments' => ['openai_settings_form'],
     'access arguments' => ['administer site configuration'],
-    'type' => MENU_NORMAL_ITEM,
-    'parent' => 'admin/config/openai', // Parent item.
+    'weight' => -10,
   ];
 
   return $items;
@@ -90,10 +89,47 @@ function openai_menu() {
 
 /**
  * Page callback for the OpenAI admin overview page.
+ * Dynamically fetches all OpenAI-related configuration pages.
  */
 function openai_admin_overview() {
-  backdrop_goto('admin/config/openai/settings');
+  $items = [];
+
+  // Fetch all menu paths that start with "admin/config/openai/" but ignore tabs.
+  $menu_links = db_query("SELECT path, title, description, tab_parent FROM {menu_router} WHERE path LIKE :path ORDER BY title ASC", [':path' => 'admin/config/openai/%'])->fetchAll();
+
+  foreach ($menu_links as $link) {
+    // Ensure it’s not a tab item.
+    if (!empty($link->tab_parent)) {
+      continue;
+    }
+
+    $path = $link->path;
+    $title = !empty($link->title) ? t($link->title) : t(ucwords(str_replace('_', ' ', basename($path))));
+    $description = !empty($link->description) ? t($link->description) : '';
+
+    // Skip the main OpenAI page itself.
+    if ($path === 'admin/config/openai') {
+      continue;
+    }
+
+    // Generate a link and description.
+    $link_markup = '<dt>' . l($title, $path) . '</dt><dd>' . $description . '</dd>';
+
+    // Store in array for sorting.
+    $items[$title] = $link_markup;
+  }
+
+  // Ensure "Settings" appears at the top.
+  ksort($items);
+  if (isset($items['Settings'])) {
+    $settings = $items['Settings'];
+    unset($items['Settings']);
+    $items = ['Settings' => $settings] + $items;
+  }
+
+  return '<dl>' . implode("\n", $items) . '</dl>';
 }
+
 
 /**
  * Settings form for OpenAI configuration.
