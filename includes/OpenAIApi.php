@@ -16,18 +16,12 @@ class OpenAIApi {
 
   protected $cache;
 
-  protected $logger;
-
-  public function __construct($apiKey, $logger = NULL) {
-
+  public function __construct($apiKey) {
     // Initialize the cache
     $this->cache = cache('data'); // Using the 'data' cache bin
 
     // Initialize the OpenAI client
     $this->client = $this->initializeClient($apiKey);
-
-    // Initialize the logger
-    $this->logger = $logger ?: watchdog('openai', 'There was an issue obtaining a response from OpenAI construct.');
   }
 
   private function initializeClient($apiKey) {

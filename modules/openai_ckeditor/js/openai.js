@@ -55,7 +55,13 @@
 
 
       editor.ui.componentFactory.add('OpenAI', locale => {
-        const dropdownView = CKEditor5.ui.createDropdown(locale);
+        let dropdownView;
+        if (typeof CKEditor5.ui.createDropdown === 'function') {
+          dropdownView = CKEditor5.ui.createDropdown(locale);
+        }
+        else {
+          dropdownView = CKEditor5.createDropdown(locale);
+        }
         const buttonView = dropdownView.buttonView;
 
         buttonView.set({

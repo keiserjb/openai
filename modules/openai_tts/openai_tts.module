@@ -21,13 +21,13 @@ function openai_tts_menu() {
   $items = [];
 
   $items['admin/config/openai/tts'] = [
-    'title' => 'OpenAI Text-to-Speech',
+    'title' => 'OpenAI Text to Speech',
     'description' => 'A form to convert text to speech using the OpenAI API.',
     'page callback' => 'backdrop_get_form',
     'page arguments' => ['openai_tts_form'],
     'access callback' => 'user_access',
     'access arguments' => ['administer site configuration'],
-    'parent' => 'admin/config/openai',
+    'weight' => -1,
   ];
 
   return $items;

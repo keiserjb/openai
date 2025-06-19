@@ -24,7 +24,7 @@ function openai_alt_menu() {
     'page callback' => 'backdrop_get_form',
     'page arguments' => ['openai_alt_settings_form'],
     'access arguments' => ['administer site configuration'],
-    'parent' => 'admin/config/openai',
+    'weight' => -9,
   ];
 
   // AJAX endpoint for autogeneration (returns JSON)
@@ -169,79 +169,62 @@ function openai_alt_element_info_alter(&$types) {
 }
 
 /**
- * Process function to wrap the alt text field and add the AI button.
- */
-/**
- * Process callback to inject alt-text generation logic into managed_file fields.
+* Process callback to inject alt-text generation into managed_file fields.
  *
- * @param array $element
- *   The form element array.
- * @param array $form_state
- *   The current state of the form.
- * @param array $form
- *   The entire form structure.
- *
- * @return array
- *   The modified form element.
- */
-/**
- * Process callback to inject alt-text generation logic into managed_file fields.
- */
-/**
- * Implements hook_element_info_alter() or hook_form_alter() process callback
- * to inject OpenAI Alt Text functionality into a managed_file field element.
+ * Called for each item (including single-value = delta 0, multi-value = delta 0,1,2,...).
  */
 function openai_alt_image_field_process($element, &$form_state, $form) {
-  // 1) Define defaults early to avoid "Undefined variable" notices.
+  // 1) Define defaults to avoid “Undefined variable” warnings
   $delta = 0;
   $field_name = 'unknown_field';
 
-  // 2) If #value or #value['alt'] is missing, there's no alt text to process. Bail out early.
+  // 2) If there's no alt property, or no #value at all, bail out early.
   if (empty($element['#value']) || !isset($element['#value']['alt'])) {
     return $element;
   }
 
-  // 3) Parse the real delta from #parents if possible (in multi-value fields).
+  // 3) Parse the real delta from #parents.
+  //    Single-value fields might still have "0", multi-value might have "0,1,2,...".
   if (!empty($element['#parents'])) {
     $last_parent = end($element['#parents']);
     if (is_numeric($last_parent)) {
       $delta = (int) $last_parent;
     }
-    // Reset pointer (to avoid side effects if other code reads #parents next).
     reset($element['#parents']);
   }
 
-  // 4) If the element has a field_name, overwrite the default.
+  // 4) If #field_name is set, use it. e.g. "field_image" or "field_multiple_images".
   if (!empty($element['#field_name'])) {
     $field_name = $element['#field_name'];
   }
 
-  // 5) Optionally, you can append "--delta-X" to ensure the wrapper #id is unique per item.
+  // 5) Make the #id unique, so each item can be updated separately via AJAX.
+  //    e.g. "edit-field-multiple-images-und-1--delta-1"
   if (!empty($element['#id'])) {
     $element['#id'] .= '--delta-' . $delta;
   }
 
-  // 6) Retrieve current alt text, to decide if we want to auto-generate or not.
+  // 6) Retrieve the current alt text, to decide if it's empty or not.
   $current_alt = trim($element['#value']['alt']);
 
-  // 7) Fetch your module's configuration settings (as needed).
-  $hide_button   = config_get('openai_alt.settings', 'hide_button');
-  $autogenerate  = config_get('openai_alt.settings', 'autogenerate');
+  // 7) Grab your module's config settings, if any (e.g. hiding the button or auto-generation).
+  $hide_button  = config_get('openai_alt.settings', 'hide_button');
+  $autogenerate = config_get('openai_alt.settings', 'autogenerate');
 
-  // 8) Add a "Generate Alt Text" button (Ajax) if not hidden.
-  //    This gives the user a manual way to generate or re-generate alt text.
+  // 8) Add a "Generate Alt Text" button, unless hidden. This allows manual generation.
   if (empty($hide_button) && !isset($element['ai_alt_text_generation'])) {
     $element['ai_alt_text_generation'] = [
       '#type' => 'button',
       '#value' => t('Generate Alt Text'),
+      '#name' => 'ai_alt_text_generation' . $field_name . '_' . $delta,
       '#ajax' => [
         'callback' => 'openai_alt_generate_alt_text_ajax',
-        // Re-render only this element (including the alt <input>) on success:
+        // This ensures only THIS item is re-rendered on successful AJAX
         'wrapper' => $element['#id'],
       ],
       '#attributes' => [
         'class' => ['ai-alt-text-generation', 'button--primary'],
-        // Pass data into the button so your JS or callback knows which item is clicked.
+        // Pass the file ID, field name, and delta
         'data-file-id'    => isset($element['#value']['fid']) ? $element['#value']['fid'] : NULL,
         'data-field-name' => $field_name,
         'data-delta'      => $delta,
@@ -250,12 +233,12 @@ function openai_alt_image_field_process($element, &$form_state, $form) {
     ];
   }
 
-  // 9) If autogenerate is enabled AND alt is currently empty, attach JS to auto-generate alt text.
+  // 9) If "autogenerate" is enabled AND alt is empty, attach JS to auto-generate alt text.
   if (!empty($autogenerate) && $current_alt === '') {
-    // Use a unique subkey so multiple images in the same form don't overwrite each other.
+    // Use a unique sub-key so multiple items won't overwrite each other in JS.
     $unique_key = $field_name . ':' . $delta;
 
-    // This merges into Backdrop.settings.openaiAlt[...] in your JavaScript.
+    // This merges into Backdrop.settings.openaiAlt[...] in the JS.
     $element['#attached']['js'][] = [
       'data' => [
         'openaiAlt' => [
@@ -263,14 +246,14 @@ function openai_alt_image_field_process($element, &$form_state, $form) {
             'fid'        => isset($element['#value']['fid']) ? $element['#value']['fid'] : NULL,
             'field_name' => $field_name,
             'delta'      => $delta,
-            'target_id'  => $element['#id'],
+            'target_id'  => $element['#id'], // The updated #id
           ],
         ],
       ],
       'type' => 'setting',
     ];
 
-    // Also attach the JS file that reads these settings and triggers AJAX calls.
+    // Attach your JavaScript file that triggers auto-generation.
     $element['#attached']['js'][] = backdrop_get_path('module', 'openai_alt') . '/js/openai_alt_autogenerate.js';
   }
 
@@ -531,23 +514,26 @@ function openai_alt_generate_alt_text_for_ckeditor_autogenerate() {
 }
 
 /**
- * AJAX callback for generating alt text using OpenAI.
+ * AJAX callback for manual "Generate Alt Text" button.
  */
 function openai_alt_generate_alt_text_ajax($form, &$form_state) {
   $triggering_element = $form_state['triggering_element'];
-  $fid = $triggering_element['#attributes']['data-file-id'] ?? NULL;
-  $field_name = $triggering_element['#attributes']['data-field-name'] ?? NULL;
-  $delta = $triggering_element['#attributes']['data-delta'] ?? NULL;
 
-  // 🛠 Debug Log: Capture the values received in AJAX
-  watchdog('openai_alt', '🚀 AJAX Request Triggered!');
-  watchdog('openai_alt', '🔍 Received Data: File ID: @fid, Field Name: @field_name, Field ID: @field_id', [
-    '@fid' => $fid ?? 'NULL',
-    '@field_name' => $field_name ?? 'NULL',
-    '@field_id' => $field_id ?? 'NULL',
-  ]);
+  // Get the data attributes: file ID, field name, delta
+  $fid = isset($triggering_element['#attributes']['data-file-id'])
+    ? $triggering_element['#attributes']['data-file-id'] : NULL;
+  $field_name = isset($triggering_element['#attributes']['data-field-name'])
+    ? $triggering_element['#attributes']['data-field-name'] : NULL;
+  $delta = isset($triggering_element['#attributes']['data-delta'])
+    ? $triggering_element['#attributes']['data-delta'] : NULL;
 
-  if ($field_name === NULL || $delta === NULL) {
+  /*watchdog('openai_alt', 'Manual generation triggered. File: @fid, Field: @field_name, Delta: @delta', [
+    '@fid' => $fid,
+    '@field_name' => $field_name,
+    '@delta' => $delta,
+  ]);*/
+
+  if (!$field_name || $delta === NULL) {
     backdrop_set_message(t('Unable to determine field context.'), 'error');
     return [
       '#type' => 'ajax',
@@ -557,40 +543,26 @@ function openai_alt_generate_alt_text_ajax($form, &$form_state) {
     ];
   }
 
-  // Load the file entity.
+  // Load file
   $file = file_load($fid);
   if (!$file) {
     backdrop_set_message(t('File not found for the given file ID.'), 'error');
     return;
   }
 
-  // Load the selected image style from settings.
+  // Possibly generate an image derivative
   $style_name = config_get('openai_alt.settings', 'image_style') ?? 'ai_image_alt_text';
-
-  // Generate the styled image path.
   $styled_uri = image_style_path($style_name, $file->uri);
-
-  // Ensure the derivative exists or generate it.
   $style = image_style_load($style_name);
   if ($style && !file_exists($styled_uri)) {
-    watchdog('openai_alt', "⚠️ Derivative missing, generating: @styled_uri", ['@styled_uri' => $styled_uri]);
     image_style_create_derivative($style, $file->uri, $styled_uri);
-    sleep(1);
-    if (!file_exists($styled_uri)) {
-      watchdog('openai_alt', "❌ Derivative still missing after generation attempt.", []);
-    }
+    // ...
   }
-
-  // Use the derivative if it exists, otherwise fallback to the original.
   $file_uri = file_exists($styled_uri) ? $styled_uri : $file->uri;
 
-  watchdog('openai_alt', '🖼️ Sending image to OpenAI: @uri', ['@uri' => $file_uri]);
-
-  // Send the image to OpenAI for alt text generation.
+  // Call your OpenAI function to get alt text
   $openai_api = openai_alt_get_openai_api();
   $generated_alt_text = $openai_api->describeImage($file_uri);
-
-  watchdog('openai_alt', '📝 Generated Alt Text: @text', ['@text' => $generated_alt_text]);
 
   if (!$generated_alt_text) {
     backdrop_set_message(t('Failed to generate alt text. Please try again.'), 'error');
@@ -602,13 +574,16 @@ function openai_alt_generate_alt_text_ajax($form, &$form_state) {
     ];
   }
 
-  // **✅ Fix: Directly update the input field's value**
+  watchdog('openai_alt', 'Generated alt text: @txt', ['@txt' => $generated_alt_text]);
+
+  // Build the CSS selector for the correct alt field: "field_myimage[und][0][alt]" for example
   $selector = "input[name='{$field_name}[und][{$delta}][alt]']";
 
+  // Return an AJAX command to set that input’s value
   return [
     '#type' => 'ajax',
     '#commands' => [
-      ajax_command_invoke($selector, 'val', [$generated_alt_text]), // Set value instead of replacing field
+      ajax_command_invoke($selector, 'val', [$generated_alt_text]),
     ],
   ];
 }

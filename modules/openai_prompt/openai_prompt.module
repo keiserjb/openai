@@ -19,12 +19,12 @@ function openai_prompt_menu() {
   $items = array();
 
   $items['admin/config/openai/openai-prompt'] = array(
-    'title' => 'Prompt Explorer',
+    'title' => 'OpenAI Prompt Completion Explorer',
     'description' => 'Explore OpenAI prompts',
     'page callback' => 'backdrop_get_form',
     'page arguments' => array('openai_prompt_form'),
     'access arguments' => array('access openai prompt'),
-    'parent' => 'admin/config/openai',
+    'weight' => -4,
   );
 
   return $items;

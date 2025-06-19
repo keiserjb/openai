@@ -183,39 +183,31 @@ class PineconeVectorClient extends VectorClientBase {
    *   The response object or NULL if an error occurs.
    */
   public function upsert(array $parameters) {
-    //dpm($parameters['namespace']);
     if (empty($parameters['vectors'])) {
       throw new \Exception('Vectors to insert or update are required by Pinecone');
     }
 
-    // ✅ Log and debug payload BEFORE sending to Pinecone.
     $payload = [
       'vectors' => $parameters['vectors'],
     ];
 
-    if (empty($parameters['collection'])) {
-      $payload['collection'] = $parameters['namespace'];
+    // ✅ Correctly pass namespace (not collection)
+    if (!empty($parameters['collection'])) {
+      $payload['namespace'] = $parameters['collection'];
     }
-    //dpm($payload);
-    watchdog('openai_embeddings', '📌 Pinecone Upsert Payload: <pre>@payload</pre>', [
-      '@payload' => print_r($payload, TRUE),
-    ], WATCHDOG_DEBUG);
+
+    $this->logPayload('upsert', $payload);
 
     $client = $this->getPineconeClient();
     $response = $client->post('/vectors/upsert', [
       'json' => $payload,
     ]);
 
-    // ✅ Debug response from Pinecone.
     $response_data = json_decode($response->getBody()->getContents(), TRUE);
-    //dpm($response_data);
-    watchdog('openai_embeddings', '📌 Pinecone Upsert Response: <pre>@response</pre>', [
-      '@response' => print_r($response_data, TRUE),
-    ], WATCHDOG_DEBUG);
+    $this->logResponse('upsert', $response_data);
 
     return $response;
   }
-
 
   /**
    * Fetch stats from Pinecone.

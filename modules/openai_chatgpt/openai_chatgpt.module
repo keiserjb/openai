@@ -20,13 +20,13 @@ function openai_chatgpt_menu() {
   $items = [];
 
   $items['admin/config/openai/chatgpt'] = [
-    'title'            => 'ChatGPT explorer',
+    'title'            => 'OpenAi ChatGPT explorer',
     'description'      => 'Contains a form where you can experiment and test the OpenAI ChatGPT endpoint.',
     'page callback'    => 'drupal_get_form',
     'page arguments'   => ['openai_chatgpt_form'],
     'access callback'  => 'user_access',
     'access arguments' => ['access openai chatgpt'],
-    'parent'           => 'admin/config/openai',
+    'weight' => -8,
   ];
 
   return $items;
