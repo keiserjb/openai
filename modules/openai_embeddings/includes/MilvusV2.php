@@ -292,7 +292,6 @@ class MilvusV2 {
 
     $response = $this->makeRequest('vectordb/entities/search', [], 'POST', $params);
     $decodedResponse = json_decode($response, true);
-    //dpm($decodedResponse);
     return $decodedResponse;
   }
 
