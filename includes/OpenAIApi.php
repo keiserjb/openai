@@ -287,7 +287,12 @@ class OpenAIApi {
         return $response['data'][0]['b64_json'];
       }
 
-      return $response['data'][0][$response_format] ?? '';
+      if (isset($response['data'][0][$response_format])) {
+        return $response['data'][0][$response_format];
+      } else {
+        watchdog('openai', 'Expected response format "@format" not found in OpenAI Images response data.', ['@format' => $response_format], WATCHDOG_ERROR);
+        return '';
+      }
     } catch (TransporterException | \Exception $e) {
       watchdog('openai', 'There was an issue obtaining a response from OpenAI Images. The error was @error.', ['@error' => $e->getMessage()], WATCHDOG_ERROR);
       return '';
