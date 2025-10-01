@@ -29,6 +29,16 @@ function openai_chatgpt_menu() {
     'weight' => -8,
   ];
 
+  $items['admin/config/openai/chatgpt/settings'] = [
+    'title' => 'ChatGPT Settings',
+    'description' => 'Configure settings for the OpenAI ChatGPT module.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => ['openai_chatgpt_settings_form'],
+    'access callback' => 'user_access',
+    'access arguments' => ['administer site configuration'],
+    'weight' => -7,
+  ];
+
   return $items;
 }
 
@@ -105,6 +115,13 @@ function openai_chatgpt_form($form, &$form_state) {
     '#default_value' => 'You are a friendly helpful assistant inside of a Backdrop website. Be encouraging and polite and ask follow up questions of the user after giving the answer.',
     '#description' => t('The "profile" helps set the behavior of the ChatGPT response. You can change/influence how it response by adjusting the above instruction. If you want to change this value after starting a conversation, you will need to reload the form first.'),
     '#required' => TRUE,
+  ];
+
+  $form['options']['chatgpt_debug'] = [
+    '#type' => 'checkbox',
+    '#title' => t('Enable ChatGPT Debug Mode'),
+    '#default_value' => config_get('openai.settings', 'chatgpt_debug'),
+    '#description' => t('Enable debug mode to log additional information for troubleshooting.'),
   ];
 
   $form['response'] = [
@@ -297,4 +314,18 @@ function openai_chatgpt_form_submit($form, &$form_state) {
   $filtered_messages[] = ['role' => 'assistant', 'content' => $result];
   $form_state['storage']['messages'] = $filtered_messages;
   $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * Settings form for the OpenAI ChatGPT module.
+ */
+function openai_chatgpt_settings_form($form, &$form_state) {
+  $form['chatgpt_debug'] = [
+    '#type' => 'checkbox',
+    '#title' => t('Enable ChatGPT Debug Mode'),
+    '#default_value' => config_get('openai.settings', 'chatgpt_debug'),
+    '#description' => t('Enable debug mode to log additional information for troubleshooting.'),
+  ];
+
+  return system_settings_form($form);
 }
