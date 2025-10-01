@@ -4,6 +4,7 @@ require_once BACKDROP_ROOT . '/' . backdrop_get_path('module', 'openai') . '/ven
 
 use OpenAI\Client as OpenAIClient;
 use OpenAI\Exceptions\TransporterException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OpenAIApi {
 
@@ -100,7 +101,7 @@ class OpenAIApi {
       if ($stream_response) {
         $stream = $this->client->completions()->createStreamed($base);
 
-        return new \StreamedResponse(function () use ($stream) {
+        return new StreamedResponse(function () use ($stream) {
           foreach ($stream as $data) {
             echo $data->choices[0]->delta->content;
             @ob_flush(); @flush();
@@ -222,7 +223,7 @@ class OpenAIApi {
 
       if ($stream_response) {
         $stream = $this->client->chat()->createStreamed($payload);
-        return new \StreamedResponse(function () use ($stream) {
+        return new StreamedResponse(function () use ($stream) {
           foreach ($stream as $data) {
             echo $data->choices[0]->delta->content;
             @ob_flush(); @flush();

@@ -15,7 +15,9 @@
         "php": "^8.2",
         "openai-php/client": ">=v0.10.1",
         "guzzlehttp/guzzle": "^7.9",
-        "guzzlehttp/psr7": "^2.7"
+        "guzzlehttp/psr7": "^2.7",
+        "symfony/http-foundation": "^6.4",
+        "nyholm/psr7": "^1.8"
     },
     "config": {
         "platform": {

@@ -22,7 +22,7 @@ function openai_chatgpt_menu() {
   $items['admin/config/openai/chatgpt'] = [
     'title'            => 'OpenAi ChatGPT explorer',
     'description'      => 'Contains a form where you can experiment and test the OpenAI ChatGPT endpoint.',
-    'page callback'    => 'drupal_get_form',
+    'page callback'    => 'backdrop_get_form',
     'page arguments'   => ['openai_chatgpt_form'],
     'access callback'  => 'user_access',
     'access arguments' => ['access openai chatgpt'],
@@ -32,7 +32,7 @@ function openai_chatgpt_menu() {
   $items['admin/config/openai/chatgpt/settings'] = [
     'title' => 'ChatGPT Settings',
     'description' => 'Configure settings for the OpenAI ChatGPT module.',
-    'page callback' => 'drupal_get_form',
+    'page callback' => 'backdrop_get_form',
     'page arguments' => ['openai_chatgpt_settings_form'],
     'access callback' => 'user_access',
     'access arguments' => ['administer site configuration'],
