@@ -285,10 +285,12 @@ function openai_chatgpt_form_submit($form, &$form_state) {
 
   $result = $api->chat($model, $filtered_messages, $temperature, $max_tokens);
   // Debug: Log the API result and messages
-  watchdog('openai_chatgpt', 'API result: @result, Messages: @messages', [
-    '@result' => var_export($result, TRUE),
-    '@messages' => var_export($filtered_messages, TRUE),
-  ], WATCHDOG_DEBUG);
+  if ($openai_config->get('debug_logging')) {
+    watchdog('openai_chatgpt', 'API result: @result, Messages: @messages', [
+      '@result' => var_export($result, TRUE),
+      '@messages' => var_export($filtered_messages, TRUE),
+    ], WATCHDOG_DEBUG);
+  }
 
   $filtered_messages[] = ['role' => 'assistant', 'content' => $result];
   $form_state['storage']['messages'] = $filtered_messages;
