@@ -1,9 +1,9 @@
 <?php
 
 /**
-* @file
-* Permissions for the OpenAI DALL·E module.
-*/
+ * @file
+ * Permissions for the OpenAI DALL·E module.
+ */
 
 use GuzzleHttp\Client as GuzzleClient;
 
@@ -68,6 +68,24 @@ function openai_dalle_form($form, &$form_state) {
     ],
   ];
 
+  // Set initial quality options and default value based on selected model
+  $selected_model = isset($form_state['values']['model']) ? $form_state['values']['model'] : 'dall-e-3';
+  if ($selected_model === 'gpt-image-1') {
+    $quality_options = [
+      'auto' => 'Auto',
+      'low' => 'Low',
+      'medium' => 'Medium',
+      'high' => 'High',
+    ];
+    $quality_default = 'auto';
+  } else {
+    $quality_options = [
+      'hd' => 'HD',
+      'standard' => 'Standard',
+    ];
+    $quality_default = 'hd';
+  }
+
   $form['model_dependent_fields'] = [
     '#prefix' => '<div id="model-dependent-fields">',
     '#suffix' => '</div>',
@@ -76,11 +94,8 @@ function openai_dalle_form($form, &$form_state) {
   $form['model_dependent_fields']['quality'] = [
     '#type' => 'select',
     '#title' => t('Quality'),
-    '#options' => [
-      'hd' => 'HD',
-      'standard' => 'Standard',
-    ],
-    '#default_value' => 'hd',
+    '#options' => $quality_options,
+    '#default_value' => $quality_default,
     '#states' => [
       'visible' => [
         [':input[name="model"]' => ['value' => 'dall-e-3']],
@@ -231,7 +246,6 @@ function openai_dalle_model_select_callback($form, &$form_state) {
     ];
     $form['model_dependent_fields']['quality']['#default_value'] = 'auto';
   } else {
-    // For dall-e-3 and dall-e-2 (though dall-e-2 doesn't show quality field)
     $form['model_dependent_fields']['quality']['#options'] = [
       'hd' => 'HD',
       'standard' => 'Standard',

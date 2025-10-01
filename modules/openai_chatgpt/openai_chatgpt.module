@@ -56,6 +56,10 @@ function openai_chatgpt_form($form, &$form_state) {
 
   $api = new OpenAIApi($apiKey);
 
+  // Dynamically fetch the minimum tokens for the default model.
+  $default_model = 'gpt-3.5-turbo';
+  $min_tokens = $api->getMinCapForModel($default_model);
+
   $form['text'] = [
     '#type' => 'textarea',
     '#title' => t('Ask ChatGPT'),
@@ -103,10 +107,10 @@ function openai_chatgpt_form($form, &$form_state) {
   $form['options']['max_tokens'] = [
     '#type' => 'number',
     '#title' => t('Max tokens'),
-    '#min' => 1024,
+    '#min' => $min_tokens,
     '#step' => 1,
-    '#default_value' => '1024',
-    '#description' => t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length.  The minimum value is 1024.'),
+    '#default_value' => $min_tokens,
+    '#description' => t('The maximum number of tokens to generate in the completion. The token count of your prompt plus max_tokens cannot exceed the model\'s context length. The minimum value is dynamically set based on the selected model.'),
   ];
 
   $form['options']['system'] = [
@@ -299,6 +303,12 @@ function openai_chatgpt_form_submit($form, &$form_state) {
   $filtered_messages[] = ['role' => 'assistant', 'content' => $result];
   $form_state['storage']['messages'] = $filtered_messages;
   $form_state['rebuild'] = TRUE;
+
+  // Check if debugging is enabled.
+  $debug_enabled = $form_state['values']['chatgpt_debug'];
+  if ($debug_enabled) {
+    watchdog('openai_chatgpt', 'Debugging enabled: Form values: @values', ['@values' => var_export($form_state['values'], TRUE)], WATCHDOG_DEBUG);
+  }
 }
 
 /**
