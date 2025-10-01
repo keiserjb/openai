@@ -447,11 +447,16 @@ class OpenAIApi {
   /**
    * Reasonable token floors; GPT-5 / o-series need room for reasoning.
    */
-  private function minCapForModel(string $model): int {
+  protected function minCapForModel(string $model): int {
     if ($this->modelUsesResponsesApi($model)) {
       return 512; // you can raise to 1024 if you prefer
     }
     return 128;
+  }
+
+  /** Public wrapper for minCapForModel method. */
+  public function getMinCapForModel(string $model): int {
+    return $this->minCapForModel($model);
   }
 
   /**
@@ -641,6 +646,40 @@ class OpenAIApi {
     }
 
     return trim($outputText);
+  }
+
+  /**
+   * Whitelist of model prefixes for validation.
+   * This can be extended dynamically as new model families are released.
+   */
+  private static $modelWhitelist = [
+    'gpt-4',
+    'gpt-3.5',
+    'gpt-5',
+    'o1',
+    'o3',
+  ];
+
+  /**
+   * Get the whitelist of model prefixes.
+   *
+   * @return array
+   *   The whitelist of model prefixes.
+   */
+  public static function getModelWhitelist() {
+    return self::$modelWhitelist;
+  }
+
+  /**
+   * Add a new model prefix to the whitelist.
+   *
+   * @param string $prefix
+   *   The model prefix to add.
+   */
+  public static function addModelPrefix($prefix) {
+    if (!in_array($prefix, self::$modelWhitelist)) {
+      self::$modelWhitelist[] = $prefix;
+    }
   }
 
 }

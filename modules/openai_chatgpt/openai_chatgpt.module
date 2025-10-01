@@ -161,63 +161,48 @@ function openai_chatgpt_form_validate($form, &$form_state) {
   $model = $form_state['values']['model'];
   $max_tokens = (int) $form_state['values']['max_tokens'];
 
-  // Define token limits for different model families
+  // Fetch the dynamic minimum tokens for the selected model.
+  $api = new OpenAIApi(config_get('openai.settings', 'api_key'));
+  $min_tokens = $api->getMinCapForModel($model);
+
+  // Define token limits for different model families dynamically.
   $token_limits = [
-    // GPT-4 models
     'gpt-4' => 8192,
-    'gpt-4-0314' => 8192,
     'gpt-4-32k' => 32768,
     'gpt-4-turbo' => 128000,
-    'gpt-4o' => 128000,
-    'gpt-4o-mini' => 128000,
-
-    // GPT-3.5 models
     'gpt-3.5-turbo' => 4096,
-    'gpt-3.5-turbo-0301' => 4096,
     'gpt-3.5-turbo-16k' => 16384,
-
-    // GPT-5 and newer models (typically have very high limits)
     'gpt-5' => 200000,
-    'gpt-5-mini' => 200000,
-
-    // O1 models
     'o1-preview' => 128000,
-    'o1-mini' => 128000,
-    'o3-mini' => 200000,
   ];
 
-  // Check if we have a specific limit for this model
+  // Check if we have a specific limit for this model.
   $model_limit = NULL;
-  foreach ($token_limits as $model_pattern => $limit) {
-    if (strpos($model, $model_pattern) === 0) {
+  foreach ($token_limits as $model_prefix => $limit) {
+    if (strpos($model, $model_prefix) === 0) {
       $model_limit = $limit;
       break;
     }
   }
 
-  // If no specific limit found, use a general pattern-based approach
+  // If no specific limit is found, use a safe default.
   if ($model_limit === NULL) {
-    if (preg_match('/^gpt-5/i', $model)) {
-      $model_limit = 200000; // GPT-5 family default
-    }
-    elseif (preg_match('/^gpt-4/i', $model)) {
-      $model_limit = 128000; // GPT-4 family default
-    }
-    elseif (preg_match('/^gpt-3\.5/i', $model)) {
-      $model_limit = 16384; // GPT-3.5 family default
-    }
-    elseif (preg_match('/^o[1-9]/i', $model)) {
-      $model_limit = 200000; // O-series models default
-    }
-    else {
-      $model_limit = 128000; // Safe default for unknown models
-    }
+    $model_limit = 128000; // Safe default for unknown models.
   }
 
+  // Validate max tokens against the model limit.
   if ($max_tokens > $model_limit) {
     form_set_error('options][max_tokens', t('The model @model only supports a maximum of @limit tokens. Please reduce the max token value to @limit or lower.', [
       '@model' => $model,
       '@limit' => number_format($model_limit),
+    ]));
+  }
+
+  // Validate max tokens against the dynamic minimum tokens.
+  if ($max_tokens < $min_tokens) {
+    form_set_error('options][max_tokens', t('The model @model requires a minimum of @min tokens. Please increase the max token value to @min or higher.', [
+      '@model' => $model,
+      '@min' => number_format($min_tokens),
     ]));
   }
 }
