@@ -153,10 +153,13 @@ class OpenAIApi {
         // Final safety pass: ensure assistant parts aren't input_text.
         $payload = $this->sanitizeResponsesPayload($payload);
 
-        watchdog('openai', 'Responses API payload for @model: @payload', [
-          '@model' => $model,
-          '@payload' => json_encode($payload, JSON_PRETTY_PRINT),
-        ], WATCHDOG_DEBUG);
+        // Only log debug payloads if error reporting is verbose (development mode).
+        if (config_get('system.core', 'error_level') === 'verbose') {
+          watchdog('openai', 'Responses API payload for @model: @payload', [
+            '@model' => $model,
+            '@payload' => json_encode($payload, JSON_PRETTY_PRINT),
+          ], WATCHDOG_DEBUG);
+        }
 
         $result = $this->client->responses()->create($payload)->toArray();
 
