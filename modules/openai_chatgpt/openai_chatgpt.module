@@ -211,7 +211,7 @@ function openai_chatgpt_form_validate($form, &$form_state) {
 function openai_chatgpt_get_response($form, &$form_state) {
   $errors = form_get_errors();
   // Debug: Log the storage messages on AJAX callback, only if debug mode is enabled.
-  if (variable_get('openai_chatgpt_debug', FALSE)) {
+  if (config_get('openai.settings', 'chatgpt_debug')) {
     watchdog('openai_chatgpt', 'AJAX callback storage messages: @messages', [
       '@messages' => var_export(isset($form_state['storage']['messages']) ? $form_state['storage']['messages'] : NULL, TRUE),
     ], WATCHDOG_DEBUG);
