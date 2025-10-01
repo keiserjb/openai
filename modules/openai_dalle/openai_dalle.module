@@ -149,8 +149,8 @@ function openai_dalle_form($form, &$form_state) {
         ]
       ]
     ],
-    // Use plain HTML for the link, not t() variable replacement
-    '#description' => 'The image format of the result. See the <a href="https://platform.openai.com/docs/api-reference/images/create#images-create-response_format" target="_blank">OpenAI documentation</a> for more information.',
+    // Use Backdrop's translation function with proper link formatting
+    '#description' => t('The image format of the result. See the <a href="@link" target="_blank">OpenAI documentation</a> for more information.', ['@link' => 'https://platform.openai.com/docs/api-reference/images/create#images-create-response_format']),
   ];
 
   $form['output_format'] = [
