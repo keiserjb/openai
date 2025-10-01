@@ -19,21 +19,21 @@ class MilvusV2 {
    *
    * @var string
    */
-  private string $apiKey = '';
+  private $apiKey = '';
 
   /**
    * The base URL.
    *
    * @var string
    */
-  private string $baseUrl = '';
+  private $baseUrl = '';
 
   /**
    * The port.
    *
    * @var int
    */
-  private int $port = 443;
+  private $port = 443;
 
   /**
    * Constructor.
