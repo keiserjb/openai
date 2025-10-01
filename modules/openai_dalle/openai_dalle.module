@@ -81,7 +81,6 @@ function openai_dalle_form($form, &$form_state) {
       'standard' => 'Standard',
     ],
     '#default_value' => 'hd',
-    '#validated' => TRUE, // Disable built-in validation since we handle it manually
     '#states' => [
       'visible' => [
         [':input[name="model"]' => ['value' => 'dall-e-3']],
@@ -100,7 +99,6 @@ function openai_dalle_form($form, &$form_state) {
       '1024x1792' => '1024x1792',
     ],
     '#default_value' => '1024x1024', // Default value.
-    '#validated' => TRUE, // Disable built-in validation since we handle it manually
     '#description' => t('The size of the generated images.'),
   ];
 
@@ -260,9 +258,13 @@ function openai_dalle_form_validate($form, &$form_state) {
   $dalle_3_sizes = ['1024x1024', '1792x1024', '1024x1792'];
   $gpt_image_1_sizes = ['1024x1024', '1024x1536', '1536x1024', '1024x1792', '1792x1024'];
 
-  // Define valid quality options for each model (these are the actual form values)
-  $dalle_quality_options = ['hd', 'standard'];
-  $gpt_image_quality_options = ['auto', 'low', 'medium', 'high'];
+  // Define valid quality options for each model dynamically.
+  $valid_quality_options = [];
+  if ($model === 'gpt-image-1') {
+    $valid_quality_options = ['auto', 'low', 'medium', 'high'];
+  } elseif ($model === 'dall-e-3') {
+    $valid_quality_options = ['hd', 'standard'];
+  }
 
   // Validate prompt length
   if ($model === 'dall-e-2' && mb_strlen($prompt) > 1000) {
@@ -286,17 +288,10 @@ function openai_dalle_form_validate($form, &$form_state) {
     form_set_error('size', 'This size is not supported by the gpt-image-1 model.');
   }
 
-  // Validate quality options based on model
-  if ($model === 'gpt-image-1') {
-    if (!in_array($quality, $gpt_image_quality_options)) {
-      form_set_error('quality', 'This quality option is not supported by the gpt-image-1 model. Valid options are: auto, low, medium, high.');
-    }
-  } elseif ($model === 'dall-e-3') {
-    if (!in_array($quality, $dalle_quality_options)) {
-      form_set_error('quality', 'This quality option is not supported by the dall-e-3 model. Valid options are: hd, standard.');
-    }
+  // Validate quality options dynamically based on the model.
+  if (!empty($valid_quality_options) && !in_array($quality, $valid_quality_options)) {
+    form_set_error('quality', t('Invalid quality option selected for the @model model.', ['@model' => $model]));
   }
-  // Note: dall-e-2 doesn't show the quality field, so no validation needed
 }
 
 /**
