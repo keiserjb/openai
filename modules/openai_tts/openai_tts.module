@@ -163,7 +163,7 @@ function openai_tts_form_submit($form, &$form_state) {
 
   if (empty($apiKey)) {
     form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
-    return;
+    return $form;
   }
 
   $api = new OpenAIApi($apiKey);
