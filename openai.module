@@ -267,3 +267,23 @@ function openai_fetch_available_models() {
     return [];
   }
 }
+
+
+/**
+ * Helper to report where the OpenAI SDK was loaded from during this request.
+ *
+ * @return string
+ *   Human-readable source description.
+ */
+function openai_get_sdk_source() {
+  $source = backdrop_static('openai_sdk_source');
+  switch ($source) {
+    case 'composer_manager':
+      return 'Composer Manager autoloader';
+    case 'module_vendor':
+      return 'Module vendor/autoload.php';
+    default:
+      return 'Unknown (autoloader not recorded)';
+  }
+}
+

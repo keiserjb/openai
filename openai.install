@@ -53,6 +53,102 @@ function openai_requirements($phase) {
         ];
       }
     }
+
+    // ---- Runtime diagnostics for SDK source and version (Composer Manager vs module vendor) ----
+    // Ensure autoloader for runtime diagnostics.
+    $src_ref =& backdrop_static('openai_sdk_source');
+    if (!class_exists('OpenAI') && !class_exists('OpenAI\\Client')) {
+      if (module_exists('composer_manager') && function_exists('composer_manager_register_autoloader')) {
+        composer_manager_register_autoloader();
+        $src_ref = $src_ref ?: 'composer_manager';
+      }
+      else {
+        $autoload = BACKDROP_ROOT . '/' . backdrop_get_path('module', 'openai') . '/vendor/autoload.php';
+        if (file_exists($autoload)) {
+          require_once $autoload;
+          $src_ref = $src_ref ?: 'module_vendor';
+        }
+      }
+    }
+
+    // If the client is available, report version and file locations.
+    if (class_exists('OpenAI') || class_exists('OpenAI\\Client')) {
+      // Version detection via Composer InstalledVersions when available.
+      $version = NULL;
+      if (class_exists('Composer\\InstalledVersions') && method_exists('Composer\\InstalledVersions', 'getPrettyVersion')) {
+        try {
+          $version = Composer\InstalledVersions::getPrettyVersion('openai-php/client');
+          // Normalize version to avoid double "v" prefix in output.
+          if (is_string($version) && strlen($version) > 0 && $version[0] === 'v') {
+            $version = ltrim($version, 'v');
+          }
+        }
+        catch (Exception $e) {
+          // leave as NULL
+        }
+      }
+
+      // Reflection to find which vendor provides the classes.
+      try {
+        $root_ref = new ReflectionClass('OpenAI');
+        $root_file = $root_ref->getFileName();
+      }
+      catch (Exception $e) {
+        $root_file = t('Unknown');
+      }
+      try {
+        if (class_exists('OpenAI\\Client')) {
+          $client_ref = new ReflectionClass('OpenAI\\Client');
+          $client_file = $client_ref->getFileName();
+        }
+        else {
+          $client_file = t('Class not found');
+        }
+      }
+      catch (Exception $e) {
+        $client_file = t('Unknown');
+      }
+
+      // Attempt to infer SDK source from file paths if not recorded earlier.
+      $src_ref =& backdrop_static('openai_sdk_source');
+      if (empty($src_ref)) {
+        $module_vendor = BACKDROP_ROOT . '/' . backdrop_get_path('module', 'openai') . '/vendor/';
+        $files_vendor = BACKDROP_ROOT . '/files/vendor/';
+        $composer_vendor = BACKDROP_ROOT . '/vendor/';
+        $path_to_check = is_string($root_file) ? $root_file : (is_string($client_file) ? $client_file : '');
+        if ($path_to_check) {
+          if (strpos($path_to_check, $module_vendor) !== FALSE) {
+            $src_ref = 'module_vendor';
+          }
+          elseif (strpos($path_to_check, $files_vendor) !== FALSE || (strpos($path_to_check, $composer_vendor) !== FALSE && strpos($path_to_check, $module_vendor) === FALSE)) {
+            // Treat Composer-managed locations (files/vendor or project vendor) as composer_manager.
+            $src_ref = 'composer_manager';
+          }
+        }
+      }
+      $source_text = function_exists('openai_get_sdk_source') ? openai_get_sdk_source() : 'Unknown';
+
+      $requirements['openai_php_client'] = array(
+        'title' => t('OpenAI PHP Client'),
+        'value' => $version ? t('Installed v@v', array('@v' => $version)) : t('Installed (version unknown)'),
+        'severity' => REQUIREMENT_INFO,
+      );
+
+      $requirements['openai_sdk_source'] = array(
+        'title' => t('OpenAI SDK load source'),
+        'value' => t('@source (@file)', array('@source' => $source_text, '@file' => $root_file)),
+        'description' => t('OpenAI\\Client file: @file', array('@file' => $client_file)),
+        'severity' => REQUIREMENT_INFO,
+      );
+    }
+    else {
+      $requirements['openai_php_client'] = array(
+        'title' => t('OpenAI PHP Client'),
+        'value' => t('Not available'),
+        'description' => t('Enable Composer Manager or ensure the module vendor/autoload.php exists.'),
+        'severity' => REQUIREMENT_WARNING,
+      );
+    }
   }
 
   return $requirements;
