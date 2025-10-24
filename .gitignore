@@ -1,0 +1,27 @@
+# AI Assistant Instructions
+.github/copilot-instructions.md
+
+# Development files (not shipped with module)
+/vendor/
+
+# Build output (shipped with module)
+# /build/ is NOT ignored - it contains scoped dependencies
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+
+# Logs
+*.log

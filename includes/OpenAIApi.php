@@ -1,6 +1,8 @@
 <?php
 
-require_once BACKDROP_ROOT . '/' . backdrop_get_path('module', 'openai') . '/vendor/autoload.php';
+// Load the appropriate Composer autoloader (scoped or global)
+require_once dirname(__FILE__) . '/autoloader.inc';
+openai_load_autoloader();
 
 use OpenAI\Client as OpenAIClient;
 use OpenAI\Exceptions\TransporterException;

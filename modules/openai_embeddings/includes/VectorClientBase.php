@@ -1,6 +1,10 @@
 <?php
 
-require_once BACKDROP_ROOT . '/' . backdrop_get_path('module', 'openai') . '/vendor/autoload.php';
+// Load the appropriate Composer autoloader (scoped or global)
+$autoloader_path = BACKDROP_ROOT . '/' . backdrop_get_path('module', 'openai') . '/includes/autoloader.inc';
+require_once $autoloader_path;
+openai_load_autoloader();
+
 use GuzzleHttp\Client as GuzzleClient;
 
 /**

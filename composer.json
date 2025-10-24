@@ -29,5 +29,8 @@
         },
         "optimize-autoloader": true,
         "preferred-install": "dist"
+    },
+    "require-dev": {
+        "humbug/php-scoper": "^0.18.18"
     }
 }

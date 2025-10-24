@@ -1,0 +1,8 @@
+<?php
+
+namespace BackdropOpenAI\OpenAI\Testing\Responses\Fixtures\Embeddings;
+
+final class CreateResponseFixture
+{
+    public const ATTRIBUTES = ['object' => 'list', 'model' => 'text-embedding-3-small', 'data' => [['object' => 'embedding', 'index' => 0, 'embedding' => [-0.008906792, -0.013743395]]], 'usage' => ['prompt_tokens' => 8, 'total_tokens' => 8]];
+}
