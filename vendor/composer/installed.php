@@ -3,17 +3,17 @@
         'name' => 'backdrop/openai',
         'pretty_version' => 'dev-1.x-1.x',
         'version' => 'dev-1.x-1.x',
-        'reference' => '19eb820b2381fbc34e37db5f5fd982049d979b54',
+        'reference' => 'c54f1ab0bab900f2d89ec889bfa91dfd2cdd0e4d',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
-        'dev' => true,
+        'dev' => false,
     ),
     'versions' => array(
         'backdrop/openai' => array(
             'pretty_version' => 'dev-1.x-1.x',
             'version' => 'dev-1.x-1.x',
-            'reference' => '19eb820b2381fbc34e37db5f5fd982049d979b54',
+            'reference' => 'c54f1ab0bab900f2d89ec889bfa91dfd2cdd0e4d',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -56,9 +56,9 @@
             'dev_requirement' => false,
         ),
         'openai-php/client' => array(
-            'pretty_version' => 'v0.16.1',
-            'version' => '0.16.1.0',
-            'reference' => '7a59e4d896d83f8c923e0b3a5ebae0a5cddad2d6',
+            'pretty_version' => 'v0.17.1',
+            'version' => '0.17.1.0',
+            'reference' => 'f7d3150159a7b840fe144568bede1c072f768343',
             'type' => 'library',
             'install_path' => __DIR__ . '/../openai-php/client',
             'aliases' => array(),
@@ -112,8 +112,8 @@
         'psr/http-client-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '1.0',
-                1 => '*',
+                0 => '*',
+                1 => '1.0',
             ),
         ),
         'psr/http-factory' => array(
@@ -128,8 +128,8 @@
         'psr/http-factory-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '1.0',
-                1 => '*',
+                0 => '*',
+                1 => '1.0',
             ),
         ),
         'psr/http-message' => array(
@@ -144,8 +144,8 @@
         'psr/http-message-implementation' => array(
             'dev_requirement' => false,
             'provided' => array(
-                0 => '1.0',
-                1 => '*',
+                0 => '*',
+                1 => '1.0',
             ),
         ),
         'ralouphie/getallheaders' => array(

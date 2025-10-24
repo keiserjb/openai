@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849
+class ComposerStaticInitd3b4669edb43abb87fef220e88cda742
 {
     public static $files = array (
         '7b11c4dc42b3b3023073cb14e519683c' => __DIR__ . '/..' . '/ralouphie/getallheaders/src/getallheaders.php',
@@ -63,8 +63,8 @@ class ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849
         ),
         'Psr\\Http\\Message\\' => 
         array (
-            0 => __DIR__ . '/..' . '/psr/http-factory/src',
-            1 => __DIR__ . '/..' . '/psr/http-message/src',
+            0 => __DIR__ . '/..' . '/psr/http-message/src',
+            1 => __DIR__ . '/..' . '/psr/http-factory/src',
         ),
         'Psr\\Http\\Client\\' => 
         array (
@@ -235,6 +235,7 @@ class ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849
         'Nyholm\\Psr7\\StreamTrait' => __DIR__ . '/..' . '/nyholm/psr7/src/StreamTrait.php',
         'Nyholm\\Psr7\\UploadedFile' => __DIR__ . '/..' . '/nyholm/psr7/src/UploadedFile.php',
         'Nyholm\\Psr7\\Uri' => __DIR__ . '/..' . '/nyholm/psr7/src/Uri.php',
+        'OpenAI\\Actions\\Conversations\\ItemObjects' => __DIR__ . '/..' . '/openai-php/client/src/Actions/Conversations/ItemObjects.php',
         'OpenAI\\Actions\\Responses\\ItemObjects' => __DIR__ . '/..' . '/openai-php/client/src/Actions/Responses/ItemObjects.php',
         'OpenAI\\Actions\\Responses\\OutputObjects' => __DIR__ . '/..' . '/openai-php/client/src/Actions/Responses/OutputObjects.php',
         'OpenAI\\Actions\\Responses\\OutputText' => __DIR__ . '/..' . '/openai-php/client/src/Actions/Responses/OutputText.php',
@@ -250,6 +251,8 @@ class ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849
         'OpenAI\\Contracts\\Resources\\CompletionsContract' => __DIR__ . '/..' . '/openai-php/client/src/Contracts/Resources/CompletionsContract.php',
         'OpenAI\\Contracts\\Resources\\ContainerFileContract' => __DIR__ . '/..' . '/openai-php/client/src/Contracts/Resources/ContainerFileContract.php',
         'OpenAI\\Contracts\\Resources\\ContainersContract' => __DIR__ . '/..' . '/openai-php/client/src/Contracts/Resources/ContainersContract.php',
+        'OpenAI\\Contracts\\Resources\\ConversationsContract' => __DIR__ . '/..' . '/openai-php/client/src/Contracts/Resources/ConversationsContract.php',
+        'OpenAI\\Contracts\\Resources\\ConversationsItemsContract' => __DIR__ . '/..' . '/openai-php/client/src/Contracts/Resources/ConversationsItemsContract.php',
         'OpenAI\\Contracts\\Resources\\EditsContract' => __DIR__ . '/..' . '/openai-php/client/src/Contracts/Resources/EditsContract.php',
         'OpenAI\\Contracts\\Resources\\EmbeddingsContract' => __DIR__ . '/..' . '/openai-php/client/src/Contracts/Resources/EmbeddingsContract.php',
         'OpenAI\\Contracts\\Resources\\FilesContract' => __DIR__ . '/..' . '/openai-php/client/src/Contracts/Resources/FilesContract.php',
@@ -293,6 +296,8 @@ class ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849
         'OpenAI\\Resources\\Concerns\\Transportable' => __DIR__ . '/..' . '/openai-php/client/src/Resources/Concerns/Transportable.php',
         'OpenAI\\Resources\\ContainerFile' => __DIR__ . '/..' . '/openai-php/client/src/Resources/ContainerFile.php',
         'OpenAI\\Resources\\Containers' => __DIR__ . '/..' . '/openai-php/client/src/Resources/Containers.php',
+        'OpenAI\\Resources\\Conversations' => __DIR__ . '/..' . '/openai-php/client/src/Resources/Conversations.php',
+        'OpenAI\\Resources\\ConversationsItems' => __DIR__ . '/..' . '/openai-php/client/src/Resources/ConversationsItems.php',
         'OpenAI\\Resources\\Edits' => __DIR__ . '/..' . '/openai-php/client/src/Resources/Edits.php',
         'OpenAI\\Resources\\Embeddings' => __DIR__ . '/..' . '/openai-php/client/src/Resources/Embeddings.php',
         'OpenAI\\Resources\\Files' => __DIR__ . '/..' . '/openai-php/client/src/Resources/Files.php',
@@ -372,6 +377,14 @@ class ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849
         'OpenAI\\Responses\\Containers\\ListContainers' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Containers/ListContainers.php',
         'OpenAI\\Responses\\Containers\\Objects\\ExpiresAfter' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Containers/Objects/ExpiresAfter.php',
         'OpenAI\\Responses\\Containers\\RetrieveContainer' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Containers/RetrieveContainer.php',
+        'OpenAI\\Responses\\Conversations\\ConversationDeletedResponse' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Conversations/ConversationDeletedResponse.php',
+        'OpenAI\\Responses\\Conversations\\ConversationItem' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Conversations/ConversationItem.php',
+        'OpenAI\\Responses\\Conversations\\ConversationItemList' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Conversations/ConversationItemList.php',
+        'OpenAI\\Responses\\Conversations\\ConversationResponse' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Conversations/ConversationResponse.php',
+        'OpenAI\\Responses\\Conversations\\Objects\\Message' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Conversations/Objects/Message.php',
+        'OpenAI\\Responses\\Conversations\\Objects\\MessageTypes\\ComputerScreenshotContent' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Conversations/Objects/MessageTypes/ComputerScreenshotContent.php',
+        'OpenAI\\Responses\\Conversations\\Objects\\MessageTypes\\SummaryText' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Conversations/Objects/MessageTypes/SummaryText.php',
+        'OpenAI\\Responses\\Conversations\\Objects\\MessageTypes\\TextContent' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Conversations/Objects/MessageTypes/TextContent.php',
         'OpenAI\\Responses\\Edits\\CreateResponse' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Edits/CreateResponse.php',
         'OpenAI\\Responses\\Edits\\CreateResponseChoice' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Edits/CreateResponseChoice.php',
         'OpenAI\\Responses\\Edits\\CreateResponseUsage' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Edits/CreateResponseUsage.php',
@@ -437,11 +450,14 @@ class ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849
         'OpenAI\\Responses\\Responses\\Input\\AcknowledgedSafetyCheck' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Input/AcknowledgedSafetyCheck.php',
         'OpenAI\\Responses\\Responses\\Input\\ComputerToolCallOutput' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Input/ComputerToolCallOutput.php',
         'OpenAI\\Responses\\Responses\\Input\\ComputerToolCallOutputScreenshot' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Input/ComputerToolCallOutputScreenshot.php',
+        'OpenAI\\Responses\\Responses\\Input\\CustomToolCallOutput' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Input/CustomToolCallOutput.php',
         'OpenAI\\Responses\\Responses\\Input\\FunctionToolCallOutput' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Input/FunctionToolCallOutput.php',
         'OpenAI\\Responses\\Responses\\Input\\InputMessage' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Input/InputMessage.php',
         'OpenAI\\Responses\\Responses\\Input\\InputMessageContentInputFile' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Input/InputMessageContentInputFile.php',
         'OpenAI\\Responses\\Responses\\Input\\InputMessageContentInputImage' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Input/InputMessageContentInputImage.php',
         'OpenAI\\Responses\\Responses\\Input\\InputMessageContentInputText' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Input/InputMessageContentInputText.php',
+        'OpenAI\\Responses\\Responses\\Input\\LocalShellCallOutput' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Input/LocalShellCallOutput.php',
+        'OpenAI\\Responses\\Responses\\Input\\McpApprovalResponse' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Input/McpApprovalResponse.php',
         'OpenAI\\Responses\\Responses\\ListInputItems' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/ListInputItems.php',
         'OpenAI\\Responses\\Responses\\McpGenericResponseError' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/McpGenericResponseError.php',
         'OpenAI\\Responses\\Responses\\Output\\CodeInterpreter\\CodeFileObject' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/CodeInterpreter/CodeFileObject.php',
@@ -460,10 +476,13 @@ class ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849
         'OpenAI\\Responses\\Responses\\Output\\ComputerAction\\OutputComputerPendingSafetyCheck' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/ComputerAction/OutputComputerPendingSafetyCheck.php',
         'OpenAI\\Responses\\Responses\\Output\\OutputCodeInterpreterToolCall' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/OutputCodeInterpreterToolCall.php',
         'OpenAI\\Responses\\Responses\\Output\\OutputComputerToolCall' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/OutputComputerToolCall.php',
+        'OpenAI\\Responses\\Responses\\Output\\OutputCustomToolCall' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/OutputCustomToolCall.php',
         'OpenAI\\Responses\\Responses\\Output\\OutputFileSearchToolCall' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/OutputFileSearchToolCall.php',
         'OpenAI\\Responses\\Responses\\Output\\OutputFileSearchToolCallResult' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/OutputFileSearchToolCallResult.php',
         'OpenAI\\Responses\\Responses\\Output\\OutputFunctionToolCall' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/OutputFunctionToolCall.php',
         'OpenAI\\Responses\\Responses\\Output\\OutputImageGenerationToolCall' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/OutputImageGenerationToolCall.php',
+        'OpenAI\\Responses\\Responses\\Output\\OutputLocalShellCall' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/OutputLocalShellCall.php',
+        'OpenAI\\Responses\\Responses\\Output\\OutputLocalShellCallAction' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/OutputLocalShellCallAction.php',
         'OpenAI\\Responses\\Responses\\Output\\OutputMcpApprovalRequest' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/OutputMcpApprovalRequest.php',
         'OpenAI\\Responses\\Responses\\Output\\OutputMcpCall' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/OutputMcpCall.php',
         'OpenAI\\Responses\\Responses\\Output\\OutputMcpListTools' => __DIR__ . '/..' . '/openai-php/client/src/Responses/Responses/Output/OutputMcpListTools.php',
@@ -607,6 +626,8 @@ class ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849
         'OpenAI\\Testing\\Resources\\Concerns\\Testable' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Resources/Concerns/Testable.php',
         'OpenAI\\Testing\\Resources\\ContainerFileTestResource' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Resources/ContainerFileTestResource.php',
         'OpenAI\\Testing\\Resources\\ContainersTestResource' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Resources/ContainersTestResource.php',
+        'OpenAI\\Testing\\Resources\\ConversationsItemsTestResource' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Resources/ConversationsItemsTestResource.php',
+        'OpenAI\\Testing\\Resources\\ConversationsTestResource' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Resources/ConversationsTestResource.php',
         'OpenAI\\Testing\\Resources\\EditsTestResource' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Resources/EditsTestResource.php',
         'OpenAI\\Testing\\Resources\\EmbeddingsTestResource' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Resources/EmbeddingsTestResource.php',
         'OpenAI\\Testing\\Resources\\FilesTestResource' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Resources/FilesTestResource.php',
@@ -642,6 +663,10 @@ class ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849
         'OpenAI\\Testing\\Responses\\Fixtures\\Containers\\Files\\ContainerFileResponseFixture' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Responses/Fixtures/Containers/Files/ContainerFileResponseFixture.php',
         'OpenAI\\Testing\\Responses\\Fixtures\\Containers\\ListContainersFixture' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Responses/Fixtures/Containers/ListContainersFixture.php',
         'OpenAI\\Testing\\Responses\\Fixtures\\Containers\\RetrieveContainerFixture' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Responses/Fixtures/Containers/RetrieveContainerFixture.php',
+        'OpenAI\\Testing\\Responses\\Fixtures\\Conversations\\ConversationDeletedResponseFixture' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Responses/Fixtures/Conversations/ConversationDeletedResponseFixture.php',
+        'OpenAI\\Testing\\Responses\\Fixtures\\Conversations\\ConversationItemFixture' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Responses/Fixtures/Conversations/ConversationItemFixture.php',
+        'OpenAI\\Testing\\Responses\\Fixtures\\Conversations\\ConversationItemListFixture' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Responses/Fixtures/Conversations/ConversationItemListFixture.php',
+        'OpenAI\\Testing\\Responses\\Fixtures\\Conversations\\ConversationResponseFixture' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Responses/Fixtures/Conversations/ConversationResponseFixture.php',
         'OpenAI\\Testing\\Responses\\Fixtures\\Edits\\CreateResponseFixture' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Responses/Fixtures/Edits/CreateResponseFixture.php',
         'OpenAI\\Testing\\Responses\\Fixtures\\Embeddings\\CreateResponseFixture' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Responses/Fixtures/Embeddings/CreateResponseFixture.php',
         'OpenAI\\Testing\\Responses\\Fixtures\\Files\\CreateResponseFixture' => __DIR__ . '/..' . '/openai-php/client/src/Testing/Responses/Fixtures/Files/CreateResponseFixture.php',
@@ -829,9 +854,9 @@ class ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit9ae48ead3f78e67310d7c813cefc8849::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInitd3b4669edb43abb87fef220e88cda742::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInitd3b4669edb43abb87fef220e88cda742::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInitd3b4669edb43abb87fef220e88cda742::$classMap;
 
         }, null, ClassLoader::class);
     }
