@@ -58,16 +58,6 @@ function openai_alt_settings_form(array $form, array &$form_state) {
   // Get the configuration object to load values.
   $config = config('openai_alt.settings');
 
-  $openai_config = config('openai.settings');
-  $apiKey = key_get_key_value($openai_config->get('api_key'));
-
-  if (empty($apiKey)) {
-    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
-    return $form;
-  }
-
-  $api = new OpenAIApi($apiKey);
-
   $form = [];
   $form['#config'] = 'openai_alt.settings';
 
@@ -106,8 +96,25 @@ function openai_alt_settings_form(array $form, array &$form_state) {
     '#description' => t('Image style to use before sending the image to reduce resolution and reformat as PNG.'),
   ];
 
-  // Model selection.
-  $models = $api->filterModels(['gpt-4o|gpt-4-turbo|vision']);
+  // Get all vision models from all enabled providers
+  $models_grouped = openai_get_all_vision_models();
+
+  // Flatten grouped models since labels already include provider prefix
+  $models = [];
+  foreach ($models_grouped as $group_label => $group_items) {
+    if (is_array($group_items)) {
+      foreach ($group_items as $k => $v) {
+        $models[$k] = $v;
+      }
+    }
+  }
+
+  if (empty($models)) {
+    // Build an HTML link safely and insert it as an unescaped placeholder so the
+    // anchor tag is not double-escaped by t().
+    $link = l(t('configure a provider'), 'admin/config/openai/settings');
+    backdrop_set_message(t('No vision models are available from your configured providers. Please !link in OpenAI settings.', ['!link' => $link]), 'warning');
+  }
 
   $form['model'] = [
     '#type' => 'select',
@@ -376,9 +383,14 @@ function openai_alt_generate_alt_text_for_ckeditor($form, &$form_state) {
   // Load the file entity using the file ID.
   $file = file_load($fid);
   if (!$file) {
-    backdrop_set_message(t('Failed to load the image file. Please try again.'), 'error');
     watchdog('openai_alt', 'Failed to load file with fid: @fid', ['@fid' => $fid], WATCHDOG_WARNING);
-    return;
+    // Return an AJAX error so the CKEditor modal receives a response.
+    return [
+      '#type' => 'ajax',
+      '#commands' => [
+        ajax_command_alert(t('Failed to load the image file. Please try again.')),
+      ],
+    ];
   }
 
   // Get the file URI and check the file extension.
@@ -547,7 +559,12 @@ function openai_alt_generate_alt_text_ajax($form, &$form_state) {
   $file = file_load($fid);
   if (!$file) {
     backdrop_set_message(t('File not found for the given file ID.'), 'error');
-    return;
+    return [
+      '#type' => 'ajax',
+      '#commands' => [
+        ajax_command_alert(t('File not found for the given file ID.')),
+      ],
+    ];
   }
 
   // Possibly generate an image derivative
@@ -687,13 +704,19 @@ function openai_alt_convert_svg_to_png($svg_uri) {
  */
 function openai_alt_get_openai_api() {
   static $openai_api;
-  if (!$openai_api) {
-    $api_key = key_get_key_value(config('openai.settings')->get('api_key'));
-    if (empty($api_key)) {
-      throw new Exception(t('API key for OpenAI is missing.'));
-    }
-
-    $openai_api = new OpenAIApi($api_key);
+  if ($openai_api) {
+    return $openai_api;
   }
+
+  // Get configured model from this module's settings.
+  $configured_model = config_get('openai_alt.settings', 'model');
+
+  // Use the centralized helper to get the correct API for this model.
+  $openai_api = openai_get_api_for_model($configured_model);
+
+  if (!$openai_api) {
+    throw new Exception(t('No API provider is configured for model @model.', ['@model' => $configured_model]));
+  }
+
   return $openai_api;
 }

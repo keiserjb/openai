@@ -17,8 +17,10 @@ function openai_config_info() {
  */
 function openai_autoload_info() {
   return [
-    'OpenAIApi'    => 'includes/OpenAIApi.php',
-    'StringHelper' => 'includes/StringHelper.php',
+    'AIClientInterface' => 'includes/AIClientInterface.php',
+    'OpenAIApi'         => 'includes/OpenAIApi.php',
+    'OpenAIAdapter'     => 'includes/OpenAIAdapter.php',
+    'StringHelper'      => 'includes/StringHelper.php',
   ];
 }
 
@@ -65,27 +67,32 @@ function openai_init() {
 function openai_menu() {
   $items = [];
 
-  // Parent item for all OpenAI related configuration pages.
+  // Make OpenAI a proper config category, like "Content authoring" etc.
   $items['admin/config/openai'] = [
     'title' => 'OpenAI',
     'description' => 'Configure OpenAI integration.',
+    // Use the module's overview page so we can render provider links and
+    // helpful descriptions. Using system_admin_config_page here prevented
+    // our custom overview from running in some site configurations.
     'page callback' => 'openai_admin_overview',
     'access arguments' => ['administer site configuration'],
     'type' => MENU_NORMAL_ITEM,
   ];
 
-  // Submenu for specific OpenAI settings.
+  // Child "Settings" page under that category.
   $items['admin/config/openai/settings'] = [
     'title' => 'Settings',
     'description' => 'Manage OpenAI settings, API keys, and organization ID.',
     'page callback' => 'backdrop_get_form',
     'page arguments' => ['openai_settings_form'],
     'access arguments' => ['administer site configuration'],
+    'type' => MENU_NORMAL_ITEM,
     'weight' => -10,
   ];
 
   return $items;
 }
+
 
 /**
  * Page callback for the OpenAI admin overview page.
@@ -109,6 +116,12 @@ function openai_admin_overview() {
 
     // Skip the main OpenAI page itself.
     if ($path === 'admin/config/openai') {
+      continue;
+    }
+    
+    // Skip operation paths (edit, delete, add with wildcards)
+    // These should only appear as operations on their parent pages
+    if (preg_match('/(\/edit|\/delete|\/add)$/', $path) || strpos($path, '%') !== FALSE) {
       continue;
     }
 
@@ -137,100 +150,509 @@ function openai_admin_overview() {
 function openai_settings_form($form, &$form_state) {
   $form = [];
   $form['#config'] = 'openai.settings';
+  $form['#submit'][] = 'openai_settings_form_submit';
 
   // Fetch available keys from the Key module.
   $available_keys = key_get_key_names_as_options();
 
-  // Default to all keys if no specific key is set.
-  $default_api_key = config_get('openai.settings', 'api_key') ?: '';
-  $default_api_org = config_get('openai.settings', 'api_org') ?: '';
+  // Read central providers configuration (single source of truth).
+  $providers_root = config_get('openai.settings', 'providers') ?: [];
 
-  // Collapsible fieldset for API settings.
-  $form['api_settings'] = [
+  // Get available providers (do not force including the built-in OpenAI
+  // provider here — use openai_get_providers() which defaults to not
+  // merging the built-in provider unless explicitly requested).
+  $providers = openai_get_providers();
+
+  $form['providers'] = [
     '#type' => 'fieldset',
-    '#title' => t('API Settings'),
-    '#description' => t('Use keys managed by the <a href="/admin/config/system/keys">Key module</a>.'),
+    '#title' => t('AI Providers'),
+    '#description' => t('Select which AI providers to enable. You can enable multiple providers and use different models from each.'),
+    '#collapsible' => FALSE,
+    '#tree' => TRUE,
   ];
 
-  // API Key field (dropdown from the Key module).
-  $form['api_settings']['api_key'] = [
-    '#type' => 'key_select',
-    '#title' => t('OpenAI API Key'),
-    '#default_value' => $default_api_key,
-    '#options' => $available_keys,
-    '#key_filters' => ['type' => 'authentication'],
-    '#description' => t(
-      'Select the API key to use for accessing OpenAI services. Keys are managed through the <a href="/admin/config/system/keys">Key module</a>.'
-    ),
-    '#required' => FALSE,
+  // Build a combined list of all providers including OpenAI
+  $all_providers = $providers;
+  $all_providers['openai'] = [
+    'label' => t('OpenAI'),
+    'description' => t('Access GPT-4, GPT-3.5, DALL-E, and other OpenAI models directly.'),
+    'website' => 'https://platform.openai.com/',
   ];
+  
+  // Sort all providers alphabetically by label
+  uasort($all_providers, function($a, $b) {
+    $label_a = isset($a['label']) ? (string)$a['label'] : '';
+    $label_b = isset($b['label']) ? (string)$b['label'] : '';
+    return strcasecmp($label_a, $label_b);
+  });
 
-  // Organization ID field (optional).
-  $form['api_settings']['api_org'] = [
-    '#type' => 'key_select',
-    '#title' => t('Organization ID'),
-    '#default_value' => $default_api_org,
-    '#options' => $available_keys,
-    '#key_filters' => ['type' => 'authentication'],
-    '#description' => t(
-      'The organization ID on your OpenAI account. This is required for some OpenAI services to work correctly.'
-    ),
-  ];
+  // Add each provider (including OpenAI) in alphabetical order
+  foreach ($all_providers as $provider_id => $provider_info) {
+    if ($provider_id === 'openai') {
+      // Add OpenAI as a provider option
+      $default_openai_enabled = isset($providers_root['openai']['enabled']) ? (bool) $providers_root['openai']['enabled'] : FALSE;
+      $form['providers']['enabled_providers_openai'] = [
+        '#type' => 'checkbox',
+        '#title' => t('OpenAI'),
+        '#description' => t('Access GPT-4, GPT-3.5, DALL-E, and other OpenAI models directly. <a href="https://platform.openai.com/" target="_blank">Learn more</a>'),
+        '#default_value' => $default_openai_enabled ? 1 : 0,
+      ];
 
-  // Submit button.
+      $form['providers']['openai_settings'] = [
+        '#type' => 'container',
+        '#title' => t('OpenAI Settings'),
+        '#states' => [
+          'visible' => [
+            ':input[name="providers[enabled_providers_openai]"]' => ['checked' => TRUE],
+          ],
+        ],
+      ];
+
+      $form['providers']['openai_settings']['api_key_openai'] = [
+        '#type' => 'key_select',
+        '#title' => t('OpenAI API Key'),
+        '#default_value' => !empty($providers_root['openai']['api_key']) ? $providers_root['openai']['api_key'] : '',
+        '#options' => $available_keys,
+        '#key_filters' => ['type' => 'authentication'],
+        '#description' => t('Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>'),
+      ];
+
+      // Show available OpenAI models only when the OpenAI provider is enabled
+      if (!empty($default_openai_enabled)) {
+        $openai_key = !empty($providers_root['openai']['api_key']) ? $providers_root['openai']['api_key'] : '';
+        if (!empty($openai_key)) {
+          try {
+            $apiKey = key_get_key_value($openai_key);
+            if (!empty($apiKey)) {
+              $api = new OpenAIApi($apiKey);
+              $models = $api->getModels();
+              if (!empty($models)) {
+                $form['providers']['openai_settings']['openai_models'] = [
+                  '#type' => 'markup',
+                  '#markup' => '<details class="openai-models"><summary><strong>' . t('OpenAI — @count models', ['@count' => count($models)]) . '</strong></summary>' .
+                    '<div style="max-height: 300px; overflow-y: auto; font-size: 0.9em; line-height: 1.4; padding:0.5em 0;">' .
+                    implode('<br/>', array_map('check_plain', $models)) .
+                    '</div></details>',
+                  '#weight' => 10,
+                ];
+              }
+            }
+          }
+          catch (Exception $e) {
+            // Silently fail - models will show after save
+          }
+        }
+      }
+    }
+    else {
+      // Add other providers
+      $default_enabled = isset($providers_root[$provider_id]['enabled']) ? (bool) $providers_root[$provider_id]['enabled'] : FALSE;
+      $form['providers']['enabled_providers_' . $provider_id] = [
+        '#type' => 'checkbox',
+        '#title' => $provider_info['label'],
+        '#description' => $provider_info['description'] . ' <a href="' . $provider_info['website'] . '" target="_blank">Learn more</a>',
+        '#default_value' => $default_enabled ? 1 : 0,
+      ];
+
+      // Use a non-collapsible container for provider settings and show it
+      // inline when the provider checkbox is checked.
+      $form['providers'][$provider_id . '_settings'] = [
+        '#type' => 'container',
+        '#title' => t('@provider Settings', ['@provider' => $provider_info['label']]),
+        '#states' => [
+          'visible' => [
+            ':input[name="providers[enabled_providers_' . $provider_id . ']"]' => ['checked' => TRUE],
+          ],
+        ],
+      ];
+
+      // Let providers add their own settings via alter hooks (by reference).
+      $context = ['provider' => $provider_id, 'form' => &$form];
+      // Allow provider modules to alter the settings array by reference so
+      // they can add custom elements (e.g., api_key_openrouter) and set
+      // descriptions. Use a variable to pass by reference.
+      $provider_settings =& $form['providers'][$provider_id . '_settings'];
+      backdrop_alter('openai_provider_settings', $provider_settings, $context);
+
+      // If the provider module added an api_key element and provided a
+      // non-empty description, preserve it and skip any rewriting later.
+      $api_key_element_name = 'api_key_' . $provider_id;
+      if (!empty($provider_settings[$api_key_element_name]) && !empty($provider_settings[$api_key_element_name]['#description'])) {
+        $provider_settings[$api_key_element_name]['#preserve_description'] = TRUE;
+      }
+
+      // Detect whether the provider module inserted its own api_key element.
+      $api_key_element_name = 'api_key_' . $provider_id;
+      $provider_added_element = !empty($form['providers'][$provider_id . '_settings'][$api_key_element_name]);
+      if ($provider_added_element) {
+        // Mark provider-added element so we don't touch its description later.
+        $form['providers'][$provider_id . '_settings'][$api_key_element_name]['#preserve_description'] = TRUE;
+      }
+
+      // Add API key field if the provider has a key_url
+      // If the provider module hasn't already inserted a custom API key field
+      // via the alter hook, add a default key_select. This preserves provider
+      // customizations such as custom '#title' values (e.g., 'OpenRouter API Key').
+      if (!empty($provider_info['key_url']) && empty($form['providers'][$provider_id . '_settings'][$api_key_element_name])) {
+        $key_title = !empty($provider_info['key_label']) ? $provider_info['key_label'] : t('API Key');
+        $form['providers'][$provider_id . '_settings'][$api_key_element_name] = [
+          '#type' => 'key_select',
+          '#title' => $key_title,
+          '#default_value' => !empty($providers_root[$provider_id]['api_key']) ? $providers_root[$provider_id]['api_key'] : '',
+          '#options' => $available_keys,
+          '#key_filters' => ['type' => 'authentication'],
+          // Intentionally leave description empty here; we'll set it below
+          // to ensure the Key module's generic helper text is not shown.
+          '#description' => '',
+          '#weight' => -5,
+        ];
+        // We created this element; mark that provider did NOT add it.
+        $provider_added_element = FALSE;
+      }
+
+      // If the provider advertises a key_url, prefer showing that as the
+      // description so provider-specific guidance is the visible text.
+      if (!empty($provider_info['key_url']) && !empty($form['providers'][$provider_id . '_settings'][$api_key_element_name])) {
+        // Overwrite any helper text with a concise provider-specific link.
+        $form['providers'][$provider_id . '_settings'][$api_key_element_name]['#description'] = t('Get your API key from <a href="@url" target="_blank">@url</a>', ['@url' => $provider_info['key_url']]);
+
+        // Mark it so any later walkers don't re-rewrite it.
+        $form['providers'][$provider_id . '_settings'][$api_key_element_name]['#preserve_description'] = TRUE;
+      }
+
+      // Read provider API key from the central providers mapping only
+      $provider_key = '';
+      if (!empty($providers_root[$provider_id]['api_key'])) {
+        $provider_key = $providers_root[$provider_id]['api_key'];
+      }
+
+      // Only attempt to fetch models when the provider is enabled (default).
+      if (!empty($default_enabled)) {
+        $models = [];
+        try {
+          // Try adapter first (may not require central key storage).
+          $api = openai_get_api($provider_id);
+          if ($api) {
+            $models = $api->getModels();
+          }
+          // Fallback to creating API client from configured key name.
+          elseif (!empty($provider_key)) {
+            $apiKey = key_get_key_value($provider_key);
+            if (!empty($apiKey)) {
+              $api = new OpenAIApi($apiKey, $provider_id);
+              $models = $api->getModels();
+            }
+          }
+
+          if (!empty($models)) {
+            $form['providers'][$provider_id . '_settings'][$provider_id . '_models'] = [
+              '#type' => 'markup',
+              '#markup' => '<details class="provider-models"><summary><strong>' . check_plain($provider_info['label']) . ' — ' . t('@count models', ['@count' => count($models)]) . '</strong></summary>' .
+                '<div style="max-height: 300px; overflow-y: auto; font-size: 0.9em; line-height: 1.4; padding:0.5em 0;">' .
+                implode('<br/>', array_map('check_plain', $models)) .
+                '</div></details>',
+              '#weight' => 10,
+            ];
+          }
+          else {
+            // No models returned; do not fail silently — show a subtle notice
+            // so admins can check credentials or provider availability.
+            $notice = t('No models were returned by the provider @provider. Check the provider settings or credentials.', ['@provider' => check_plain($provider_info['label'])]);
+            $form['providers'][$provider_id . '_settings'][$provider_id . '_models'] = [
+              '#type' => 'markup',
+              '#markup' => '<div class="description">' . $notice . '</div>',
+              '#weight' => 10,
+            ];
+          }
+        }
+        catch (Exception $e) {
+          // Surface authentication/HTTP errors clearly in the settings UI.
+          watchdog('openai', 'Failed to fetch models for provider @provider: @msg', ['@provider' => $provider_id, '@msg' => $e->getMessage()], WATCHDOG_WARNING);
+
+          $err = $e->getMessage();
+          // Friendly admin message for common auth problems.
+          if (preg_match('/401|unauthori|invalid|no cookie auth|credentials|forbidden/i', $err)) {
+            $friendly = t('Authentication failed for provider @provider. Please verify the selected API key in OpenAI settings.', ['@provider' => check_plain($provider_info['label'])]);
+          }
+          else {
+            $friendly = t('Error fetching models for provider @provider: @message', ['@provider' => check_plain($provider_info['label']), '@message' => check_plain($err)]);
+          }
+
+          $form['providers'][$provider_id . '_settings'][$provider_id . '_models'] = [
+            '#type' => 'markup',
+            '#markup' => '<div class="error">' . $friendly . '</div>',
+            '#weight' => 10,
+          ];
+        }
+      }
+    }
+  }
+
+  $form['actions'] = ['#type' => 'actions'];
   $form['actions']['submit'] = [
     '#type' => 'submit',
     '#value' => t('Save configuration'),
-    '#submit' => ['openai_settings_form_submit'],
   ];
 
-  // Fetch available models only if the API key is configured.
-  if (!empty($default_api_key)) {
-    $models = openai_fetch_available_models($default_api_key);
-
-    if (!empty($models)) {
-      $model_list = '<ul>';
-      foreach ($models as $model) {
-        $model_list .= '<li>' . check_plain($model) . '</li>';
+  // Remove the Key module's generic helper sentence from key_select
+  // descriptions on this settings page so provider-specific guidance
+  // (e.g., "Store your OpenRouter API key...") remains the visible text.
+  $walker = function (&$element) use (&$walker) {
+    if (!is_array($element)) {
+      return;
+    }
+    foreach ($element as $k => &$v) {
+      if (!is_array($v)) {
+        continue;
       }
-      $model_list .= '</ul>';
-      $form['models'] = [
-        '#type' => 'markup',
-        '#markup' => t('<h3>Available Models</h3>' . $model_list),
-      ];
-    }
-    else {
-      $form['models'] = [
-        '#type' => 'markup',
-        '#markup' => t('Failed to fetch models or no models available.'),
-      ];
-    }
-  }
-  else {
-    $form['models'] = [
-      '#type' => 'markup',
-      '#markup' => t('Configure your API key to view available models.'),
-    ];
-  }
+      // If a provider marked this element to preserve its description,
+      // strip only the generic Key helper sentence but otherwise preserve
+      // the provider text. This ensures provider guidance remains while
+      // removing the redundant helper.
+      if (!empty($v['#preserve_description']) && !empty($v['#description']) && is_string($v['#description'])) {
+        $pattern_preserve = '#Choose an available key\.\s*If the desired key is not listed, create a new key\.#is';
+        $new_desc = preg_replace($pattern_preserve, '', $v['#description']);
+        $new_desc = preg_replace('/^\s*[-:\s]*/', '', $new_desc);
+        $v['#description'] = trim($new_desc);
+      }
 
-  // Link to OpenAI documentation.
-  $form['docs_link'] = [
-    '#type' => 'markup',
-    '#markup' => t(
-      'For more detailed information, please visit the <a href="@link" target="_blank">OpenAI documentation</a>.',
-      ['@link' => 'https://platform.openai.com/docs']
-    ),
-  ];
+      if (!empty($v['#type']) && $v['#type'] === 'key_select' && !empty($v['#description'])) {
+        // Remove the generic Key helper sentence even if there are
+        // intervening line breaks or extra whitespace. Leave the rest
+        // of the description intact (provider-specific guidance).
+        $desc = $v['#description'];
+        // Regex matches: "Choose an available key. [optional whitespace/newlines] If the desired key is not listed, create a new key." (case-insensitive)
+        $pattern = '#Choose an available key\.\s*If the desired key is not listed, create a new key\.#is';
+        $new = preg_replace($pattern, '', $desc);
+        // Normalize whitespace and trim leading punctuation/spaces.
+        $new = preg_replace('/^\s*[-:\s]*/', '', $new);
+        $v['#description'] = trim($new);
+      }
+      $walker($v);
+    }
+  };
+  $walker($form);
 
-  return system_settings_form($form);
+  // Final sanitization: ensure the generic Key helper sentence is removed
+  // from any string in the render array (covers cases where a provider or
+  // the Key module placed it outside '#description'). This only affects
+  // the settings form render array in memory and is safe.
+  $sanitize = function (&$value) use (&$sanitize) {
+    if (is_array($value)) {
+      foreach ($value as &$v) {
+        $sanitize($v);
+      }
+      return;
+    }
+    if (!is_string($value)) {
+      return;
+    }
+    $pattern = '#Choose an available key\.\s*If the desired key is not listed, create a new key\.#is';
+    $new = preg_replace($pattern, '', $value);
+    $new = preg_replace('/^\s*[-:\s]*/', '', $new);
+    $value = trim($new);
+  };
+  $sanitize($form);
+
+  return $form;
 }
 
 /**
- * Fetches available models from OpenAI.
+ * Submit handler for openai_settings_form().
+ */
+function openai_settings_form_submit($form, &$form_state) {
+  $config = config('openai.settings');
+  $providers = openai_get_providers();
+
+  $providers_values = [];
+  if (!empty($form_state['values']['providers']) && is_array($form_state['values']['providers'])) {
+    $providers_values = $form_state['values']['providers'];
+  }
+
+  // Read existing providers config
+  $providers_root = $config->get('providers') ?: [];
+
+  // Handle built-in OpenAI provider (not exposed via hook_openai_provider_info)
+  $openai_enabled = !empty($providers_values['enabled_providers_openai']);
+  if (!isset($providers_root['openai']) || !is_array($providers_root['openai'])) {
+    $providers_root['openai'] = [];
+  }
+  $providers_root['openai']['enabled'] = $openai_enabled ? 1 : 0;
+
+  // Persist OpenAI API key
+  if (!empty($providers_values['openai_settings']['api_key_openai'])) {
+    $providers_root['openai']['api_key'] = $providers_values['openai_settings']['api_key_openai'];
+  }
+
+  // Handle providers from hook_openai_provider_info
+  foreach ($providers as $provider_id => $provider_info) {
+    $checkbox_key = 'enabled_providers_' . $provider_id;
+    $enabled = !empty($providers_values[$checkbox_key]);
+
+    if (!isset($providers_root[$provider_id]) || !is_array($providers_root[$provider_id])) {
+      $providers_root[$provider_id] = [];
+    }
+    $providers_root[$provider_id]['enabled'] = $enabled ? 1 : 0;
+
+    // Persist API key (if provider exposes it in provider settings)
+    $api_key_field = 'api_key_' . $provider_id;
+    if (!empty($providers_values[$provider_id . '_settings'][$api_key_field])) {
+      $providers_root[$provider_id]['api_key'] = $providers_values[$provider_id . '_settings'][$api_key_field];
+    }
+
+    // Persist other provider-specific settings (e.g., Ollama base_url)
+    if (!empty($providers_values[$provider_id . '_settings']) && is_array($providers_values[$provider_id . '_settings'])) {
+      foreach ($providers_values[$provider_id . '_settings'] as $k => $v) {
+        if ($k === $api_key_field || $k === 'api_key') {
+          continue;
+        }
+        $providers_root[$provider_id][$k] = $v;
+      }
+    }
+  }
+
+  // Save providers config only (single source of truth)
+  $config->set('providers', $providers_root);
+  $config->save();
+
+  backdrop_set_message(t('Provider settings saved successfully.'));
+
+  // Rebuild form so models list updates according to new enabled flags.
+  $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * Get all chat models from all enabled providers.
  *
  * @return array
- *   A list of models or an empty array if unavailable.
+ *   Array of model options grouped by provider, suitable for select elements.
+ *   Model keys are in format "provider_id/model_id" so the provider can be
+ *   determined when the model is selected in a form.
  */
+function openai_get_all_chat_models() {
+  $models = [];
+  $providers_root = config_get('openai.settings', 'providers') ?: [];
+
+  foreach ($providers_root as $provider_id => $provider_config) {
+    if (empty($provider_config['enabled'])) {
+      continue;
+    }
+
+    // Initialize provider_models for each provider to avoid carryover
+    $provider_models = [];
+
+    try {
+      $provider_api = openai_get_api($provider_id);
+      if (!$provider_api) {
+        // Fallback: attempt provider-specific helper function (e.g., openai_ollama_get_models)
+        $fallback_models = [];
+        $fn1 = 'openai_' . $provider_id . '_get_models';
+        $fn2 = 'openai_' . $provider_id . '_fetch_models';
+        if (function_exists($fn1)) {
+          // Try to pass a base URL if the provider has one configured.
+          $base = !empty($provider_config[$provider_id . '_base_url']) ? $provider_config[$provider_id . '_base_url'] : (!empty($provider_config['base_url']) ? $provider_config['base_url'] : NULL);
+          try {
+            $fallback_models = $base ? $fn1($base) : $fn1();
+          } catch (Exception $e) { $fallback_models = $fn1(); }
+        }
+        elseif (function_exists($fn2)) {
+          $base = !empty($provider_config[$provider_id . '_base_url']) ? $provider_config[$provider_id . '_base_url'] : (!empty($provider_config['base_url']) ? $provider_config['base_url'] : NULL);
+          try {
+            $fallback_models = $base ? $fn2($base) : $fn2();
+          } catch (Exception $e) { $fallback_models = $fn2(); }
+        }
+        if (!empty($fallback_models)) {
+          $provider_models = $fallback_models;
+        }
+        else {
+          continue;
+        }
+      }
+
+      // Support adapters that expose getChatModels() or getModels().
+      if (empty($provider_models) && !empty($provider_api)) {
+        try {
+          if (method_exists($provider_api, 'getChatModels')) {
+            $provider_models = $provider_api->getChatModels();
+          }
+          elseif (method_exists($provider_api, 'getModels')) {
+            $provider_models = $provider_api->getModels();
+          }
+        }
+        catch (Exception $e) {
+          // Adapter failed; log and attempt fallback helpers below.
+          watchdog('openai', 'Provider adapter @provider failed to list models: @msg', ['@provider' => $provider_id, '@msg' => $e->getMessage()], WATCHDOG_WARNING);
+          $provider_models = [];
+        }
+
+        // If adapter returned no models, try provider-specific helpers.
+        if (empty($provider_models)) {
+          $fn1 = 'openai_' . $provider_id . '_get_models';
+          $fn2 = 'openai_' . $provider_id . '_fetch_models';
+          $fallback_models = [];
+          if (function_exists($fn1)) {
+            $base = !empty($provider_config[$provider_id . '_base_url']) ? $provider_config[$provider_id . '_base_url'] : (!empty($provider_config['base_url']) ? $provider_config['base_url'] : NULL);
+            try { $fallback_models = $base ? $fn1($base) : $fn1(); } catch (Exception $e) { $fallback_models = $fn1(); }
+          }
+          elseif (function_exists($fn2)) {
+            $base = !empty($provider_config[$provider_id . '_base_url']) ? $provider_config[$provider_id . '_base_url'] : (!empty($provider_config['base_url']) ? $provider_config['base_url'] : NULL);
+            try { $fallback_models = $base ? $fn2($base) : $fn2(); } catch (Exception $e) { $fallback_models = $fn2(); }
+          }
+          if (!empty($fallback_models)) {
+            $provider_models = $fallback_models;
+          }
+        }
+      }
+
+      if (!empty($provider_models)) {
+        $provider_label = openai_get_provider_label($provider_id);
+        foreach ($provider_models as $model_id => $model_name) {
+          // provider_models entries can be in several shapes:
+          // - associative: id => label
+          // - indexed strings: [0 => 'gemma3:latest', ...]
+          // - indexed arrays: [0 => ['id'=>'gemma3:latest','owned_by'=>'library'], ...]
+          if (is_int($model_id)) {
+            // Indexed array; $model_name may be string or array
+            if (is_array($model_name)) {
+              $canonical_id = isset($model_name['id']) ? (string) $model_name['id'] : (isset($model_name['name']) ? (string) $model_name['name'] : json_encode($model_name));
+              $label = !empty($model_name['display_name']) ? $model_name['display_name'] : $canonical_id;
+            }
+            else {
+              $canonical_id = (string) $model_name;
+              $label = $canonical_id;
+            }
+          }
+          else {
+            // Associative: key is model id, value may be label or array
+            $canonical_id = (string) $model_id;
+            if (is_array($model_name)) {
+              $label = !empty($model_name['display_name']) ? $model_name['display_name'] : (!empty($model_name['id']) ? $model_name['id'] : json_encode($model_name));
+            }
+            else {
+              $label = (string) $model_name;
+            }
+          }
+          // Build prefixed ID and label with provider prefix
+          $prefixed_id = $provider_id . '/' . $canonical_id;
+          $prefixed_label = $provider_label . ': ' . $label;
+          $models[$prefixed_id] = $prefixed_label;
+        }
+      }
+    }
+    catch (Exception $e) {
+      watchdog('openai', 'Failed to fetch chat models from @provider: @message', [
+        '@provider' => $provider_id,
+        '@message' => $e->getMessage(),
+      ], WATCHDOG_WARNING);
+    }
+  }
+
+  // Sort models alphabetically by their prefixed label
+  asort($models);
+
+  return $models;
+}
+
 /**
  * Fetches available models from OpenAI.
  *
@@ -239,51 +661,470 @@ function openai_settings_form($form, &$form_state) {
  */
 function openai_fetch_available_models() {
   try {
-    // Retrieve the API key identifier from the configuration.
     $apiKey = key_get_key_value(config('openai.settings')->get('api_key'));
-
-    // Ensure the API key is valid.
     if (empty($apiKey) || !is_string($apiKey)) {
-      watchdog(
-        'openai',
-        'The API key could not be retrieved or is invalid. Please configure the key in OpenAI settings.',
-        [],
-        WATCHDOG_ERROR
-      );
+      watchdog('openai', 'The API key could not be retrieved or is invalid.', [], WATCHDOG_ERROR);
       return [];
     }
-
-    // Initialize the API client with the API key.
     $api = new OpenAIApi($apiKey);
     return $api->getModels();
   }
   catch (Exception $e) {
-    watchdog(
-      'openai',
-      'Failed to fetch models: @message',
-      ['@message' => $e->getMessage()],
-      WATCHDOG_ERROR
-    );
+    watchdog('openai', 'Failed to fetch models: @message', ['@message' => $e->getMessage()], WATCHDOG_ERROR);
     return [];
   }
 }
 
+/**
+ * Get all image generation models from all enabled providers.
+ *
+ * NOTE: Only OpenAI can reliably filter models by capability. For Ollama and
+ * OpenRouter, we return ALL models since they cannot sort by capability.
+ *
+ * @return array
+ *   Array of model options grouped by provider, suitable for select elements.
+ */
+function openai_get_all_image_models() {
+  $models = [];
+  $providers_root = config_get('openai.settings', 'providers') ?: [];
+
+  foreach ($providers_root as $provider_id => $provider_config) {
+    if (empty($provider_config['enabled'])) {
+      continue;
+    }
+
+    try {
+      $provider_api = openai_get_api($provider_id);
+      if (!$provider_api) {
+        continue;
+      }
+
+      // Only OpenAI can reliably filter by image capability
+      if ($provider_id === 'openai') {
+        $provider_models = $provider_api->getImageModels();
+      } else {
+        // For Ollama/OpenRouter: return ALL models, they can't sort reliably
+        $provider_models = $provider_api->getModels();
+      }
+
+      if (!empty($provider_models)) {
+        $provider_label = openai_get_provider_label($provider_id);
+        foreach ($provider_models as $model_id => $model_name) {
+          $prefixed_id = $provider_id . '/' . $model_id;
+          $prefixed_label = $provider_label . ': ' . $model_name;
+          $models[$prefixed_id] = $prefixed_label;
+        }
+      }
+    }
+    catch (Exception $e) {
+      watchdog('openai', 'Failed to fetch image models from @provider: @message', [
+        '@provider' => $provider_id,
+        '@message' => $e->getMessage(),
+      ], WATCHDOG_WARNING);
+    }
+  }
+
+  return $models;
+}
 
 /**
- * Helper to report where the OpenAI SDK was loaded from during this request.
+ * Get all vision models from all enabled providers.
+ *
+ * NOTE: Only OpenAI can reliably filter models by capability. For Ollama and
+ * OpenRouter, we return ALL models since they cannot sort by capability.
+ *
+ * @return array
+ *   Array of model options grouped by provider, suitable for select elements.
+ */
+function openai_get_all_vision_models() {
+  $models = [];
+  $providers_root = config_get('openai.settings', 'providers') ?: [];
+
+  foreach ($providers_root as $provider_id => $provider_config) {
+    if (empty($provider_config['enabled'])) {
+      continue;
+    }
+
+    try {
+      $provider_api = openai_get_api($provider_id);
+      if (!$provider_api) {
+        continue;
+      }
+
+      // Only OpenAI can reliably filter by vision capability
+      if ($provider_id === 'openai') {
+        $provider_models = $provider_api->getVisionModels();
+      } else {
+        // For Ollama/OpenRouter: return ALL models, they can't sort reliably
+        $provider_models = $provider_api->getModels();
+      }
+
+      if (!empty($provider_models)) {
+        $provider_label = openai_get_provider_label($provider_id);
+        foreach ($provider_models as $model_id => $model_name) {
+          $prefixed_id = $provider_id . '/' . $model_id;
+          $prefixed_label = $provider_label . ': ' . $model_name;
+          $models[$prefixed_id] = $prefixed_label;
+        }
+      }
+    }
+    catch (Exception $e) {
+      watchdog('openai', 'Failed to fetch vision models from @provider: @message', [
+        '@provider' => $provider_id,
+        '@message' => $e->getMessage(),
+      ], WATCHDOG_WARNING);
+    }
+  }
+
+  return $models;
+}
+
+/**
+ * Get a human-readable label for a provider.
+ *
+ * @param string $provider_id
+ *   The provider ID (e.g., 'openai', 'openrouter', 'ollama', 'litellm').
  *
  * @return string
- *   Human-readable source description.
+ *   The display label for the provider.
  */
-function openai_get_sdk_source() {
-  $source = backdrop_static('openai_sdk_source');
-  switch ($source) {
-    case 'composer_manager':
-      return 'Composer Manager autoloader';
-    case 'module_vendor':
-      return 'Module vendor/autoload.php';
-    default:
-      return 'Unknown (autoloader not recorded)';
+function openai_get_provider_label($provider_id) {
+  // First, ask provider modules for their labels via hook_openai_provider_info().
+  // Prefer provider modules and central config. Do NOT force-merge the
+  // built-in OpenAI provider here — the site config determines which
+  // providers are available.
+  $providers = openai_get_providers();
+  if (!empty($providers[$provider_id]['label'])) {
+    return $providers[$provider_id]['label'];
+  }
+
+  // Next, check the central openai.settings providers mapping for a label.
+  $providers_root = config_get('openai.settings', 'providers') ?: [];
+  if (!empty($providers_root[$provider_id]['label'])) {
+    return $providers_root[$provider_id]['label'];
+  }
+
+  // Final fallback: humanize the provider_id.
+  return ucfirst($provider_id);
+}
+
+/**
+ * Get an API instance for a specific provider.
+ *
+ * @param string $provider_id
+ *   The provider ID (e.g., 'openai', 'openrouter', 'ollama', 'litellm').
+ *
+ * @return OpenAIApi|null
+ *   The API instance or NULL if not available.
+ */
+function openai_get_api($provider_id = 'openai') {
+  // Read API key from central providers mapping only
+  $providers_root = config_get('openai.settings', 'providers') ?: [];
+  $api_key_name = '';
+
+  if (!empty($providers_root[$provider_id]['api_key'])) {
+    $api_key_name = $providers_root[$provider_id]['api_key'];
+  }
+
+  // If the provider exposes a pluggable adapter class via hook, prefer
+  // instantiating that class (it may not require an API key, e.g., Ollama).
+  $providers_info = openai_get_providers();
+  if (!empty($providers_info[$provider_id]) && !empty($providers_info[$provider_id]['class'])) {
+    $class = $providers_info[$provider_id]['class'];
+    // Attempt to autoload the adapter from the provider module if present.
+    $provider_module = 'openai_' . $provider_id;
+    // Try to include the expected file includes/{Class}.php in the provider module.
+    if (!class_exists($class) && module_exists($provider_module)) {
+      @module_load_include('php', $provider_module, 'includes/' . $class);
+    }
+
+    if (class_exists($class)) {
+      // Pass the resolved API key (if available) or an empty string.
+      $api_key = NULL;
+      if (!empty($api_key_name)) {
+        $api_key = key_get_key_value($api_key_name);
+      }
+      try {
+        return new $class($api_key ?: '');
+      }
+      catch (Exception $e) {
+        watchdog('openai', 'Failed to instantiate provider class @class for @provider: @msg', ['@class' => $class, '@provider' => $provider_id, '@msg' => $e->getMessage()], WATCHDOG_WARNING);
+        // fallback to API wrapper below
+      }
+    }
+  }
+
+  if (empty($api_key_name)) {
+    return NULL;
+  }
+
+  try {
+    $api_key = key_get_key_value($api_key_name);
+    if (empty($api_key)) {
+      return NULL;
+    }
+
+    return new OpenAIApi($api_key, $provider_id);
+  }
+  catch (Exception $e) {
+    watchdog('openai', 'Failed to create API instance for @provider: @message', [
+      '@provider' => $provider_id,
+      '@message' => $e->getMessage(),
+    ], WATCHDOG_WARNING);
+    return NULL;
   }
 }
 
+/**
+ * Get an OpenAI API instance for a given model ID.
+ *
+ * @param string $model_id
+ *   The model ID, optionally prefixed with provider.
+ * @param string &$stripped_model_id
+ *   (Optional) Will be set to the model ID with the provider prefix removed.
+ *
+ * @return OpenAIApi|null
+ *   The API instance configured for the correct provider, or NULL if unavailable.
+ */
+function openai_get_api_for_model($model_id, &$stripped_model_id = NULL) {
+  if (empty($model_id)) {
+    return NULL;
+  }
+
+  $provider = NULL;
+  $model_without_provider = $model_id;
+
+  if (strpos($model_id, '/') !== FALSE) {
+    $parts = explode('/', $model_id, 2);
+    $provider = $parts[0];
+    $model_without_provider = $parts[1];
+  }
+
+  $stripped_model_id = $model_without_provider;
+
+  if (!empty($provider)) {
+    $api = openai_get_api($provider);
+    if ($api) {
+      return $api;
+    }
+    watchdog('openai', 'Model @model specifies provider @provider but that provider is not configured.', [
+      '@model' => $model_id,
+      '@provider' => $provider,
+    ], WATCHDOG_WARNING);
+  }
+
+  return openai_get_api('openai');
+}
+
+/**
+ * Wrapper function for chat completions.
+ */
+function openai_chat($model, array $messages, $temperature = 0.7, $max_tokens = 1024, $stream_response = FALSE) {
+  $stripped_model = '';
+  $api = openai_get_api_for_model($model, $stripped_model);
+
+  if (!$api) {
+    throw new Exception(t('No API provider is configured for model @model.', ['@model' => $model]));
+  }
+
+  return $api->chat($stripped_model, $messages, $temperature, $max_tokens, $stream_response);
+}
+
+/**
+ * Wrapper function for content moderation.
+ */
+function openai_moderation($input, $model = 'omni-moderation-latest') {
+  $stripped_model = '';
+  $api = openai_get_api_for_model($model, $stripped_model);
+
+  if (!$api) {
+    throw new Exception(t('No API provider is configured for moderation.'));
+  }
+
+  return $api->moderation($input);
+}
+
+/**
+ * Get all embedding models from all enabled providers with dimension info.
+ */
+function openai_get_all_embedding_models_with_dimensions() {
+  $models = [];
+  $providers_root = config_get('openai.settings', 'providers') ?: [];
+
+  foreach ($providers_root as $provider_id => $provider_config) {
+    if (empty($provider_config['enabled'])) {
+      continue;
+    }
+
+    try {
+      $provider_api = openai_get_api($provider_id);
+      if (!$provider_api) {
+        continue;
+      }
+
+      $provider_models = $provider_api->getEmbeddingModels();
+      if (!empty($provider_models)) {
+        foreach ($provider_models as $model_id => $model_name) {
+          $dimension = openai_get_embedding_dimension($model_id, $provider_id);
+
+          $models[$model_id] = [
+            'name' => $model_name,
+            'provider' => $provider_id,
+            'dimension' => $dimension,
+            'label' => $model_name . ' (' . openai_get_provider_label($provider_id) . ')',
+          ];
+        }
+      }
+    }
+    catch (Exception $e) {
+      watchdog('openai', 'Failed to fetch embedding models from @provider: @message', [
+        '@provider' => $provider_id,
+        '@message' => $e->getMessage(),
+      ], WATCHDOG_WARNING);
+    }
+  }
+
+  return $models;
+}
+
+/**
+ * Get the dimension for a specific embedding model.
+ *
+ * This function first attempts to detect the dimension dynamically by making
+ * a test API call, then falls back to known dimensions, and finally to a
+ * default of 1536.
+ *
+ * @param string $model_id
+ *   The model ID (may include provider prefix).
+ * @param string $provider_id
+ *   The provider ID.
+ *
+ * @return int
+ *   The embedding dimension.
+ */
+function openai_get_embedding_dimension($model_id, $provider_id = 'openai') {
+  // Try dynamic detection first
+  $dynamic_dimension = openai_detect_embedding_dimension($model_id, $provider_id);
+  if ($dynamic_dimension > 0) {
+    $dimension = $dynamic_dimension;
+  }
+  else {
+    // Fall back to known dimensions for common models
+    $known_dimensions = [
+      'text-embedding-ada-002' => 1536,
+      'text-embedding-3-small' => 1536,
+      'text-embedding-3-large' => 3072,
+      'openai/text-embedding-3-large' => 3072,
+      'openai/text-embedding-3-small' => 1536,
+      'openai/text-embedding-ada-002' => 1536,
+      'voyage-ai/voyage-3' => 1024,
+      'voyage-ai/voyage-3-lite' => 512,
+      'cohere/embed-english-v3.0' => 1024,
+      'cohere/embed-multilingual-v3.0' => 1024,
+    ];
+
+    if (isset($known_dimensions[$model_id])) {
+      $dimension = $known_dimensions[$model_id];
+    }
+    else {
+      $dimension = 1536;
+    }
+  }
+
+  // Allow site-specific overrides
+  backdrop_alter('openai_embedding_dimension', $dimension, $model_id, $provider_id);
+
+  return $dimension;
+}
+
+/**
+ * Dynamically detect embedding dimension by making a test API call.
+ *
+ * @param string $model_id
+ *   The model ID.
+ * @param string $provider_id
+ *   The provider ID.
+ *
+ * @return int
+ *   The detected dimension, or 0 if detection failed.
+ */
+function openai_detect_embedding_dimension($model_id, $provider_id) {
+  $cache_key = "embedding_dim:{$provider_id}:{$model_id}";
+  $cached = cache_get($cache_key);
+  if ($cached && !empty($cached->data)) {
+    return (int) $cached->data;
+  }
+
+  try {
+    $api = openai_get_api($provider_id);
+    if (!$api) {
+      return 0;
+    }
+
+    $test_embedding = $api->embedding("test", $model_id);
+    if (empty($test_embedding) || !is_array($test_embedding)) {
+      return 0;
+    }
+
+    $dimension = count($test_embedding);
+    if ($dimension > 0) {
+      cache_set($cache_key, $dimension, 'cache', time() + 86400);
+      return $dimension;
+    }
+  }
+  catch (Exception $e) {
+    watchdog('openai', 'Failed to detect embedding dimension for @model: @error', [
+      '@model' => $model_id,
+      '@error' => $e->getMessage(),
+    ], WATCHDOG_DEBUG);
+  }
+
+  return 0;
+}
+
+/**
+ * Implements hook_openai_provider_info().
+ *
+ * Advertise the built-in OpenAI provider so it appears in module_invoke_all()
+ * results alongside pluggable providers like Ollama / OpenRouter.
+ */
+function openai_openai_provider_info() {
+  return [
+    'openai' => [
+      'label' => t('OpenAI'),
+      'description' => t('Official OpenAI provider (GPT, DALL·E, etc.).'),
+      'website' => 'https://platform.openai.com/',
+      'key_url' => 'https://platform.openai.com/account/api-keys',
+    ],
+  ];
+}
+
+/**
+ * Return all provider info, optionally ensuring the built-in OpenAI provider is present.
+ *
+ * @param bool $include_builtin
+ *   If TRUE, merge the built-in OpenAI provider info into the result if it
+ *   isn't already present. Defaults to FALSE to avoid advertising the built-in
+ *   provider when it should be hidden.
+ *
+ * @return array
+ *   Provider info keyed by provider id.
+ */
+function openai_get_providers($include_builtin = FALSE) {
+  $providers = module_invoke_all('openai_provider_info');
+  if ($include_builtin && empty($providers['openai']) && function_exists('openai_openai_provider_info')) {
+    $builtin = openai_openai_provider_info();
+    if (!empty($builtin['openai'])) {
+      $providers['openai'] = $builtin['openai'];
+    }
+  }
+  
+  // Sort providers alphabetically by label
+  uasort($providers, function($a, $b) {
+    $label_a = isset($a['label']) ? (string)$a['label'] : '';
+    $label_b = isset($b['label']) ? (string)$b['label'] : '';
+    return strcasecmp($label_a, $label_b);
+  });
+  
+  return $providers;
+}

@@ -13,6 +13,18 @@ function openai_prompt_permission() {
 }
 
 /**
+ * Implements hook_help().
+ */
+function openai_prompt_help($path, $arg) {
+  if ($path == 'admin/config/openai/openai-prompt') {
+    return '<div class="messages warning">' . 
+      t('<strong>This module is deprecated.</strong> Please use the <a href="@chatgpt_link">OpenAI ChatGPT Explorer</a> instead, which supports modern chat models and multiple AI providers (OpenAI, Ollama, OpenRouter).', 
+        array('@chatgpt_link' => url('admin/config/openai/chatgpt'))) . 
+      '</div>';
+  }
+}
+
+/**
  * Implements hook_menu().
  */
 function openai_prompt_menu() {

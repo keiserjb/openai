@@ -24,6 +24,19 @@ function openai_embeddings_autoload_info() {
 }
 
 /**
+ * Implements hook_help().
+ */
+function openai_embeddings_help($path, $arg) {
+  if ($path == 'admin/config/openai/openai-embeddings' || 
+      strpos($path, 'admin/config/openai/openai-embeddings') === 0) {
+    return '<div class="messages warning">' . 
+      t('<strong>This module is deprecated.</strong> Please use <a href="@search_api_ai">Search API AI</a> instead, which provides the same embedding functionality with better Search API integration, more vector database options, and active development.', 
+        array('@search_api_ai' => 'https://backdropcms.org/project/search_api_ai')) . 
+      '</div>';
+  }
+}
+
+/**
  * Implements hook_menu().
  */
 function openai_embeddings_menu() {
@@ -182,17 +195,56 @@ function openai_embeddings_settings_form(array $form, array &$form_state) {
     '#description' => t('Enter a comma-delimited list of words to exclude from generating embedding values.'),
   ];
 
-  // Model section
-
-  $models = $api->filterModels(['text-embedding-']);
+  // Model section - get embedding models from all enabled providers
+  $models = [];
+  $providers_root = config_get('openai.settings', 'providers') ?: [];
+  
+  foreach ($providers_root as $provider_id => $provider_config) {
+    if (empty($provider_config['enabled'])) {
+      continue;
+    }
+    
+    try {
+      $provider_api = openai_get_api($provider_id);
+      if (!$provider_api) {
+        continue;
+      }
+      
+      // Try to get embedding models, or fall back to all models
+      if (method_exists($provider_api, 'getEmbeddingModels')) {
+        $provider_models = $provider_api->getEmbeddingModels();
+      } else {
+        // Fallback: return all models (Ollama can't sort)
+        $provider_models = $provider_api->getModels();
+      }
+      
+      if (!empty($provider_models)) {
+        $provider_label = openai_get_provider_label($provider_id);
+        foreach ($provider_models as $model_id => $model_name) {
+          // Prefix model ID with provider for identification
+          $prefixed_id = $provider_id . '/' . $model_id;
+          // Add provider label to display name
+          $prefixed_label = $provider_label . ': ' . $model_name;
+          $models[$prefixed_id] = $prefixed_label;
+        }
+      }
+    }
+    catch (Exception $e) {
+      watchdog('openai_embeddings', 'Failed to fetch models from @provider: @message', [
+        '@provider' => $provider_id,
+        '@message' => $e->getMessage(),
+      ], WATCHDOG_WARNING);
+    }
+  }
 
   $form['model'] = [
     '#type' => 'select',
     '#title' => t('Model to use'),
     '#options' => $models,
-    '#default_value' => $config->get('model') ?? 'text-embedding-ada-002',
+    '#default_value' => $config->get('model'),
     '#required' => TRUE,
-    '#description' => t('Select the model to analyze text. See the <a href="@link" target="_blank">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/guides/embeddings/embedding-models']),
+    '#description' => t('Select the embedding model from any enabled provider. Different providers offer different models and pricing.'),
+    '#empty_option' => empty($models) ? t('No models available - enable a provider first') : NULL,
   ];
 
   // Content type options for the dropdown

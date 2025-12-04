@@ -45,18 +45,6 @@ function openai_dblog_settings_form($form, &$form_state) {
   // Load the OpenAI dblog settings.
   $config = config_get('openai_dblog.settings');
 
-  // Load OpenAI API key from the Key module.
-  $apiKey = key_get_key_value(config('openai.settings')->get('api_key'));
-
-  // Validate the API key.
-  if (empty($apiKey)) {
-    form_set_error('', t('The API key could not be retrieved. Please ensure it is configured correctly in the Key module.'));
-    return $form;
-  }
-
-  // Initialize the OpenAI API client.
-  $api = new OpenAIApi($apiKey);
-
   // Watchdog severity levels.
   $levels = watchdog_severity_levels();
   $options = [];
@@ -79,21 +67,21 @@ function openai_dblog_settings_form($form, &$form_state) {
     '#description' => t('Select which log levels should be analyzed when viewed. Non-error levels like notice and debug may cause wasted API usage.'),
   ];
 
-  // Fetch models from the OpenAI API.
-  try {
-    $models = $api->filterModels(['gpt', 'text']);
-    $model_options = [];
-    foreach ($models as $model) {
-      $model_options[$model] = $model;
+  // Get all chat models from all enabled providers
+  $model_options_grouped = openai_get_all_chat_models();
+  
+  // Flatten grouped models since labels already include provider prefix
+  $model_options = [];
+  foreach ($model_options_grouped as $group_label => $group_items) {
+    if (is_array($group_items)) {
+      foreach ($group_items as $k => $v) {
+        $model_options[$k] = $v;
+      }
     }
-  } catch (Exception $e) {
-    watchdog(
-      'openai',
-      'Failed to fetch models: @message',
-      ['@message' => $e->getMessage()],
-      WATCHDOG_ERROR
-    );
-    $model_options = [];
+  }
+  
+  if (empty($model_options)) {
+    backdrop_set_message(t('No chat models are available from your configured providers. Please <a href="@url">configure a provider</a> in OpenAI settings.', ['@url' => url('admin/config/openai/settings')]), 'warning');
   }
 
   $form['model'] = [
@@ -101,7 +89,7 @@ function openai_dblog_settings_form($form, &$form_state) {
     '#title' => t('Model to use'),
     '#options' => $model_options,
     '#default_value' => $config['model'] ?? '',
-    '#description' => t('Select which model to use to analyze text. See the <a href="@link">model overview</a> for details about each model.', ['@link' => 'https://platform.openai.com/docs/models/overview']),
+    '#description' => t('Select which model to use to analyze text from any enabled provider. See the <a href="@link">model overview</a> for details.', ['@link' => 'https://platform.openai.com/docs/models/overview']),
   ];
 
   // Add the submit button.

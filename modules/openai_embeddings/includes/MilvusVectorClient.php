@@ -199,6 +199,39 @@ class MilvusVectorClient extends VectorClientBase {
 
 
   /**
+   * Metadata query helper.
+   *
+   * @param string $collection
+   * @param array $outputFields
+   * @param int $limit
+   * @param string $database
+   * @param string $filter
+   *
+   * @return array
+   */
+  public function queryMetadata(string $collection, array $outputFields = ['id','content'], int $limit = 10, string $database = 'default', string $filter = 'id not in [0]') {
+    try {
+      $result = $this->milvus->query($collection, $outputFields, $filter, $limit, 0, $database);
+      // MilvusV2::query returns a decoded JSON object/array. Normalize to array.
+      if (is_array($result)) {
+        return $result;
+      }
+      if (is_object($result)) {
+        // If the object contains 'data', return that; otherwise convert object to array.
+        if (isset($result->data)) {
+          return is_array($result->data) ? $result->data : (array) $result->data;
+        }
+        return (array) $result;
+      }
+      return [];
+    }
+    catch (Exception $e) {
+      watchdog('openai_embeddings', 'Milvus metadata query failed: @msg', ['@msg' => $e->getMessage()], WATCHDOG_ERROR);
+      return [];
+    }
+  }
+
+  /**
    * Query for metadata.
    */
   /*public function query($collection, $outputFields = ['id', 'content'], $limit = 10, $database = 'default', $filter = 'id not in [0]') {
@@ -283,4 +316,37 @@ class MilvusVectorClient extends VectorClientBase {
   public function describeCollection($database, $collection) {
     return $this->milvus->describeCollection($database, $collection);
   }
+
+  /**
+   * Test the Milvus connection.
+   *
+   * @return array
+   *   ['success' => bool, 'message' => string, 'collections' => array|null]
+   */
+  public function testConnection(): array {
+    try {
+      $collections = $this->listCollections();
+      if (empty($collections) || !is_array($collections)) {
+        return [
+          'success' => TRUE, // Milvus may return empty but connection worked
+          'message' => 'Connected to Milvus; no collections returned or empty list.',
+          'collections' => is_array($collections) ? $collections : [],
+        ];
+      }
+
+      return [
+        'success' => TRUE,
+        'message' => 'Connected to Milvus; collections listed successfully.',
+        'collections' => $collections,
+      ];
+    }
+    catch (Exception $e) {
+      return [
+        'success' => FALSE,
+        'message' => 'Milvus test connection failed: ' . $e->getMessage(),
+        'collections' => NULL,
+      ];
+    }
+  }
+
 }

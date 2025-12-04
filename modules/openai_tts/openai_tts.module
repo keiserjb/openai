@@ -46,7 +46,10 @@ function openai_tts_form($form, &$form_state) {
     return $form;
   }
 
-  $api = new OpenAIApi($apiKey);
+  $api = new OpenAIApi($apiKey); // Ensure this matches the constructor expectation.
+
+  $file_system = file_default_scheme();
+  $time_service = time();
 
   $form['text'] = [
     '#type' => 'textarea',

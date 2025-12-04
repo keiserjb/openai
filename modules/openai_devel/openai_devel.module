@@ -30,24 +30,31 @@ function openai_devel_menu() {
  */
 function openai_devel_generate_content_form($form, &$form_state) {
 
-  $openai_config = config('openai.settings');
-  $apiKey = key_get_key_value($openai_config->get('api_key'));
+  // Get all chat models from all enabled providers
+  $models_grouped = openai_get_all_chat_models();
 
-  if (empty($apiKey)) {
-    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
-    return $form;
+  // Flatten grouped models since labels already include provider prefix
+  $models = [];
+  foreach ($models_grouped as $group_label => $group_items) {
+    if (is_array($group_items)) {
+      foreach ($group_items as $k => $v) {
+        $models[$k] = $v;
+      }
+    }
   }
 
-  $api = new OpenAIApi($apiKey);
-  $models = $api->filterModels(['gpt']);
+  if (empty($models)) {
+    form_set_error('', t('No chat models available. Please configure at least one provider in OpenAI settings.'));
+    return $form;
+  }
 
   // OpenAI settings.
   $form['openai_model'] = [
     '#type' => 'select',
     '#title' => t('Model'),
     '#options' => $models,
-    '#default_value' => 'gpt-3.5-turbo',
-    '#description' => t('Select which model to use to generate text.'),
+    '#default_value' => 'openai/gpt-3.5-turbo',
+    '#description' => t('Select which model to use to generate text from any enabled provider.'),
     '#required' => TRUE,
   ];
   $form['openai_system'] = [
@@ -226,13 +233,9 @@ function openai_devel_generate_content_form_submit($form, &$form_state) {
  * Generates content using OpenAI.
  */
 function openai_devel_generate_content($options) {
-  $config = config_get('openai.settings');
-  $apiKey = key_get_key_value($config['api_key']);
-  $api = new OpenAIApi($apiKey);
-
   $node_types = $options['node_types'] ?? [];
   $system = $options['system'] ?? '';
-  $model = $options['model'] ?? 'gpt-3.5-turbo';
+  $model = $options['model'] ?? 'openai/gpt-3.5-turbo';
   $temperature = $options['temperature'] ?? 0.7;
   $max_tokens = $options['max_tokens'] ?? 512;
   $add_alias = $options['add_alias'] ?? FALSE;
@@ -253,7 +256,8 @@ function openai_devel_generate_content($options) {
             Ensure the content is engaging and contains several paragraphs. Incorporate specific details or examples to make it stand out.
             Make this one distinct from any others by focusing on a specific perspective, historical detail, or novel idea.";
 
-        $response = $api->chat(
+        // Use the centralized helper
+        $response = openai_chat(
           $model,
           [
             ['role' => 'system', 'content' => $system_message],

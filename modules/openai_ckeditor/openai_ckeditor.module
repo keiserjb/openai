@@ -88,17 +88,8 @@ function openai_ckeditor_plugin_enabled_callback($format, $plugin_name) {
  */
 function openai_ckeditor_form_alter(&$form, &$form_state, $form_id) {
   if ($form_id === 'ckeditor5_settings_form' || $form_id === 'filter_admin_format_form') {
-    $openai_config = config('openai.settings');
-    $apiKey = key_get_key_value($openai_config->get('api_key'));
-
-    // Ensure an API key is configured, or show an error.
-    if (empty($apiKey)) {
-      form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
-      return $form;
-    }
-
-    // Load available models and set up configuration fields.
-    $api = new OpenAIApi($apiKey);
+    // Load available models from all enabled providers.
+    // Do not require a single OpenAI API key; providers may vary.
     $format_name = !empty($form['format']['#default_value']) ? $form['format']['#default_value'] : 'filtered_html';
     $format_config = config('filter.format.' . $format_name);
     $openai_settings = $format_config->get('editor_settings.openai') ?? [];
@@ -119,11 +110,23 @@ function openai_ckeditor_form_alter(&$form, &$form_state, $form_id) {
       '#default_value' => !empty($openai_settings['enabled']),
     ];
 
-    $models = $api->filterModels(['gpt']);
+    // Model selector: use openai module helper for all chat models from all providers.
+    $model_options_grouped = openai_get_all_chat_models();
+    
+    // Flatten grouped models since labels already include provider prefix
+    $model_options = [];
+    foreach ($model_options_grouped as $group_label => $group_items) {
+      if (is_array($group_items)) {
+        foreach ($group_items as $k => $v) {
+          $model_options[$k] = $v;
+        }
+      }
+    }
+    
     $form['editor_settings']['plugins']['openai']['model'] = [
       '#type' => 'select',
       '#title' => t('Default model'),
-      '#options' => $models,
+      '#options' => $model_options,
       '#default_value' => $openai_settings['model'] ?? 'gpt-3.5-turbo',
       '#description' => t('Select which model to use to analyze text. See the <a href="@url" target="_blank">model overview</a> for details about each model.', ['@url' => 'https://platform.openai.com/docs/models']),
     ];
@@ -243,21 +246,48 @@ function openai_ckeditor_text_completion_form_submit($form, &$form_state) {
  * Helper function to communicate with OpenAI.
  */
 function openai_ckeditor_generate_text($prompt, $settings) {
-  $openai_config = config('openai.settings');
-  $apiKey = key_get_key_value($openai_config->get('api_key'));
+  $model = $settings['model'] ?? '';
 
-  // Load the OpenAIApi class.
-  module_load_include('php', 'openai_ckeditor', 'includes/OpenAI');
-  $openai_api = new OpenAIApi($apiKey);
+  // Use the centralized helper to get the API for this model
+  $stripped_model = '';
+  $openai_api = openai_get_api_for_model($model, $stripped_model);
 
-  $use_chat_endpoint = strpos($settings['model'], 'gpt') !== FALSE;
+  if (!$openai_api) {
+    watchdog('openai_ckeditor', 'Unable to load API for model @model', ['@model' => $model], WATCHDOG_ERROR);
+    return t('No API provider configured for the selected model.');
+  }
 
-  // Construct the appropriate request based on the model type.
-  $response = $use_chat_endpoint
-    ? $openai_api->chat($settings['model'], [['role' => 'user', 'content' => $prompt]], floatval($settings['temperature']), (int) $settings['max_tokens'], TRUE)
-    : $openai_api->completions($settings['model'], $prompt, floatval($settings['temperature']), (int) $settings['max_tokens'], TRUE);
+  // Use the chat endpoint (messages) which works for modern chat-capable models,
+  // including OpenRouter-backed chat models. Build a simple user message.
+  $messages = [
+    ['role' => 'user', 'content' => $prompt],
+  ];
 
-  return $response['choices'][0]['text'] ?? t('No response received.');
+  try {
+    // Use the stripped model identifier (without provider prefix)
+    $response = $openai_api->chat($stripped_model, $messages, floatval($settings['temperature'] ?? 0.2), (int) ($settings['max_tokens'] ?? 128), FALSE);
+  }
+  catch (\Exception $e) {
+    watchdog('openai_ckeditor', 'OpenAI chat error: @error', ['@error' => $e->getMessage()], WATCHDOG_ERROR);
+    return t('Error contacting AI provider.');
+  }
+
+  // Try to handle various response shapes. If chat returns a string, use it.
+  if (is_string($response) && !empty($response)) {
+    return $response;
+  }
+
+  // If returned as array with choices, try to extract text/content.
+  if (is_array($response)) {
+    if (!empty($response['choices'][0]['message']['content'])) {
+      return $response['choices'][0]['message']['content'];
+    }
+    if (!empty($response['choices'][0]['text'])) {
+      return $response['choices'][0]['text'];
+    }
+  }
+
+  return t('No response received.');
 }
 
 /**
@@ -301,15 +331,17 @@ function openai_ckeditor_generate_completion() {
     // Sanitize the input to remove any potentially harmful content.
     $input['prompt'] = filter_var($input['prompt'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-    $openai_config = config('openai.settings');
-    $apiKey = key_get_key_value($openai_config->get('api_key'));
+    // Get the requested model
+    $requested_model = $input['options']['model'] ?? 'default-model';
 
-    if (empty($apiKey)) {
-      return backdrop_json_output(['error' => 'API key is not configured']);
+    // Use the centralized helper to get the API for this model
+    $stripped_model = '';
+    $api = openai_get_api_for_model($requested_model, $stripped_model);
+
+    if (!$api) {
+      return backdrop_json_output(['error' => 'API provider is not configured for selected model']);
     }
 
-    $api = new OpenAIApi($apiKey);
-    $model = $input['options']['model'] ?? 'default-model';
     $temperature = $input['options']['temperature'] ?? 0.7;
     $maxTokens = $input['options']['max_tokens'] ?? 1000;
 
@@ -317,11 +349,25 @@ function openai_ckeditor_generate_completion() {
       ['role' => 'user', 'content' => $input['prompt']]
     ];
 
-    $response = $api->chat($model, $messages, $temperature, $maxTokens);
+    try {
+      // Use the stripped model ID (without provider prefix)
+      $response = $api->chat($stripped_model, $messages, $temperature, $maxTokens);
+    }
+    catch (\Exception $e) {
+      watchdog('openai_ckeditor', 'OpenRouter chat error: @error', ['@error' => $e->getMessage()], WATCHDOG_ERROR);
+      return backdrop_json_output(['error' => 'AI provider error: ' . $e->getMessage()]);
+    }
 
-    watchdog('openai_ckeditor', 'Generated response: @response', ['@response' => $response], WATCHDOG_NOTICE);
+    watchdog('openai_ckeditor', 'Generated response: @response', ['@response' => print_r($response, TRUE)], WATCHDOG_NOTICE);
 
-    return backdrop_json_output(['responseText' => $response]);
+    // If the adapter returned an array/choices, normalize to text
+    if (is_array($response)) {
+      $response_text = $response['choices'][0]['message']['content'] ?? $response['choices'][0]['text'] ?? '';
+    } else {
+      $response_text = (string) $response;
+    }
+
+    return backdrop_json_output(['responseText' => $response_text]);
   } else {
     return backdrop_json_output(['error' => 'No prompt received or prompt is empty']);
   }

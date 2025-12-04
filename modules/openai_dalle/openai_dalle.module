@@ -2,11 +2,14 @@
 
 /**
  * @file
- * Permissions for the OpenAI DALL·E module.
+ * Admin form and handlers for provider-agnostic image generation (DALL·E / GPT-Image, etc.).
  */
 
 use GuzzleHttp\Client as GuzzleClient;
 
+/**
+ * Permissions for the OpenAI DALL·E module.
+ */
 function openai_dalle_permission() {
   return [
     'access openai dalle' => [
@@ -19,175 +22,77 @@ function openai_dalle_permission() {
  * Implements hook_menu().
  */
 function openai_dalle_menu() {
-  $items = array();
+  $items = [];
 
-  $items['admin/config/openai/dalle'] = array(
-    'title' => 'OpenAi DALL·E Image Generation',
-    'description' => 'Contains a form where you can test the OpenAI API\'s DALL·E (image generation) endpoint.',
+  $items['admin/config/openai/dalle'] = [
+    'title' => 'DALL·E / Image Generation',
+    'description' => 'Generate images using models from your enabled AI providers (OpenAI, OpenRouter, etc.).',
     'page callback' => 'backdrop_get_form',
-    'page arguments' => array('openai_dalle_form'),
-    'access arguments' => array('access openai dalle'),
+    'page arguments' => ['openai_dalle_form'],
+    'access arguments' => ['access openai dalle'],
     'weight' => -6,
-  );
+  ];
 
   return $items;
 }
 
 /**
- * Provides a form to interact with the OpenAI API's DALL·E (image generation) endpoint.
+ * Small helper to ensure $form_state['storage'] exists and return it by reference.
+ *
+ * @param array $form_state
+ *   The form state array (by reference).
+ *
+ * @return array
+ *   Reference to the storage array.
+ */
+function &_openai_dalle_get_storage(array &$form_state) {
+  if (!isset($form_state['storage']) || !is_array($form_state['storage'])) {
+    $form_state['storage'] = [];
+  }
+  return $form_state['storage'];
+}
+
+/**
+ * Provides a form to interact with the image generation endpoint.
  */
 function openai_dalle_form($form, &$form_state) {
-  $openai_config = config('openai.settings');
-  $apiKey = key_get_key_value($openai_config->get('api_key'));
-
-  if (empty($apiKey)) {
-    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
-    return $form;
-  }
-
-  $api = new OpenAIApi($apiKey);
+  // Always ensure storage exists on build.
+  $_ = &_openai_dalle_get_storage($form_state);
 
   $form['prompt'] = [
     '#type' => 'textarea',
     '#title' => t('Prompt'),
-    '#description' => t('A text description of the desired image(s). The maximum length is 1000 characters for dall-e-2, 4000 characters for dall-e-3 and gpt-image-1. Please note that OpenAI may reject prompts it deems in violation of their content standards.'),
+    '#description' => t('Describe the image you want to generate. Limits and safety rules vary by provider/model. For reference: DALL·E 2 ~1000 chars, DALL·E 3 ~4000 chars.'),
     '#required' => TRUE,
   ];
 
-  $models = $api->filterModels(['dall', 'gpt-image']);
+  // Get all image generation models from all enabled providers.
+  $models = function_exists('openai_get_all_image_models') ? openai_get_all_image_models() : [];
+  if (empty($models)) {
+    backdrop_set_message(t('No image generation models are available from your configured providers. Please <a href="@url">configure a provider</a> in OpenAI settings.', ['@url' => url('admin/config/openai/settings')]), 'warning');
+  }
 
   $form['model'] = [
     '#type' => 'select',
     '#title' => t('Model'),
     '#options' => $models,
     '#default_value' => 'dall-e-3',
-    '#description' => t('The model to use to generate an image.'),
-    '#ajax' => [
-      'callback' => 'openai_dalle_model_select_callback',
-      'wrapper' => 'model-dependent-fields',
-    ],
-  ];
-
-  // Set initial quality options and default value based on selected model
-  $selected_model = isset($form_state['values']['model']) ? $form_state['values']['model'] : 'dall-e-3';
-  if ($selected_model === 'gpt-image-1') {
-    $quality_options = [
-      'auto' => 'Auto',
-      'low' => 'Low',
-      'medium' => 'Medium',
-      'high' => 'High',
-    ];
-    $quality_default = 'auto';
-  } else {
-    $quality_options = [
-      'hd' => 'HD',
-      'standard' => 'Standard',
-    ];
-    $quality_default = 'hd';
-  }
-
-  $form['model_dependent_fields'] = [
-    '#prefix' => '<div id="model-dependent-fields">',
-    '#suffix' => '</div>',
-  ];
-
-  $form['model_dependent_fields']['quality'] = [
-    '#type' => 'select',
-    '#title' => t('Quality'),
-    '#options' => $quality_options,
-    '#default_value' => $quality_default,
-    '#states' => [
-      'visible' => [
-        [':input[name="model"]' => ['value' => 'dall-e-3']],
-        [':input[name="model"]' => ['value' => 'gpt-image-1']],
-      ]
-    ],
-    '#description' => t('The quality of the image that will be generated. For dall-e-3: hd creates images with finer details and greater consistency across the image. For gpt-image-1: choose from auto, low, medium, or high quality levels.'),
-  ];
-
-  $form['model_dependent_fields']['size'] = [
-    '#type' => 'select',
-    '#title' => t('Size'),
-    '#options' => [
-      '1024x1024' => '1024x1024', // Default options for 'dall-e-3'.
-      '1792x1024' => '1792x1024',
-      '1024x1792' => '1024x1792',
-    ],
-    '#default_value' => '1024x1024', // Default value.
-    '#description' => t('The size of the generated images.'),
-  ];
-
-  $form['style'] = [
-    '#type' => 'select',
-    '#title' => t('Style'),
-    '#options' => [
-      'vivid' => 'Vivid - Generate hyper-real and dramatic images',
-      'natural' => 'Natural - Generate more natural, less hyper-real looking images',
-    ],
-    '#default_value' => 'vivid',
-    '#states' => [
-      'visible' => [
-        ':input[name="model"]' => ['value' => 'dall-e-3']
-      ]
-    ],
-    '#description' => t('The style of the generated images. Must be one of vivid or natural. Vivid causes the model to lean towards generating hyper-real and dramatic images. Natural causes the model to produce more natural, less hyper-real looking images. This parameter only supported for dall-e-3.'),
-  ];
-
-  $form['response_format'] = [
-    '#type' => 'select',
-    '#title' => t('Response Format'),
-    '#options' => [
-      'url' => 'URL',
-      'b64_json' => 'b64_json',
-    ],
-    '#default_value' => 'url',
-    '#states' => [
-      'visible' => [
-        ':input[name="model"]' => [
-          ['value' => 'dall-e-2'],
-          ['value' => 'dall-e-3'],
-        ]
-      ]
-    ],
-    // Use Backdrop's translation function with proper link formatting
-    '#description' => t('The image format of the result. See the <a href="@link" target="_blank">OpenAI documentation</a> for more information.', ['@link' => 'https://platform.openai.com/docs/api-reference/images/create#images-create-response_format']),
-  ];
-
-  $form['output_format'] = [
-    '#type' => 'select',
-    '#title' => t('Output Format'),
-    '#options' => [
-      'png' => 'PNG',
-      'jpeg' => 'JPEG',
-      'webp' => 'WebP',
-    ],
-    '#default_value' => 'png',
-    '#states' => [
-      'visible' => [
-        ':input[name="model"]' => ['value' => 'gpt-image-1']
-      ]
-    ],
-    '#description' => t('The format in which the generated images will be created. This parameter is only supported for gpt-image-1.'),
+    '#description' => t('Choose an image generation model. Different providers and models may have different capabilities.'),
   ];
 
   $form['filename'] = [
     '#type' => 'textfield',
     '#title' => t('Filename'),
-    '#default_value' => 'ai_generated_image',
-    '#states' => [
-      'visible' => [
-        [':input[name="response_format"]' => ['value' => 'b64_json']],
-        [':input[name="model"]' => ['value' => 'gpt-image-1']],
-      ]
-    ],
+    '#default_value' => 'dalle_image',
     '#required' => TRUE,
-    '#description' => t('The filename to save the result as (without extension).'),
+    '#description' => t('The base filename to save the image as (extension will be added automatically).'),
   ];
 
   $form['response'] = [
-    '#markup' => 'The response will display the generated image below and provide a link to download it.',
+    '#markup' => t('The generated image will be displayed below and saved to your file system.'),
   ];
 
+  // AJAX wrapper for the result.
   $form['file'] = [
     '#prefix' => '<div id="openai-dalle-response">',
     '#suffix' => '</div>',
@@ -203,326 +108,341 @@ function openai_dalle_form($form, &$form_state) {
     '#ajax' => [
       'callback' => 'openai_dalle_get_response',
       'wrapper' => 'openai-dalle-response',
-      'progress' => [
-        'type' => 'throbber',
-      ],
+      'progress' => ['type' => 'throbber'],
     ],
   ];
 
   return $form;
 }
 
-function openai_dalle_model_select_callback($form, &$form_state) {
-  $selected_model = $form_state['values']['model'];
-
-  // Update size options based on model
-  if ($selected_model === 'dall-e-2') {
-    $form['model_dependent_fields']['size']['#options'] = [
-      '256x256' => '256x256',
-      '512x512' => '512x512',
-      '1024x1024' => '1024x1024',
-    ];
-  } elseif ($selected_model === 'dall-e-3') {
-    $form['model_dependent_fields']['size']['#options'] = [
-      '1024x1024' => '1024x1024',
-      '1792x1024' => '1792x1024',
-      '1024x1792' => '1024x1792',
-    ];
-  } elseif ($selected_model === 'gpt-image-1') {
-    $form['model_dependent_fields']['size']['#options'] = [
-      '1024x1024' => '1024x1024',
-      '1024x1536' => '1024x1536',
-      '1536x1024' => '1536x1024',
-      '1024x1792' => '1024x1792',
-      '1792x1024' => '1792x1024',
-    ];
-  }
-
-  // Update quality options based on model
-  if ($selected_model === 'gpt-image-1') {
-    $form['model_dependent_fields']['quality']['#options'] = [
-      'auto' => 'Auto',
-      'low' => 'Low',
-      'medium' => 'Medium',
-      'high' => 'High',
-    ];
-    $form['model_dependent_fields']['quality']['#default_value'] = 'auto';
-  } else {
-    $form['model_dependent_fields']['quality']['#options'] = [
-      'hd' => 'HD',
-      'standard' => 'Standard',
-    ];
-    $form['model_dependent_fields']['quality']['#default_value'] = 'hd';
-  }
-
-  // Ensure the default values are set
-  $form['model_dependent_fields']['size']['#default_value'] = array_key_first($form['model_dependent_fields']['size']['#options']);
-
-  return $form['model_dependent_fields'];
-}
-
 /**
- * Form validation handler for the DALL-E form.
+ * Form validation handler for the DALL·E form.
  */
 function openai_dalle_form_validate($form, &$form_state) {
-  $prompt = $form_state['values']['prompt'];
-  $model = $form_state['values']['model'];
-  $size = $form_state['values']['size'];
-  $quality = $form_state['values']['quality'];
+  $prompt = isset($form_state['values']['prompt']) ? $form_state['values']['prompt'] : '';
+  $model  = isset($form_state['values']['model'])  ? $form_state['values']['model']  : '';
 
-  $dalle_2_sizes = ['256x256', '512x512', '1024x1024'];
-  $dalle_3_sizes = ['1024x1024', '1792x1024', '1024x1792'];
-  $gpt_image_1_sizes = ['1024x1024', '1024x1536', '1536x1024', '1024x1792', '1792x1024'];
-
-  // Define valid quality options for each model dynamically.
-  $valid_quality_options = [];
-  if ($model === 'gpt-image-1') {
-    $valid_quality_options = ['auto', 'low', 'medium', 'high'];
-  } elseif ($model === 'dall-e-3') {
-    $valid_quality_options = ['hd', 'standard'];
+  // Strip provider prefix if present
+  if (strpos($model, '/') !== FALSE) {
+    $parts = explode('/', $model, 2);
+    $model = $parts[1];
   }
 
-  // Validate prompt length
+  // Check prompt length for known models
   if ($model === 'dall-e-2' && mb_strlen($prompt) > 1000) {
-    form_set_error('prompt', 'The input cannot exceed 1000 characters for the dall-e-2 model.');
+    form_set_error('prompt', t('The input cannot exceed 1000 characters for the dall-e-2 model.'));
   }
 
-  if (($model === 'dall-e-3' || $model === 'gpt-image-1') && mb_strlen($prompt) > 4000) {
-    form_set_error('prompt', 'The input cannot exceed 4000 characters for the dall-e-3 and gpt-image-1 models.');
-  }
-
-  // Validate size options
-  if ($model === 'dall-e-2' && !in_array($size, $dalle_2_sizes)) {
-    form_set_error('size', 'This size is not supported by the dall-e-2 model.');
-  }
-
-  if ($model === 'dall-e-3' && !in_array($size, $dalle_3_sizes)) {
-    form_set_error('size', 'This size is not supported by the dall-e-3 model.');
-  }
-
-  if ($model === 'gpt-image-1' && !in_array($size, $gpt_image_1_sizes)) {
-    form_set_error('size', 'This size is not supported by the gpt-image-1 model.');
-  }
-
-  // Validate quality options dynamically based on the model.
-  if (!empty($valid_quality_options) && !in_array($quality, $valid_quality_options)) {
-    form_set_error('quality', t('Invalid quality option selected for the @model model.', ['@model' => $model]));
+  if ($model === 'dall-e-3' && mb_strlen($prompt) > 4000) {
+    form_set_error('prompt', t('The input cannot exceed 4000 characters for the dall-e-3 model.'));
   }
 }
 
 /**
- * Renders the response.
- *
- * @param array $form
- *   The form array.
- * @param array $form_state
- *   The form state.
+ * Renders the response wrapper (AJAX callback).
  *
  * @return array
- *   The modified form element.
+ *   The modified 'file' element.
  */
 function openai_dalle_get_response($form, &$form_state) {
-  // Initialize storage if it doesn't exist
-  if (!isset($form_state['storage']) || !is_array($form_state['storage'])) {
-    $form_state['storage'] = [];
-  }
-
-  $storage = $form_state['storage'];
+  $storage = &_openai_dalle_get_storage($form_state);
 
   if (!empty($storage['fid'])) {
     $file = file_load($storage['fid']);
     if ($file) {
-      $file_url = check_plain(file_create_url($file->uri));
-      $filename = check_plain($file->filename);
-      // Build markup with direct variable replacement
-      $form['file']['#markup'] = '<div class="openai-dalle-result">
-        <p><strong>Generated Image:</strong></p>
-        <img src="' . $file_url . '" alt="Generated Image" style="max-width: 100%; border: 1px solid #ccc; padding: 10px; display: block;" />
-        <p><a href="' . $file_url . '" target="_blank" download>' . $filename . '</a></p>
-      </div>';
-    } else {
+      $file_url = file_create_url($file->uri);
+      $form['file']['#markup'] = t('
+        <div class="openai-dalle-result">
+          <p><strong>Generated Image:</strong></p>
+          <img src="@file_url" alt="Generated Image" style="max-width: 100%; border: 1px solid #ccc; padding: 10px; display: block;" />
+          <p><a href="@file_url" target="_blank" download>@filename</a></p>
+        </div>',
+        [
+          '@file_url' => $file_url,
+          '@filename' => $file->filename,
+        ]
+      );
+    }
+    else {
       $form['file']['#markup'] = t('The file could not be loaded.');
     }
-  } else {
+  }
+  else {
     $form['file']['#markup'] = t('No image generated yet.');
   }
 
+  // Return just the wrapper element that matches #ajax['wrapper'].
   return $form['file'];
 }
 
 /**
- * Form submit handler for the DALL-E form.
+ * Form submit handler for the image generation form.
  */
 function openai_dalle_form_submit($form, &$form_state) {
-  $openai_config = config('openai.settings');
-  $apiKey = key_get_key_value($openai_config->get('api_key'));
+  // Ensure storage exists before we write to it.
+  $storage = &_openai_dalle_get_storage($form_state);
 
-  if (empty($apiKey)) {
-    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
+  // Get the model value (may be provider-prefixed like "openai/dall-e-3").
+  $model_with_prefix = isset($form_state['values']['model']) ? $form_state['values']['model'] : 'openai/dall-e-3';
+
+  // Use the centralized helper to get the API and stripped model.
+  $stripped_model = '';
+  $api = openai_get_api_for_model($model_with_prefix, $stripped_model);
+  if (!$api) {
+    form_set_error('', t('Unable to find provider for the selected model.'));
     return;
   }
 
-  $api = new OpenAIApi($apiKey);
+  // Store provider (extract from prefix if present) for logging.
+  $provider_prefix = 'openai';
+  if (strpos($model_with_prefix, '/') !== FALSE) {
+    $parts = explode('/', $model_with_prefix, 2);
+    $provider_prefix = $parts[0];
+  }
+  $storage['provider'] = $provider_prefix;
+
+  // Use the stripped model (without provider prefix) for API calls.
+  $model = $stripped_model;
 
   // Retrieve form values.
-  $prompt = $form_state['values']['prompt'];
-  $model = $form_state['values']['model'];
-  $quality = $form_state['values']['quality'];
-  $size = $form_state['values']['size'];
-  $style = $form_state['values']['style'];
-  // For gpt-image models, response_format is not used, so provide a default
-  $format = isset($form_state['values']['response_format']) ? $form_state['values']['response_format'] : 'url';
-  $output_format = isset($form_state['values']['output_format']) ? $form_state['values']['output_format'] : null;
-  $filename_base = $form_state['values']['filename'];
+  $prompt        = isset($form_state['values']['prompt']) ? $form_state['values']['prompt'] : '';
+  $filename_base = isset($form_state['values']['filename']) ? $form_state['values']['filename'] : 'dalle_image';
 
   $file_scheme = file_default_scheme();
-  $timestamp = REQUEST_TIME;
-
-  // Use output_format for filename extension if gpt-image-1, otherwise default to png
-  $file_extension = 'png';
-  if ($model === 'gpt-image-1' && !empty($output_format)) {
-    $file_extension = $output_format === 'jpeg' ? 'jpg' : $output_format;
-  }
-
-  $unique_filename = $filename_base . '-' . $timestamp . '.' . $file_extension;
+  $timestamp   = defined('REQUEST_TIME') ? REQUEST_TIME : time();
 
   try {
-    // Generate the image using the OpenAI API.
-    $response = $api->images($model, $prompt, $size, $format, $quality, $style, $output_format);
-    $images = [];
-    if (is_array($response) && isset($response['data'][0])) {
-      // Display raw response in the UI for diagnostics
-      $form_state['storage']['raw_response'] = $response;
-      foreach ($response['data'] as $data) {
-        $file_ext = 'png';
-        if (!empty($output_format)) {
-          switch ($output_format) {
-            case 'jpeg':
-              $file_ext = 'jpg';
-              break;
-            case 'webp':
-              $file_ext = 'webp';
-              break;
+    // Prefer base64 for GPT-image; otherwise prefer URL.
+    $is_gpt_image = (bool) preg_match('/^gpt-image/i', $model);
+    $preferred_response_format = $is_gpt_image ? 'b64_json' : 'url';
+
+    // Debug: log which API instance and provider we're about to call so we
+    // can confirm whether OpenRouterAdapter::images() will be used.
+    try {
+      $api_class = is_object($api) ? get_class($api) : 'none';
+      watchdog('openai_dalle', 'Invoking image generation using provider @provider (API class: @class), model @model, prefer format @fmt', [
+        '@provider' => $storage['provider'],
+        '@class' => $api_class,
+        '@model' => $model,
+        '@fmt' => $preferred_response_format,
+      ], WATCHDOG_INFO);
+    } catch (Exception $e) {
+      // Ignore logging failures.
+    }
+
+    // Generate the image using the provider-agnostic API.
+    // (OpenRouter commonly returns data URLs via 'url'.)
+    $result = $api->images($model, $prompt, '1024x1024', $preferred_response_format);
+
+    // If adapter returned nothing, try fallback using OpenAI provider if available.
+    if ((is_array($result) && empty($result['data'])) || $result === NULL) {
+      watchdog('openai_dalle', 'Primary provider returned no image data. Attempting fallback to OpenAI provider. Provider: @provider', ['@provider' => $storage['provider']], WATCHDOG_WARNING);
+      if ($storage['provider'] !== 'openai') {
+        try {
+          $openai_api = openai_get_api('openai');
+          if ($openai_api) {
+            $fallback_format = $is_gpt_image ? 'b64_json' : 'url';
+            $fallback_result = $openai_api->images($model, $prompt, '1024x1024', $fallback_format);
+            if (is_array($fallback_result) && !empty($fallback_result['data'][0])) {
+              $result = $fallback_result;
+              watchdog('openai_dalle', 'Fallback to OpenAI provider succeeded.', [], WATCHDOG_INFO);
+            }
+            else {
+              watchdog('openai_dalle', 'Fallback to OpenAI provider did not return image data (format: @fmt): @resp', ['@fmt' => $fallback_format, '@resp' => print_r($fallback_result, TRUE)], WATCHDOG_WARNING);
+            }
           }
         }
-        $unique_filename = $filename_base . '-' . $timestamp . '.' . $file_ext;
-        if (isset($data['b64_json'])) {
-          $data_decoded = base64_decode($data['b64_json']);
-          if ($data_decoded !== false) {
-            $file = file_save_data($data_decoded, $file_scheme . '://' . $unique_filename, FILE_EXISTS_REPLACE);
-            if ($file) {
-              file_usage_add($file, 'openai_dalle', 'module', $file->fid);
-              $form_state['storage'] = [
-                'filename' => $file->filename,
-                'filepath' => file_create_url($file->uri),
-                'fid' => $file->fid,
-                'format' => 'base64',
-                'raw_response' => $response,
-              ];
-              $images[] = $file;
-            } else {
-              form_set_error('', t('Failed to save the image to the file system.'));
-            }
-          } else {
-            form_set_error('', t('Failed to decode the Base64 image data.'));
-          }
-        } elseif (isset($data['binary'])) {
-          $file = file_save_data($data['binary'], $file_scheme . '://' . $unique_filename, FILE_EXISTS_REPLACE);
-          if ($file) {
-            file_usage_add($file, 'openai_dalle', 'module', $file->fid);
-            $form_state['storage'] = [
-              'filename' => $file->filename,
-              'filepath' => file_create_url($file->uri),
-              'fid' => $file->fid,
-              'format' => $file_ext,
-              'raw_response' => $response,
-            ];
-            $images[] = $file;
-          } else {
-            form_set_error('', t('Failed to save the image to the file system.'));
-          }
-        } elseif (isset($data['url'])) {
-          // Handle URL response format (download the image)
-          $image_content = @file_get_contents($data['url']);
-          if ($image_content !== FALSE) {
-            $file = file_save_data($image_content, $file_scheme . '://' . $unique_filename, FILE_EXISTS_REPLACE);
-            if ($file) {
-              file_usage_add($file, 'openai_dalle', 'module', $file->fid);
-              $form_state['storage'] = [
-                'filename' => $file->filename,
-                'filepath' => file_create_url($file->uri),
-                'fid' => $file->fid,
-                'format' => 'url',
-                'raw_response' => $response,
-              ];
-              $images[] = $file;
-            } else {
-              form_set_error('', t('Failed to save the image to the file system.'));
-            }
-          } else {
-            form_set_error('', t('Failed to download image from URL: @url', ['@url' => $data['url']]));
-          }
-        } elseif (is_string($data) && strlen($data) > 100) {
-          // Handle direct base64 string response (possible for gpt-image models)
-          $data_decoded = base64_decode($data);
-          if ($data_decoded !== false) {
-            $file = file_save_data($data_decoded, $file_scheme . '://' . $unique_filename, FILE_EXISTS_REPLACE);
-            if ($file) {
-              file_usage_add($file, 'openai_dalle', 'module', $file->fid);
-              $form_state['storage'] = [
-                'filename' => $file->filename,
-                'filepath' => file_create_url($file->uri),
-                'fid' => $file->fid,
-                'format' => 'base64_direct',
-                'raw_response' => $response,
-              ];
-              $images[] = $file;
-            } else {
-              form_set_error('', t('Failed to save the image to the file system.'));
-            }
-          } else {
-            form_set_error('', t('Failed to decode the direct Base64 image data.'));
-          }
-        } else {
-          // Log all available keys for debugging
-          $available_keys = is_array($data) ? implode(', ', array_keys($data)) : 'not an array';
-          watchdog('openai', 'No valid image data found in response. Available keys: @keys. Data: @data', [
-            '@keys' => $available_keys,
-            '@data' => print_r($data, TRUE)
-          ], WATCHDOG_ERROR);
-          form_set_error('', t('No valid image data found in response. Available keys: @keys', ['@keys' => $available_keys]));
+        catch (Exception $e) {
+          watchdog('openai_dalle', 'Fallback attempt to OpenAI failed: @msg', ['@msg' => $e->getMessage()], WATCHDOG_WARNING);
         }
-      }
-      if (empty($images)) {
-        form_set_error('', t('Failed to process any valid images from the API response.'));
-      }
-    } else {
-      // Fallback for legacy response (single string)
-      if (is_string($response) && strlen($response) > 100) {
-        $data_decoded = base64_decode($response);
-        if ($data_decoded !== false) {
-          $file = file_save_data($data_decoded, $file_scheme . '://' . $unique_filename, FILE_EXISTS_REPLACE);
-          if ($file) {
-            file_usage_add($file, 'openai_dalle', 'module', $file->fid);
-            $form_state['storage'] = [
-              'filename' => $file->filename,
-              'filepath' => file_create_url($file->uri),
-              'fid' => $file->fid,
-              'format' => 'base64',
-              'raw_response' => $response,
-            ];
-          } else {
-            form_set_error('', t('Failed to save the image to the file system.'));
-          }
-        } else {
-          form_set_error('', t('No image data found in the response.'));
-        }
-      } else {
-        form_set_error('', t('No image data found in the response.'));
       }
     }
-  } catch (Exception $e) {
+
+    // Expect: ['data' => [ [ 'url' => ... ] or [ 'b64_json' => ... ] ]]
+    if (!is_array($result) || empty($result['data']) || !isset($result['data'][0])) {
+      watchdog('openai_dalle', 'Image API returned unexpected response for provider @provider: @resp', ['@provider' => $storage['provider'], '@resp' => print_r($result, TRUE)], WATCHDOG_ERROR);
+      form_set_error('', t('Unexpected response from image API. No image data returned.'));
+      return;
+    }
+
+    $data_item      = $result['data'][0];
+    $ext            = 'png';
+
+    // Case 1: URL present (may be https or data URL).
+    if (!empty($data_item['url'])) {
+      $url = $data_item['url'];
+
+      if (is_string($url) && strpos($url, 'data:image/') === 0) {
+        // Handle data URLs (OpenRouter’s image output).
+        $parsed = openai_dalle_parse_data_url($url);
+        if (!$parsed) {
+          form_set_error('', t('Could not parse the image data URL returned by the provider.'));
+          return;
+        }
+        $image_contents = $parsed['data'];
+        $ext            = $parsed['ext']; // png/jpeg/webp
+      }
+      else {
+        // Regular http(s) URL — download it.
+        $image_contents = @file_get_contents($url);
+        if ($image_contents === FALSE || $image_contents === NULL) {
+          watchdog('openai_dalle', 'Failed to download image from URL: @url - provider response: @resp', ['@url' => $url, '@resp' => print_r($result, TRUE)], WATCHDOG_ERROR);
+          form_set_error('', t('Failed to download the generated image from the returned URL.'));
+          return;
+        }
+        // Sniff mime → extension.
+        $finfo     = new finfo(FILEINFO_MIME_TYPE);
+        $mime_type = $finfo->buffer($image_contents);
+        if ($mime_type === 'image/jpeg') { $ext = 'jpg'; }
+        elseif ($mime_type === 'image/png') { $ext = 'png'; }
+        elseif ($mime_type === 'image/webp') { $ext = 'webp'; }
+      }
+    }
+    // Case 2: Base64 JSON present (e.g., GPT-Image).
+    elseif (!empty($data_item['b64_json'])) {
+      $b64 = $data_item['b64_json'];
+      $image_contents = base64_decode($b64);
+      if ($image_contents === FALSE) {
+        watchdog('openai_dalle', 'Failed to decode base64 image payload for model @model. Provider response: @resp', ['@model' => $model, '@resp' => print_r($data_item, TRUE)], WATCHDOG_ERROR);
+        form_set_error('', t('Failed to decode the Base64 image data returned by the model.'));
+        return;
+      }
+      $finfo     = new finfo(FILEINFO_MIME_TYPE);
+      $mime_type = $finfo->buffer($image_contents);
+      if ($mime_type === 'image/jpeg') { $ext = 'jpg'; }
+      elseif ($mime_type === 'image/png') { $ext = 'png'; }
+      elseif ($mime_type === 'image/webp') { $ext = 'webp'; }
+    }
+    else {
+      // Case 3: Try to find any URL in the payload.
+      $url = openai_dalle_find_url_in_response($result);
+      if (!empty($url)) {
+        if (strpos($url, 'data:image/') === 0) {
+          $parsed = openai_dalle_parse_data_url($url);
+          if (!$parsed) {
+            form_set_error('', t('Could not parse the image data URL returned by the provider.'));
+            return;
+          }
+          $image_contents = $parsed['data'];
+          $ext            = $parsed['ext'];
+        }
+        else {
+          $image_contents = @file_get_contents($url);
+          if ($image_contents === FALSE || $image_contents === NULL) {
+            watchdog('openai_dalle', 'Failed to download image from discovered URL: @url - provider response: @resp', ['@url' => $url, '@resp' => print_r($result, TRUE)], WATCHDOG_ERROR);
+            form_set_error('', t('Failed to download the generated image from the returned URL.'));
+            return;
+          }
+          $finfo     = new finfo(FILEINFO_MIME_TYPE);
+          $mime_type = $finfo->buffer($image_contents);
+          if ($mime_type === 'image/jpeg') { $ext = 'jpg'; }
+          elseif ($mime_type === 'image/png') { $ext = 'png'; }
+          elseif ($mime_type === 'image/webp') { $ext = 'webp'; }
+        }
+      }
+      else {
+        watchdog('openai_dalle', 'Image API returned no URL (and no supported base64). Full response: @resp', ['@resp' => print_r($result, TRUE)], WATCHDOG_ERROR);
+        form_set_error('', t('Unexpected response from image API. The provider did not return an image.'));
+        return;
+      }
+    }
+
+    // Build destination and ensure directory exists.
+    $unique_filename = $filename_base . '-' . $timestamp . '.' . $ext;
+    $destination     = $file_scheme . '://openai_dalle/' . $unique_filename;
+
+    $directory = backdrop_dirname($destination);
+    file_prepare_directory($directory, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS);
+
+    // Save the file.
+    $file = file_save_data($image_contents, $destination, FILE_EXISTS_RENAME);
+    if ($file) {
+      file_usage_add($file, 'openai_dalle', 'module', $file->fid);
+      $storage['filename'] = $file->filename;
+      $storage['filepath'] = file_create_url($file->uri);
+      $storage['fid']      = $file->fid;
+      backdrop_set_message(t('Image generated and saved successfully!'));
+    }
+    else {
+      watchdog('openai_dalle', 'file_save_data failed when saving image to @dest', ['@dest' => $destination], WATCHDOG_ERROR);
+      form_set_error('', t('Failed to save the image to the file system.'));
+    }
+  }
+  catch (Exception $e) {
+    watchdog('openai_dalle', 'Image generation exception: @msg', ['@msg' => $e->getMessage()], WATCHDOG_ERROR);
     form_set_error('', t('Error generating image: @message', ['@message' => $e->getMessage()]));
   }
+
+  // Rebuild to refresh the AJAX wrapper with the new file info.
   $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * Recursively search a provider response array for the first image URL.
+ *
+ * @param mixed $data
+ *   The response to search (array or string).
+ *
+ * @return string|null
+ *   The first URL found, or NULL if none.
+ */
+function openai_dalle_find_url_in_response($data) {
+  // If it's a string, try to extract a URL.
+  if (is_string($data)) {
+    if (filter_var(trim($data), FILTER_VALIDATE_URL)) {
+      return trim($data);
+    }
+    if (preg_match('/https?:\/\/[^\s\)\"]+\.(png|jpg|jpeg|webp|gif)/i', $data, $m)) {
+      return $m[0];
+    }
+    // Also allow raw data URLs here.
+    if (strpos($data, 'data:image/') === 0) {
+      return $data;
+    }
+    return NULL;
+  }
+
+  // If it's an array, walk it.
+  if (is_array($data)) {
+    foreach ($data as $item) {
+      $found = openai_dalle_find_url_in_response($item);
+      if (!empty($found)) {
+        return $found;
+      }
+    }
+  }
+
+  return NULL;
+}
+
+/**
+ * Parse a data URL (data:image/...;base64,....) into ['ext' => 'png|jpg|webp', 'data' => <binary>].
+ *
+ * @param string $data_url
+ * @return array|null
+ */
+function openai_dalle_parse_data_url($data_url) {
+  if (!is_string($data_url) || strpos($data_url, 'data:image/') !== 0) {
+    return NULL;
+  }
+  $semi = strpos($data_url, ';');
+  $comma = strpos($data_url, ',');
+  if ($semi === FALSE || $comma === FALSE || $comma <= $semi) {
+    return NULL;
+  }
+  $mime = substr($data_url, 5, $semi - 5); // e.g., image/png
+  $b64  = substr($data_url, $comma + 1);
+
+  $binary = base64_decode($b64);
+  if ($binary === FALSE) {
+    return NULL;
+  }
+
+  // Determine extension from mime.
+  $ext = 'png';
+  if ($mime === 'image/jpeg' || $mime === 'image/jpg') { $ext = 'jpg'; }
+  elseif ($mime === 'image/png') { $ext = 'png'; }
+  elseif ($mime === 'image/webp') { $ext = 'webp'; }
+
+  return ['ext' => $ext, 'data' => $binary];
 }

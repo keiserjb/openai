@@ -41,15 +41,71 @@ function openai_content_settings_form($form, &$form_state) {
   $config = config('openai_content.settings');
 
   $openai_config = config('openai.settings');
-  $apiKey = key_get_key_value($openai_config->get('api_key'));
+  $providers_root = $openai_config->get('providers') ?: [];
 
-  if (empty($apiKey)) {
-    form_set_error('', t('API key is not set. Please configure the API key in OpenAI settings.'));
+  // Check if any provider is enabled
+  $any_enabled = FALSE;
+  foreach ($providers_root as $p => $cfg) {
+    if (!empty($cfg['enabled'])) {
+      $any_enabled = TRUE;
+      break;
+    }
+  }
+
+  if (!$any_enabled) {
+    form_set_error('', t('No providers are enabled. Please configure a provider in OpenAI settings.'));
     return $form;
   }
 
-  $api = new OpenAIApi($apiKey);
-  $models = $api->filterModels(['gpt']);
+  // Get chat models from all enabled providers
+  $chat_models_grouped = openai_get_all_chat_models();
+  
+  // Flatten grouped models since labels already include provider prefix
+  $chat_models = [];
+  foreach ($chat_models_grouped as $group_label => $group_items) {
+    if (is_array($group_items)) {
+      foreach ($group_items as $k => $v) {
+        $chat_models[$k] = $v;
+      }
+    }
+  }
+  
+  // Get moderation models from all enabled providers
+  $moderation_models_grouped = [];
+  foreach ($providers_root as $provider_id => $provider_config) {
+    if (!empty($provider_config['enabled'])) {
+      try {
+        $api = openai_get_api($provider_id);
+        if ($api && method_exists($api, 'getModerationModels')) {
+          $provider_label = openai_get_provider_label($provider_id);
+          $provider_models = $api->getModerationModels();
+          if (!empty($provider_models)) {
+            foreach ($provider_models as $model_id => $model_name) {
+              // Add provider prefix to moderation models too
+              $prefixed_label = $provider_label . ': ' . $model_name;
+              $moderation_models_grouped[$provider_label][$model_id] = $prefixed_label;
+            }
+          }
+        }
+      }
+      catch (Exception $e) {
+        watchdog('openai_content', 'Failed to fetch moderation models from @provider: @message', [
+          '@provider' => $provider_id,
+          '@message' => $e->getMessage(),
+        ], WATCHDOG_WARNING);
+      }
+    }
+  }
+  
+  // Flatten moderation models
+  $moderation_models = [];
+  foreach ($moderation_models_grouped as $group_label => $group_items) {
+    if (is_array($group_items)) {
+      foreach ($group_items as $k => $v) {
+        $moderation_models[$k] = $v;
+      }
+    }
+  }
 
   $form = array();
   $form['#config'] = 'openai_content.settings';
@@ -72,7 +128,7 @@ function openai_content_settings_form($form, &$form_state) {
     '#description' => t('Allows analyzing the text for policy violations.'),
   ];
 
-  // Text analysis settings section
+  // Text Analysis settings section.
   $form['features']['text_analysis_settings'] = [
     '#type' => 'fieldset',
     '#title' => t('Text Analysis Settings'),
@@ -80,16 +136,12 @@ function openai_content_settings_form($form, &$form_state) {
     '#collapsed' => TRUE,
   ];
 
-  // Get available moderation models
-  // Use multiple prefixes since moderation models start with different prefixes
-  $moderation_models = $api->filterModels(['omni-moderation', 'text-moderation']);
-
   $form['features']['text_analysis_settings']['text_analysis_model'] = [
     '#type' => 'select',
-    '#title' => t('Moderation Model'),
+    '#title' => t('Model for Text Analysis'),
     '#options' => $moderation_models,
     '#default_value' => $config->get('text_analysis_model') ?? 'omni-moderation-latest',
-    '#description' => t('Select the OpenAI moderation model to use for text analysis.'),
+    '#description' => t('Select the moderation model to use for text analysis.'),
   ];
 
   $form['features']['tone_adjustment'] = [
@@ -117,7 +169,7 @@ function openai_content_settings_form($form, &$form_state) {
   $form['features']['tone_adjustment_settings']['tone_adjustment_model'] = [
     '#type' => 'select',
     '#title' => t('Model for Tone Adjustment'),
-    '#options' => $models,
+    '#options' => $chat_models,
     '#default_value' => $config->get('tone_adjustment_model') ?? 'gpt-3.5-turbo',
     '#description' => t('Select the model to use for tone adjustment.'),
   ];
@@ -165,7 +217,7 @@ function openai_content_settings_form($form, &$form_state) {
   $form['features']['summarization_settings']['summarization_model'] = [
     '#type' => 'select',
     '#title' => t('Model for Summarization'),
-    '#options' => $models,
+    '#options' => $chat_models,
     '#default_value' => $config->get('summarization_model') ?? 'gpt-3.5-turbo',
     '#description' => t('Select the model to use for summarization.'),
   ];
@@ -212,7 +264,7 @@ function openai_content_settings_form($form, &$form_state) {
   $form['features']['title_settings']['title_model'] = [
     '#type' => 'select',
     '#title' => t('Model for Title Suggestion'),
-    '#options' => $models,
+    '#options' => $chat_models,
     '#default_value' => $config->get('title_model') ?? 'gpt-3.5-turbo',
     '#description' => t('Select the model to use for title suggestions.'),
   ];
@@ -263,7 +315,7 @@ function openai_content_settings_form($form, &$form_state) {
   $form['features']['taxonomy_settings']['taxonomy_model'] = [
     '#type' => 'select',
     '#title' => t('Model for Taxonomy Suggestion'),
-    '#options' => $models,
+    '#options' => $chat_models,
     '#default_value' => $config->get('taxonomy_model') ?? 'gpt-3.5-turbo',
     '#description' => t('Select the model to use for taxonomy suggestions.'),
   ];
@@ -463,9 +515,7 @@ function _openai_content_get_all_text_with_summary_fields($entity) {
  *   The renderable part of the form.
  */
 function openai_content_entity_adjust_tone($form, &$form_state) {
-  $openai_config = config('openai.settings');
   $content_config = config('openai_content.settings');
-  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (isset($form_state['values']['target_field'])) {
     $target_field = $form_state['values']['target_field'];
@@ -475,8 +525,6 @@ function openai_content_entity_adjust_tone($form, &$form_state) {
       $tone = $form_state['values']['openai_tone_edit']['tone'];
 
       if (!empty($target_field_value)) {
-        $client = new OpenAIApi($apiKey);
-
         // Fetch settings for tone adjustment.
         $model = $content_config->get('tone_adjustment_model') ?? 'gpt-3.5-turbo';
         $temperature = $content_config->get('tone_adjustment_temperature') ?? 0.7;
@@ -487,7 +535,7 @@ function openai_content_entity_adjust_tone($form, &$form_state) {
         $final_prompt = str_replace('{{ tone }}', $tone, $prompt) . "\r\n\"" . StringHelper::prepareText($target_field_value, [], 3900) . "\"";
 
         try {
-          $response = $client->chat(
+          $response = openai_chat(
             $model,
             [
               ['role' => 'user', 'content' => $final_prompt]
@@ -533,9 +581,7 @@ function openai_content_entity_adjust_tone($form, &$form_state) {
  *   The renderable part of the form.
  */
 function openai_content_entity_field_summarize($form, &$form_state) {
-  $openai_config = config('openai.settings');
   $content_config = config('openai_content.settings');
-  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (isset($form_state['values']['target_field'])) {
     $target_field = $form_state['values']['target_field'];
@@ -544,8 +590,6 @@ function openai_content_entity_field_summarize($form, &$form_state) {
       $target_field_value = $form_state['values'][$target_field][LANGUAGE_NONE][0]['value'];
 
       if (!empty($target_field_value)) {
-        $client = new OpenAIApi($apiKey);
-
         // Fetch settings for summarization.
         $model = $content_config->get('summarization_model') ?? 'gpt-3.5-turbo';
         $temperature = $content_config->get('summarization_temperature') ?? 0.7;
@@ -556,7 +600,7 @@ function openai_content_entity_field_summarize($form, &$form_state) {
         $final_prompt = $prompt . "\r\n\"" . StringHelper::prepareText($target_field_value, [], 3900) . "\"";
 
         try {
-          $response = $client->chat(
+          $response = openai_chat(
             $model,
             [
               ['role' => 'user', 'content' => $final_prompt]
@@ -602,9 +646,7 @@ function openai_content_entity_field_summarize($form, &$form_state) {
  *   The renderable part of the form.
  */
 function openai_content_suggest_title($form, &$form_state) {
-  $openai_config = config('openai.settings');
   $content_config = config('openai_content.settings');
-  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (isset($form_state['values']['target_field'])) {
     $target_field = $form_state['values']['target_field'];
@@ -613,8 +655,6 @@ function openai_content_suggest_title($form, &$form_state) {
       $target_field_value = $form_state['values'][$target_field][LANGUAGE_NONE][0]['value'];
 
       if (!empty($target_field_value)) {
-        $client = new OpenAIApi($apiKey);
-
         // Fetch settings for title suggestion.
         $model = $content_config->get('title_model') ?? 'gpt-3.5-turbo';
         $temperature = $content_config->get('title_temperature') ?? 0.4;
@@ -625,7 +665,7 @@ function openai_content_suggest_title($form, &$form_state) {
         $final_prompt = $prompt . "\r\n\"" . StringHelper::prepareText($target_field_value, [], 3900) . "\"";
 
         try {
-          $response = $client->chat(
+          $response = openai_chat(
             $model,
             [
               ['role' => 'user', 'content' => $final_prompt]
@@ -671,10 +711,7 @@ function openai_content_suggest_title($form, &$form_state) {
  *   The renderable part of the form.
  */
 function openai_content_entity_suggest_taxonomy($form, &$form_state) {
-  $openai_config = config('openai.settings');
   $content_config = config('openai_content.settings');
-
-  $apiKey = key_get_key_value($openai_config->get('api_key'));
 
   if (isset($form_state['values']['target_field'])) {
     $target_field = $form_state['values']['target_field'];
@@ -683,7 +720,6 @@ function openai_content_entity_suggest_taxonomy($form, &$form_state) {
       $target_field_value = $form_state['values'][$target_field][LANGUAGE_NONE][0]['value'];
 
       if (!empty($target_field_value)) {
-        $client = new OpenAIApi($apiKey);
         $truncated_value = StringHelper::prepareText($target_field_value, [], 3900);
 
         // Get settings from the configuration.
@@ -693,7 +729,7 @@ function openai_content_entity_suggest_taxonomy($form, &$form_state) {
         $max_tokens = $content_config->get('taxonomy_max_tokens') ?? 2048;
 
         try {
-          $response = $client->chat(
+          $response = openai_chat(
             $model,
             [
               ['role' => 'user', 'content' => $prompt . "\r\n\"" . $truncated_value . "\""],
@@ -740,7 +776,9 @@ function openai_content_entity_suggest_taxonomy($form, &$form_state) {
 function openai_content_entity_analyze_content($form, &$form_state) {
   $openai_config = config('openai.settings');
   $content_config = config('openai_content.settings');
-  $apiKey = key_get_key_value($openai_config->get('api_key'));
+  
+  // Get the configured moderation model
+  $moderation_model = $content_config->get('text_analysis_model') ?? 'omni-moderation-latest';
 
   if (isset($form_state['values']['target_field'])) {
     $target_field = $form_state['values']['target_field'];
@@ -749,14 +787,11 @@ function openai_content_entity_analyze_content($form, &$form_state) {
       $target_field_value = $form_state['values'][$target_field][LANGUAGE_NONE][0]['value'];
 
       if (!empty($target_field_value)) {
-        $client = new OpenAIApi($apiKey);
         $truncated_value = StringHelper::prepareText($target_field_value, [], 8000);
 
-        // Get the configured moderation model
-        $model = $content_config->get('text_analysis_model') ?? 'omni-moderation-latest';
-
         try {
-          $result = $client->moderation($truncated_value, $model);
+          // Use the moderation API with the configured model
+          $result = openai_moderation($truncated_value, $moderation_model);
 
           // Check if the response contains flagged content
           $flagged = (bool) $result["results"][0]["flagged"];

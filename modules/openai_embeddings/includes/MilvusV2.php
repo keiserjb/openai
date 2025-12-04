@@ -19,21 +19,21 @@ class MilvusV2 {
    *
    * @var string
    */
-  private $apiKey = '';
+  private string $apiKey = '';
 
   /**
    * The base URL.
    *
    * @var string
    */
-  private $baseUrl = '';
+  private string $baseUrl = '';
 
   /**
    * The port.
    *
    * @var int
    */
-  private $port = 443;
+  private int $port = 443;
 
   /**
    * Constructor.
@@ -292,6 +292,7 @@ class MilvusV2 {
 
     $response = $this->makeRequest('vectordb/entities/search', [], 'POST', $params);
     $decodedResponse = json_decode($response, true);
+    //dpm($decodedResponse);
     return $decodedResponse;
   }
 
@@ -318,9 +319,10 @@ class MilvusV2 {
       throw new \Exception('No base url set.');
     }
     // Don't wait too long.
-    $options['connect_timeout'] = 120;
-    $options['read_timeout'] = 120;
-    $options['timeout'] = 120;
+    // Use shorter timeouts to avoid long UI hangs when Milvus is unreachable.
+    $options['connect_timeout'] = $options['connect_timeout'] ?? 5;
+    $options['read_timeout'] = $options['read_timeout'] ?? 10;
+    $options['timeout'] = $options['timeout'] ?? 10;
 
     // JSON unless its multipart.
     if (empty($options['multipart'])) {
