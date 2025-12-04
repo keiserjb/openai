@@ -7,6 +7,15 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'Composer\\InstalledVersions' => $vendorDir . '/composer/InstalledVersions.php',
+    'DateError' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/DateError.php',
+    'DateException' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/DateException.php',
+    'DateInvalidOperationException' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/DateInvalidOperationException.php',
+    'DateInvalidTimeZoneException' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/DateInvalidTimeZoneException.php',
+    'DateMalformedIntervalStringException' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/DateMalformedIntervalStringException.php',
+    'DateMalformedPeriodStringException' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/DateMalformedPeriodStringException.php',
+    'DateMalformedStringException' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/DateMalformedStringException.php',
+    'DateObjectError' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/DateObjectError.php',
+    'DateRangeError' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/DateRangeError.php',
     'GuzzleHttp\\BodySummarizer' => $vendorDir . '/guzzlehttp/guzzle/src/BodySummarizer.php',
     'GuzzleHttp\\BodySummarizerInterface' => $vendorDir . '/guzzlehttp/guzzle/src/BodySummarizerInterface.php',
     'GuzzleHttp\\Client' => $vendorDir . '/guzzlehttp/guzzle/src/Client.php',
@@ -421,6 +430,7 @@ return array(
     'OpenAI\\ValueObjects\\Transporter\\Payload' => $vendorDir . '/openai-php/client/src/ValueObjects/Transporter/Payload.php',
     'OpenAI\\ValueObjects\\Transporter\\QueryParams' => $vendorDir . '/openai-php/client/src/ValueObjects/Transporter/QueryParams.php',
     'OpenAI\\ValueObjects\\Transporter\\Response' => $vendorDir . '/openai-php/client/src/ValueObjects/Transporter/Response.php',
+    'Override' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/Override.php',
     'Psr\\Container\\ContainerExceptionInterface' => $vendorDir . '/psr/container/src/ContainerExceptionInterface.php',
     'Psr\\Container\\ContainerInterface' => $vendorDir . '/psr/container/src/ContainerInterface.php',
     'Psr\\Container\\NotFoundExceptionInterface' => $vendorDir . '/psr/container/src/NotFoundExceptionInterface.php',
@@ -449,6 +459,7 @@ return array(
     'Psr\\Log\\LoggerInterface' => $vendorDir . '/psr/log/src/LoggerInterface.php',
     'Psr\\Log\\LoggerTrait' => $vendorDir . '/psr/log/src/LoggerTrait.php',
     'Psr\\Log\\NullLogger' => $vendorDir . '/psr/log/src/NullLogger.php',
+    'SQLite3Exception' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/SQLite3Exception.php',
     'Symfony\\Component\\HttpClient\\AmpHttpClient' => $vendorDir . '/symfony/http-client/AmpHttpClient.php',
     'Symfony\\Component\\HttpClient\\AsyncDecoratorTrait' => $vendorDir . '/symfony/http-client/AsyncDecoratorTrait.php',
     'Symfony\\Component\\HttpClient\\CachingHttpClient' => $vendorDir . '/symfony/http-client/CachingHttpClient.php',
@@ -536,4 +547,5 @@ return array(
     'Symfony\\Contracts\\Service\\ServiceProviderInterface' => $vendorDir . '/symfony/service-contracts/ServiceProviderInterface.php',
     'Symfony\\Contracts\\Service\\ServiceSubscriberInterface' => $vendorDir . '/symfony/service-contracts/ServiceSubscriberInterface.php',
     'Symfony\\Contracts\\Service\\ServiceSubscriberTrait' => $vendorDir . '/symfony/service-contracts/ServiceSubscriberTrait.php',
+    'Symfony\\Polyfill\\Php83\\Php83' => $vendorDir . '/symfony/polyfill-php83/Php83.php',
 );
