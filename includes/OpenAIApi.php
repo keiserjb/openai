@@ -540,34 +540,52 @@ class OpenAIApi {
     // ];
 
     // We'll build parameter attempts dynamically per token-multiplier pass.
-    // Initialize token multiplier strategy without hardcoded model names.
-    $initial_max_tokens = (int) $max_tokens;
-    $max_multiplier_attempts = 3; // will try multipliers: 1x, 4x, 8x
-
+    // Prefer trying the modern parameter name with the requested temperature first,
+    // then the legacy parameter, and only try forced temperature=1 as a last resort.
     $base_attempt_templates = [
       // New parameter name (max_completion_tokens) preferred for newer models.
       ['temperature' => floatval($temperature), 'max_completion_tokens' => NULL],
-      ['temperature' => 1, 'max_completion_tokens' => NULL],
       // Legacy parameter name as fallback.
       ['temperature' => floatval($temperature), 'max_tokens' => NULL],
+      // New param but forced temperature=1 — last resort for models that reject custom temps.
+      ['temperature' => 1, 'max_completion_tokens' => NULL],
+      // Legacy param forced temperature = 1 as final fallback.
       ['temperature' => 1, 'max_tokens' => NULL],
     ];
+
+    // Ensure required variables are defined so we don't hit undefined variable warnings.
+    // $initial_max_tokens is the caller-provided max_tokens normalized to int.
+    $initial_max_tokens = (int) $max_tokens;
+    // Number of multiplier passes: reduce to 2 by default for cost control: 1 => base, 2 => *2.
+    $max_multiplier_attempts = 2;
+    // Precompute total attempts for logging.
+    $total_attempts = $max_multiplier_attempts * count($base_attempt_templates);
 
     $last_error = NULL;
 
     // Loop across multiplier attempts first, then across parameter templates.
     for ($mult = 1; $mult <= $max_multiplier_attempts; $mult++) {
-      $current_max = $initial_max_tokens * ($mult === 1 ? 1 : ($mult === 2 ? 4 : 8));
+      // Use a conservative scale: pass 1 = 1x, pass 2 = 2x. This limits costs while
+      // still giving some room for reasoning models that need a larger completion budget.
+      $current_max = $initial_max_tokens * ($mult === 1 ? 1 : 2);
       foreach ($base_attempt_templates as $index => $template) {
         // Merge model/messages with template and fill in the current max token
         $attempt_params = $template;
-        if (isset($attempt_params['max_completion_tokens'])) {
+        // Use array_key_exists so NULL placeholders are detected and replaced.
+        if (array_key_exists('max_completion_tokens', $attempt_params)) {
           $attempt_params['max_completion_tokens'] = $current_max;
         }
-        if (isset($attempt_params['max_tokens'])) {
+        if (array_key_exists('max_tokens', $attempt_params)) {
           $attempt_params['max_tokens'] = $current_max;
         }
         $request_params = array_merge(['model' => $model, 'messages' => $messages], $attempt_params);
+
+        // Remove any keys that are explicitly NULL so we don't send null params to the API.
+        foreach ($request_params as $k => $v) {
+          if ($v === NULL) {
+            unset($request_params[$k]);
+          }
+        }
 
         try {
           if ($stream_response) {
@@ -590,41 +608,34 @@ class OpenAIApi {
           else {
             $response = $this->client->chat()->create($request_params);
             $result = $response->toArray();
-            $content = trim($result['choices'][0]['message']['content']);
+            $content = trim($result['choices'][0]['message']['content'] ?? '');
 
-            // Check if we got an empty response due to reasoning token exhaustion
-            // if (empty($content) && $is_reasoning_model && isset($result['usage']['completion_tokens_details']['reasoning_tokens'])) {
-            //   $reasoning_tokens = $result['usage']['completion_tokens_details']['reasoning_tokens'];
-            //   if ($reasoning_tokens > 0) {
-            //     // Try again with even more tokens
-            //     $request_params['max_completion_tokens'] = $adjusted_max_tokens * 2;
-            //     watchdog('openai', 'Reasoning model @model used @reasoning reasoning tokens with empty response. Retrying with @new_max tokens.',
-            //       array('@model' => $model, '@reasoning' => $reasoning_tokens, '@new_max' => $adjusted_max_tokens * 2),
-            //       WATCHDOG_DEBUG);
-
-            //     $response = $this->client->chat()->create($request_params);
-            //     $result = $response->toArray();
-            //     $content = trim($result['choices'][0]['message']['content']);
-            //   }
-            // }
-
-            // Extract content safely
-            if (!empty($result['choices'][0]['message']['content'])) {
-              $content = trim($result['choices'][0]['message']['content']);
+            // Extract usage details safely
+            $used_completion_tokens = $result['usage']['completion_tokens'] ?? 0;
+            $reasoning_tokens = 0;
+            if (isset($result['usage']['completion_tokens_details']) && is_array($result['usage']['completion_tokens_details'])) {
+              $reasoning_tokens = $result['usage']['completion_tokens_details']['reasoning_tokens'] ?? 0;
             }
 
-            // If response is empty or finished due to length, consider retrying
+            // Determine whether we should escalate token budget. Only escalate when
+            // (a) the content is empty or the model stopped due to length, and
+            // (b) the model actually consumed completion tokens (evidence it used budget),
+            // and (c) either reasoning_tokens are present (>0) OR the finish_reason indicates length.
             $finish_reason = $result['choices'][0]['finish_reason'] ?? NULL;
-            $used_completion_tokens = $result['usage']['completion_tokens'] ?? ($result['usage']['completion_tokens_details']['reasoning_tokens'] ?? 0);
+
+            $is_empty_or_length = ($content === '' || strtolower($finish_reason) === 'length');
+            $has_evidence_of_consumption = ($used_completion_tokens > 0);
+            $has_reasoning = ($reasoning_tokens > 0);
 
             $should_retry_for_tokens = (
-              ($content === '' || strtolower($finish_reason) === 'length') &&
-              $used_completion_tokens > 0 &&
+              $is_empty_or_length &&
+              $has_evidence_of_consumption &&
+              ($has_reasoning || strtolower($finish_reason) === 'length') &&
               $mult < $max_multiplier_attempts
             );
 
             if ($should_retry_for_tokens) {
-              watchdog('openai', 'Empty/length-limited response from model @model on mult=@mult; used_completion_tokens=@used. Retrying with higher token multiplier.', ['@model'=>$model,'@mult'=>$mult,'@used'=>$used_completion_tokens], WATCHDOG_DEBUG);
+              watchdog('openai', 'Escalating tokens for model @model on mult=@mult because content empty/length and used_completion_tokens=@used (reasoning_tokens=@reasoning). Trying higher token multiplier.', ['@model'=>$model,'@mult'=>$mult,'@used'=>$used_completion_tokens,'@reasoning'=>$reasoning_tokens], WATCHDOG_DEBUG);
               // Continue to next iteration which will increase multiplier or try different params
               continue 2;
             }
@@ -637,17 +648,35 @@ class OpenAIApi {
         catch (\Exception $e) {
           $last_error = $e->getMessage();
 
-          // If this is the last attempt, log and fail
+          // Compute the linear attempt number for logging (1-based).
+          $attempt_number = (($mult - 1) * count($base_attempt_templates)) + ($index + 1);
+
+          // Detect non-retryable/fatal errors so we don't keep retrying.
+          $lower_msg = strtolower($last_error ?: '');
+          $is_fatal_error = false;
+
+          // Common signs of quota/rate-limit/auth errors or other fatal conditions.
+          if (strpos($lower_msg, 'quota') !== FALSE || strpos($lower_msg, 'quota exceeded') !== FALSE || strpos($lower_msg, 'rate limit') !== FALSE || strpos($lower_msg, '429') !== FALSE || strpos($lower_msg, 'not authorized') !== FALSE || strpos($lower_msg, 'invalid api key') !== FALSE) {
+            $is_fatal_error = true;
+          }
+
+          if ($is_fatal_error) {
+            // Log and abort immediately — retries are not useful for quota/auth errors.
+            $duration = microtime(TRUE) - $start_time;
+            $this->log('chat', $model, $request_params, NULL, FALSE, $duration, $last_error);
+            watchdog('openai', 'Non-retryable error on chat attempt @num/@total: @error', array('@num' => $attempt_number, '@total' => $total_attempts, '@error' => $last_error), WATCHDOG_ERROR);
+            return '';
+          }
+
+          // If this is the last overall attempt, log and fail
           if ($mult === $max_multiplier_attempts && $index === count($base_attempt_templates) - 1) {
             $duration = microtime(TRUE) - $start_time;
             $this->log('chat', $model, $request_params, NULL, FALSE, $duration, $last_error);
-            $total_attempts = $max_multiplier_attempts * count($base_attempt_templates);
             watchdog('openai', 'There was an issue obtaining a response from OpenAI chat after @count attempts. The final error was @error.', array('@count' => $total_attempts, '@error' => $last_error), WATCHDOG_ERROR);
             return '';
           }
 
-          // Otherwise, log the failed attempt and continue to the next attempt
-          $attempt_number = (($mult - 1) * count($base_attempt_templates)) + ($index + 1);
+          // Otherwise, continue to next attempt
           watchdog('openai', 'Chat attempt @num failed for model @model: @error. Trying alternate parameters.', array('@num' => $attempt_number, '@model' => $model, '@error' => $last_error), WATCHDOG_DEBUG);
           continue;
         }
@@ -865,7 +894,7 @@ class OpenAIApi {
         'response_format' => $response_format,
       ]);
       $duration = microtime(TRUE) - $start_time;
-      $this->log('textToSpeech', $model, ['input' => $input, 'voice' => $voice, 'response_format' => $response_format], $resp, TRUE, $duration);
+      $this->log('textToSpeech', $model, ['input' => $input, 'voice' => $response_format], $resp, TRUE, $duration);
       return $resp;
     } catch (\Exception $e) {
       $duration = microtime(TRUE) - $start_time;
