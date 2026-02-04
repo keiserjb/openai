@@ -401,6 +401,20 @@ class OpenAIApi {
    */
   public function completions(string $model, string $prompt, $temperature, $max_tokens = 512, bool $stream_response = FALSE) {
     $start_time = microtime(TRUE);
+
+    // Allow other modules to alter the prompt before sending. Modules can
+    // implement hook_openai_prompt_alter(&$prompt, $context) to inject
+    // site-wide guardrails, tokens, or to disable injection for specific
+    // operations (for example embedding generation).
+    if (function_exists('backdrop_alter')) {
+      $context = [
+        'operation' => 'completion',
+        'model' => $model,
+        'provider' => $this->provider,
+      ];
+      backdrop_alter('openai_prompt', $prompt, $context);
+    }
+
     $params = [
       'model' => $model,
       'prompt' => trim($prompt),
@@ -495,6 +509,20 @@ class OpenAIApi {
    */
   public function chat(string $model, array $messages, $temperature, $max_tokens = 512, bool $stream_response = FALSE) {
     $start_time = microtime(TRUE);
+
+    // Allow other modules to alter the chat messages before sending. Modules
+    // can implement hook_openai_chat_messages_alter(&$messages, $context) to
+    // prepend a system message with site guardrails or otherwise modify the
+    // message array. Run this before delegating to provider adapters so all
+    // providers receive the same injected context.
+    if (function_exists('backdrop_alter')) {
+      $context = [
+        'operation' => 'chat',
+        'model' => $model,
+        'provider' => $this->provider,
+      ];
+      backdrop_alter('openai_chat_messages', $messages, $context);
+    }
 
     // Build initial parameters with legacy approach
     $params = [
