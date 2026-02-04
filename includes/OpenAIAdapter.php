@@ -333,10 +333,8 @@ class OpenAIAdapter implements AIClientInterface {
           $this->api->recordLog('embedding', $model, ['input' => $input], NULL, FALSE, $duration, $e->getMessage());
         }
         $error_msg = $e->getMessage();
-        // Suppress log if it's a "does not support embeddings" message during probing.
-        // NOTE: We intentionally no longer suppress generic "not found" errors,
-        // so genuine missing-model or misconfiguration issues are visible in logs.
-        if (strpos($error_msg, 'does not support embeddings') === FALSE) {
+        // Suppress log if it's a "does not support embeddings" or similar during probing.
+        if (strpos($error_msg, 'does not support embeddings') === FALSE && strpos($error_msg, 'not found') === FALSE) {
           watchdog('openai', 'Embedding error: @error', ['@error' => $error_msg], WATCHDOG_ERROR);
         }
       }

@@ -791,14 +791,12 @@ function openai_get_all_chat_models() {
  */
 function openai_fetch_available_models() {
   try {
-    // Use the central provider-aware API factory so we respect the providers
-    // configuration (e.g., providers.openai.api_key) instead of the legacy
-    // openai.settings:api_key value.
-    $api = openai_get_api('openai');
-    if (!$api) {
-      watchdog('openai', 'The OpenAI API client could not be initialized. Check provider configuration.', [], WATCHDOG_ERROR);
+    $apiKey = key_get_key_value(config('openai.settings')->get('api_key'));
+    if (empty($apiKey) || !is_string($apiKey)) {
+      watchdog('openai', 'The API key could not be retrieved or is invalid.', [], WATCHDOG_ERROR);
       return [];
     }
+    $api = new OpenAIApi($apiKey);
     return $api->getModels();
   }
   catch (Exception $e) {
@@ -1200,14 +1198,6 @@ function openai_get_all_embedding_models_with_dimensions() {
           $dimension = openai_get_embedding_dimension($model_id, $provider_id);
 
           // Only include models that actually support embeddings (dimension > 0)
-          // Note: `openai_get_embedding_dimension()` currently falls back to 1536
-          // when dynamic detection fails. That means unknown or unsupported
-          // models may appear to have a nonzero dimension and won't be
-          // excluded by this check. If the intent is to only include models
-          // with a known/confirmed embedding dimension, use
-          // `openai_detect_embedding_dimension()` here or update
-          // `openai_get_embedding_dimension()` to return 0 when detection
-          // fails and there is no known override.
           if ($dimension <= 0) {
             continue;
           }
@@ -1299,7 +1289,7 @@ function openai_get_embedding_dimension($model_id, $provider_id = 'openai') {
 function openai_detect_embedding_dimension($model_id, $provider_id) {
   $cache_key = "embedding_dim:{$provider_id}:{$model_id}";
   $cached = cache_get($cache_key);
-  if ($cached && property_exists($cached, 'data')) {
+  if ($cached && !empty($cached->data)) {
     return (int) $cached->data;
   }
 
