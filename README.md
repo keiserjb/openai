@@ -1,5 +1,12 @@
 # OpenAI / ChatGPT / AI Search Integration
 
+**This module is deprecated.** Future development is moving to the
+[AI](https://github.com/backdrop-contrib/ai) and
+[AI Provider OpenAI](https://github.com/backdrop-contrib/ai_provider_openai)
+modules. Those modules are still in active development and have not had a
+stable release yet, so this module will continue to receive critical fixes
+until a suitable replacement is available.
+
 The Backdrop CMS OpenAI module makes it possible to interact with the
 [OpenAI API](https://openai.com/) to implement features using
 various API services.
